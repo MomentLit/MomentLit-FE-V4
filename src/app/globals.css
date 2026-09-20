@@ -1,0 +1,240 @@
+@import "tailwindcss";
+
+/*
+ * Design tokens — Figma "Design V2" atomic + semantic palette.
+ * Source of truth: Figma file E9367yvQVyDB2BiCLu3I49, nodes 5:38 ("Color/Atomic")
+ * and 5:39 ("Color/Semantic") — pulled via get_variable_defs, not eyeballed.
+ *
+ * The app's existing components all reference a small set of named tokens
+ * (`--sky`, `--ink`, `--soft`, `--wash`, `--line`, `--line-2`, plus the 8
+ * category/region "spectrum" names). Rather than rename every call site,
+ * this file keeps those names but repoints their values at the new palette:
+ *   - `--sky` already equals Primary/500 exactly (#5CB8FF) — unchanged.
+ *   - `--ink`/`--soft`/`--wash`/`--line`/`--line-2`/`--main-d` map onto the
+ *     Figma semantic tokens they're conceptually identical to (Text/Primary,
+ *     Text/Secondary, Background/Subtle, Border/Subtle, Border/Default,
+ *     Action/Hover).
+ *   - The other 7 "spectrum" names (mint/lime/lemon/apricot/coral/rose/violet)
+ *     have no matching hue in a 4-family palette (Primary/Green/Yellow/Red),
+ *     so each is tone-matched to the nearest available family/shade — see
+ *     the mapping table below. All 8 are real palette shades (Primary/Green/
+ *     Yellow/Red at various steps), never invented hexes. Deliberately split
+ *     2-2-2-2 across the 4 families (not 5-1-1-1) — an earlier pass grouped
+ *     mint/violet with sky as "cool blues", which made every category/region
+ *     card built from these tones (mosaic tiles, region grid, filter dots,
+ *     the color fallback for photo-less cards) skew almost entirely blue.
+ *
+ * Ink-text rule (unchanged): text on top of any color field (a spectrum
+ * color, or any solid background) is always `ink`, EXCEPT a photo field,
+ * which uses a bottom gradient + white text instead.
+ */
+:root {
+  --background: #ffffff;
+  --foreground: #354150;
+
+  /*
+   * "Spectrum" tone names — category/region color-coding. Old hex → new
+   * palette source:
+   *   sky     #5cb8ff → Primary/500 #5CB8FF  (unchanged, exact — Blue #1)
+   *   violet  #9b7bee → Primary/700 #358FD9  (purple → deep blue; no purple family — Blue #2)
+   *   mint    #4dc9d6 → Green/500   #76CB9B  (teal reads closer to green than blue — Green #1)
+   *   lime    #a8e070 → Green/700   #46A46F  (yellow-green → green family — Green #2)
+   *   lemon   #ffd84f → Yellow/500  #EEC053  (direct family match — Yellow #1)
+   *   apricot #ffb066 → Yellow/700  #CA9721  (orange → deeper gold — Yellow #2)
+   *   coral   #ff8e85 → Red/500     #EC5562  (direct family match — Red #1)
+   *   rose    #ff9bc7 → Red/300     #F6BEC3  (pink → light red — Red #2)
+   */
+  --sky: #5cb8ff;
+  --mint: #76cb9b;
+  --lime: #46a46f;
+  --lemon: #eec053;
+  --apricot: #ca9721;
+  --coral: #ec5562;
+  --rose: #f6bec3;
+  --violet: #358fd9;
+
+  /* Neutrals — mapped onto Figma's Semantic tokens */
+  --ink: #354150; /* Semantic/Text/Primary & Background/Inverse */
+  --main-d: #49a7f2; /* Semantic/Action/Hover */
+  --soft: #7c8b9c; /* Semantic/Text/Secondary */
+  --wash: #f6f8fb; /* Semantic/Background/Subtle */
+  --line: #e3e9ef; /* Semantic/Border/Subtle */
+  --line-2: #d2d9e2; /* Semantic/Border/Default */
+
+  /* Full atomic scale, for anything that needs a shade the 8 spectrum/neutral
+     aliases above don't cover (new work should reach for these directly). */
+  --primary-50: #f5fbff;
+  --primary-100: #eff8ff;
+  --primary-200: #e0f3ff;
+  --primary-300: #cce9ff;
+  --primary-400: #a8dbff;
+  --primary-500: #5cb8ff;
+  --primary-600: #49a7f2;
+  --primary-700: #358fd9;
+  --primary-800: #2873b3;
+  --primary-900: #1e5a8c;
+
+  --gray-50: #f6f8fb;
+  --gray-100: #f0f3f7;
+  --gray-200: #e3e9ef;
+  --gray-300: #d2d9e2;
+  --gray-400: #b8c1cc;
+  --gray-500: #94a0ad;
+  --gray-600: #7c8b9c;
+  --gray-700: #637488;
+  --gray-800: #4d5d6f;
+  --gray-900: #354150;
+
+  --green-50: #f6fbf8;
+  --green-100: #eef9f3;
+  --green-200: #e0f2e8;
+  --green-300: #cbe9d8;
+  --green-400: #a9dabf;
+  --green-500: #76cb9b;
+  --green-600: #5cbc86;
+  --green-700: #46a46f;
+  --green-800: #3a825a;
+  --green-900: #2a5a3f;
+
+  --yellow-50: #fefbf3;
+  --yellow-100: #fef8e9;
+  --yellow-200: #fcf1d7;
+  --yellow-300: #f8e6bc;
+  --yellow-400: #f3d591;
+  --yellow-500: #eec053;
+  --yellow-600: #e6b033;
+  --yellow-700: #ca9721;
+  --yellow-800: #997624;
+  --yellow-900: #635021;
+
+  --red-50: #fef3f4;
+  --red-100: #fdeaec;
+  --red-200: #fad8db;
+  --red-300: #f6bec3;
+  --red-400: #f0949c;
+  --red-500: #ec5562;
+  --red-600: #e33544;
+  --red-700: #c72331;
+  --red-800: #99242e;
+  --red-900: #652026;
+
+  /* Semantic aliases, straight from Figma's "Semantic Tokens" frame */
+  --bg-brand: #5cb8ff;
+  --bg-success: #f6fbf8;
+  --bg-warning: #fefbf3;
+  --bg-error: #fef3f4;
+  --text-brand: #49a7f2;
+  --text-success: #46a46f;
+  --text-warning: #997624;
+  --text-error: #c72331;
+  --border-focus: #5cb8ff;
+  --border-success: #76cb9b;
+  --border-warning: #eec053;
+  --border-error: #ec5562;
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+
+  --color-sky: var(--sky);
+  --color-mint: var(--mint);
+  --color-lime: var(--lime);
+  --color-lemon: var(--lemon);
+  --color-apricot: var(--apricot);
+  --color-coral: var(--coral);
+  --color-rose: var(--rose);
+  --color-violet: var(--violet);
+
+  --color-ink: var(--ink);
+  --color-main-d: var(--main-d);
+  --color-soft: var(--soft);
+  --color-wash: var(--wash);
+  --color-line: var(--line);
+  --color-line-2: var(--line-2);
+
+  --color-primary-50: var(--primary-50);
+  --color-primary-100: var(--primary-100);
+  --color-primary-200: var(--primary-200);
+  --color-primary-300: var(--primary-300);
+  --color-primary-400: var(--primary-400);
+  --color-primary-500: var(--primary-500);
+  --color-primary-600: var(--primary-600);
+  --color-primary-700: var(--primary-700);
+  --color-primary-800: var(--primary-800);
+  --color-primary-900: var(--primary-900);
+
+  --color-gray-50: var(--gray-50);
+  --color-gray-100: var(--gray-100);
+  --color-gray-200: var(--gray-200);
+  --color-gray-300: var(--gray-300);
+  --color-gray-400: var(--gray-400);
+  --color-gray-500: var(--gray-500);
+  --color-gray-600: var(--gray-600);
+  --color-gray-700: var(--gray-700);
+  --color-gray-800: var(--gray-800);
+  --color-gray-900: var(--gray-900);
+
+  --color-green-50: var(--green-50);
+  --color-green-100: var(--green-100);
+  --color-green-200: var(--green-200);
+  --color-green-300: var(--green-300);
+  --color-green-400: var(--green-400);
+  --color-green-500: var(--green-500);
+  --color-green-600: var(--green-600);
+  --color-green-700: var(--green-700);
+  --color-green-800: var(--green-800);
+  --color-green-900: var(--green-900);
+
+  --color-yellow-50: var(--yellow-50);
+  --color-yellow-100: var(--yellow-100);
+  --color-yellow-200: var(--yellow-200);
+  --color-yellow-300: var(--yellow-300);
+  --color-yellow-400: var(--yellow-400);
+  --color-yellow-500: var(--yellow-500);
+  --color-yellow-600: var(--yellow-600);
+  --color-yellow-700: var(--yellow-700);
+  --color-yellow-800: var(--yellow-800);
+  --color-yellow-900: var(--yellow-900);
+
+  --color-red-50: var(--red-50);
+  --color-red-100: var(--red-100);
+  --color-red-200: var(--red-200);
+  --color-red-300: var(--red-300);
+  --color-red-400: var(--red-400);
+  --color-red-500: var(--red-500);
+  --color-red-600: var(--red-600);
+  --color-red-700: var(--red-700);
+  --color-red-800: var(--red-800);
+  --color-red-900: var(--red-900);
+
+  /*
+   * Square, systematic look (per design feedback: "네모네모" not "둥글둥글") —
+   * zeroing every radius step here turns every existing `rounded-*` utility
+   * class in the app (rounded-md/lg/xl/2xl/3xl and friends) into a sharp
+   * corner app-wide, with no per-component edits needed. `rounded-full`
+   * is NOT driven by a theme variable in Tailwind v4 (it's a hardcoded
+   * `calc(infinity * 1px)`), so those few call sites are fixed individually
+   * in their component files instead.
+   */
+  --radius-xs: 0px;
+  --radius-sm: 0px;
+  --radius-md: 0px;
+  --radius-lg: 0px;
+  --radius-xl: 0px;
+  --radius-2xl: 0px;
+  --radius-3xl: 0px;
+  --radius-4xl: 0px;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: var(--font-sans);
+}
+
+button:not(:disabled) {
+  cursor: pointer;
+}

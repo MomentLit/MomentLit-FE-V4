@@ -121,15 +121,19 @@ export function ProfileView() {
                   {name.slice(0, 1).toUpperCase()}
                 </div>
               )}
-              <label className="flex flex-col gap-1">
+              <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-bold text-ink">프로필 사진</span>
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
-                  className="text-xs text-soft"
-                />
-              </label>
+                <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 border border-line bg-white px-3.5 py-2 text-xs font-bold text-ink transition-colors hover:bg-wash">
+                  {imageFile ? "사진 변경" : "사진 선택"}
+                  <input
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
+                    className="sr-only"
+                  />
+                </label>
+                {imageFile && <span className="text-[0.7rem] text-soft">{imageFile.name}</span>}
+              </div>
             </div>
 
             <label className="flex flex-col gap-1.5">

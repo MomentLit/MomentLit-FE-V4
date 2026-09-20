@@ -95,7 +95,7 @@ export function Sidebar() {
 
       <div
         className={cn(
-          "flex-col gap-4 sm:flex sm:max-h-none sm:overflow-visible",
+          "flex-1 flex-col gap-4 sm:flex sm:max-h-none sm:overflow-visible",
           mobileOpen
             ? "flex max-h-[calc(100dvh-56px)] overflow-y-auto border-t border-line py-4"
             : "hidden",

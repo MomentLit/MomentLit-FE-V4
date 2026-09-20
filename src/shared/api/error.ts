@@ -24,6 +24,9 @@ function stripErrorCodePrefix(message: string): string {
 function fallbackMessageForStatus(status: number | undefined, axiosMessage: string): string {
   if (status === 401 || status === 403) return "로그인이 필요해요.";
   if (status === 404) return "요청한 내용을 찾을 수 없어요.";
+  if (status === 409 || status === 412) return "이미 처리되었거나 다른 요청과 충돌했어요. 새로고침 후 다시 시도해 주세요.";
+  if (status === 410) return "더 이상 이용할 수 없는 대상이에요.";
+  if (status === 502 || status === 503 || status === 504) return "외부 서비스에 일시적인 문제가 있어요. 잠시 후 다시 시도해 주세요.";
   if (status !== undefined && status >= 500) return "서버에 문제가 발생했어요. 잠시 후 다시 시도해 주세요.";
   return axiosMessage;
 }

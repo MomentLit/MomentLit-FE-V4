@@ -40,7 +40,7 @@ export function LandingHero() {
           className="text-[clamp(2.6rem,8vw,6.4rem)] font-normal leading-[1.02] tracking-tight text-ink"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          <span className="text-main-d">공간</span>과{" "}
+          <span className="text-sky">공간</span>과{" "}
           <span className="relative inline-block px-[0.06em]">
             <span className="absolute inset-x-0 -z-10 top-[0.17em] bottom-[0.13em] bg-lemon" />
             브랜드

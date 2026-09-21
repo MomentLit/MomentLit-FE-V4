@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { IconArrowRight } from "@tabler/icons-react";
 import { SPACE_CATEGORY_LABELS, type SpaceCategory } from "@/entities/space-category";
 import { REGIONS, REGION_LABELS, type Region } from "@/entities/region";
+import { Dropdown } from "@/shared/ui";
 import { TrailLayer } from "./TrailLayer";
 import { CATEGORY_DISPLAY_ORDER } from "./layoutConfig";
 
@@ -32,7 +33,7 @@ export function LandingHero() {
   }
 
   return (
-    <section className="relative overflow-hidden border-b border-line px-4 py-12 sm:px-6 sm:py-16 lg:py-24">
+    <section className="relative border-b border-line px-4 py-12 sm:px-6 sm:py-16 lg:py-24">
       <TrailLayer />
 
       <div className="relative z-[2]">
@@ -55,35 +56,23 @@ export function LandingHero() {
 
         <div className="mt-8 flex flex-wrap items-center gap-4 sm:mt-10 sm:gap-6">
           <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[clamp(1.05rem,2vw,1.5rem)] font-bold tracking-tight text-ink">
-            <select
-              className="ml-pick"
-              style={pickStyle("var(--sky)")}
-              aria-label="지역"
+            <Dropdown
               value={region}
-              onChange={(e) => setRegion(e.target.value as Region | "")}
-            >
-              <option value="">전체 지역</option>
-              {REGIONS.map((option) => (
-                <option key={option} value={option}>
-                  {REGION_LABELS[option]}
-                </option>
-              ))}
-            </select>
+              onChange={setRegion}
+              options={REGIONS.map((option) => ({ value: option, label: REGION_LABELS[option] }))}
+              placeholder="전체 지역"
+              ariaLabel="지역"
+              accent="var(--sky)"
+            />
             <span className="font-normal text-soft">에서</span>
-            <select
-              className="ml-pick"
-              style={pickStyle("var(--coral)")}
-              aria-label="카테고리"
+            <Dropdown
               value={category}
-              onChange={(e) => setCategory(e.target.value as SpaceCategory | "")}
-            >
-              <option value="">전체 카테고리</option>
-              {HERO_CATEGORIES.map((option) => (
-                <option key={option} value={option}>
-                  {SPACE_CATEGORY_LABELS[option]}
-                </option>
-              ))}
-            </select>
+              onChange={setCategory}
+              options={HERO_CATEGORIES.map((option) => ({ value: option, label: SPACE_CATEGORY_LABELS[option] }))}
+              placeholder="전체 카테고리"
+              ariaLabel="카테고리"
+              accent="var(--coral)"
+            />
             <span className="font-normal text-soft">를</span>
             <input
               type="date"

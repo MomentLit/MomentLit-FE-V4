@@ -7,6 +7,7 @@ import { IconArrowRight } from "@tabler/icons-react";
 import { REGIONS, REGION_LABELS, type Region } from "@/entities/region";
 import { SPACE_CATEGORIES, SPACE_CATEGORY_LABELS, type SpaceCategory } from "@/entities/space-category";
 import { fetchCategoryCounts } from "@/entities/space/api";
+import { Dropdown } from "@/shared/ui";
 
 const selectClass =
   "cursor-pointer appearance-none rounded-none bg-transparent px-1 py-0.5 font-bold text-ink outline-none transition-shadow";
@@ -44,33 +45,23 @@ export function ComboSearch() {
 
       <div className="mt-6 flex flex-wrap items-center gap-4">
         <span className="flex flex-wrap items-center gap-2 text-lg font-bold tracking-tight sm:text-2xl">
-          <select
-            aria-label="지역"
+          <Dropdown
             value={region}
-            onChange={(e) => setRegion(e.target.value as Region | "")}
-            className={`${selectClass} shadow-[inset_0_-0.28em_0_var(--sky)] hover:shadow-[inset_0_-1.35em_0_var(--sky)] focus:shadow-[inset_0_-1.35em_0_var(--sky)]`}
-          >
-            <option value="">전체 지역</option>
-            {REGIONS.map((option) => (
-              <option key={option} value={option}>
-                {REGION_LABELS[option]}
-              </option>
-            ))}
-          </select>
+            onChange={setRegion}
+            options={REGIONS.map((option) => ({ value: option, label: REGION_LABELS[option] }))}
+            placeholder="전체 지역"
+            ariaLabel="지역"
+            accent="var(--sky)"
+          />
           <span className="font-normal text-soft">에서</span>
-          <select
-            aria-label="카테고리"
+          <Dropdown
             value={category}
-            onChange={(e) => setCategory(e.target.value as SpaceCategory | "")}
-            className={`${selectClass} shadow-[inset_0_-0.28em_0_var(--coral)] hover:shadow-[inset_0_-1.35em_0_var(--coral)] focus:shadow-[inset_0_-1.35em_0_var(--coral)]`}
-          >
-            <option value="">전체 카테고리</option>
-            {SPACE_CATEGORIES.map((option) => (
-              <option key={option} value={option}>
-                {SPACE_CATEGORY_LABELS[option]}
-              </option>
-            ))}
-          </select>
+            onChange={setCategory}
+            options={SPACE_CATEGORIES.map((option) => ({ value: option, label: SPACE_CATEGORY_LABELS[option] }))}
+            placeholder="전체 카테고리"
+            ariaLabel="카테고리"
+            accent="var(--coral)"
+          />
           <span className="font-normal text-soft">를</span>
           <input
             type="date"

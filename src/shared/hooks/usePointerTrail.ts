@@ -16,14 +16,14 @@ import { useCallback, useEffect, useRef, useState } from "react";
  */
 
 const TRAIL_COLORS: Array<[number, number, number]> = [
-  [92, 184, 255], // sky
-  [77, 201, 214], // mint
-  [168, 224, 112], // lime
-  [255, 216, 79], // lemon
-  [255, 176, 102], // apricot
-  [255, 142, 133], // coral
-  [255, 155, 199], // rose
-  [155, 123, 238], // violet
+  [95, 197, 252], // sky
+  [74, 213, 213], // mint (aqua)
+  [142, 182, 254], // lime (peri)
+  [255, 213, 46], // lemon (butter)
+  [242, 169, 60], // apricot
+  [253, 159, 151], // coral (blush)
+  [248, 142, 224], // rose (orchid)
+  [193, 166, 252], // violet
 ];
 
 const FALLBACK_CELL_PX = 76;

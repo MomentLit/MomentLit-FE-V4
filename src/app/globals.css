@@ -1,28 +1,27 @@
 @import "tailwindcss";
 
 /*
- * Design tokens — Figma "Design V2" atomic + semantic palette.
- * Source of truth: Figma file E9367yvQVyDB2BiCLu3I49, nodes 5:38 ("Color/Atomic")
- * and 5:39 ("Color/Semantic") — pulled via get_variable_defs, not eyeballed.
+ * Design tokens — MomentLit v18 palette ("각진 톤" color system, from the
+ * design reference artifact). Neutrals and the brand blue got darker/cooler,
+ * and the 8 category/region "spectrum" tones moved onto one continuous
+ * cyan → blue → violet → pink → warm ramp (each stop at roughly S80/L69) —
+ * away from the old 4-family (Primary/Green/Yellow/Red) grouping, which read
+ * too blue-heavy overall.
  *
- * The app's existing components all reference a small set of named tokens
- * (`--sky`, `--ink`, `--soft`, `--wash`, `--line`, `--line-2`, plus the 8
- * category/region "spectrum" names). Rather than rename every call site,
- * this file keeps those names but repoints their values at the new palette:
- *   - `--sky` already equals Primary/500 exactly (#5CB8FF) — unchanged.
+ * The app's existing components all reference the same small set of named
+ * tokens as before (`--sky`, `--ink`, `--soft`, `--wash`, `--line`,
+ * `--line-2`, plus the 8 spectrum names), so only the values below changed —
+ * no call sites needed renaming:
+ *   - `--sky` is the new ramp's own `sky` stop (#5FC5FC) — the brand blue.
  *   - `--ink`/`--soft`/`--wash`/`--line`/`--line-2`/`--main-d` map onto the
- *     Figma semantic tokens they're conceptually identical to (Text/Primary,
- *     Text/Secondary, Background/Subtle, Border/Subtle, Border/Default,
- *     Action/Hover).
- *   - The other 7 "spectrum" names (mint/lime/lemon/apricot/coral/rose/violet)
- *     have no matching hue in a 4-family palette (Primary/Green/Yellow/Red),
- *     so each is tone-matched to the nearest available family/shade — see
- *     the mapping table below. All 8 are real palette shades (Primary/Green/
- *     Yellow/Red at various steps), never invented hexes. Deliberately split
- *     2-2-2-2 across the 4 families (not 5-1-1-1) — an earlier pass grouped
- *     mint/violet with sky as "cool blues", which made every category/region
- *     card built from these tones (mosaic tiles, region grid, filter dots,
- *     the color fallback for photo-less cards) skew almost entirely blue.
+ *     reference's neutral + brand-hover tokens 1:1.
+ *   - The other 7 spectrum names take the reference's alias table (old name
+ *     → new ramp stop) verbatim: mint→aqua, lime→peri, lemon→butter,
+ *     coral→blush, rose→orchid, violet→violet (this one's an actual violet
+ *     now, unlike the old blue-mislabeled "violet"). `apricot` has no
+ *     matching alias in the reference (its ramp only has 7 stops for the
+ *     old 8 names), so it keeps its old role as the ramp's second warm/gold
+ *     tone — a richer amber a step darker than `butter`, not a reference hex.
  *
  * Ink-text rule (unchanged): text on top of any color field (a spectrum
  * color, or any solid background) is always `ink`, EXCEPT a photo field,
@@ -30,49 +29,51 @@
  */
 :root {
   --background: #ffffff;
-  --foreground: #354150;
+  --foreground: #15171c;
 
   /*
    * "Spectrum" tone names — category/region color-coding. Old hex → new
-   * palette source:
-   *   sky     #5cb8ff → Primary/500 #5CB8FF  (unchanged, exact — Blue #1)
-   *   violet  #9b7bee → Primary/700 #358FD9  (purple → deep blue; no purple family — Blue #2)
-   *   mint    #4dc9d6 → Green/500   #76CB9B  (teal reads closer to green than blue — Green #1)
-   *   lime    #a8e070 → Green/700   #46A46F  (yellow-green → green family — Green #2)
-   *   lemon   #ffd84f → Yellow/500  #EEC053  (direct family match — Yellow #1)
-   *   apricot #ffb066 → Yellow/700  #CA9721  (orange → deeper gold — Yellow #2)
-   *   coral   #ff8e85 → Red/500     #EC5562  (direct family match — Red #1)
-   *   rose    #ff9bc7 → Red/300     #F6BEC3  (pink → light red — Red #2)
+   * ramp source:
+   *   sky     #5cb8ff → ramp `sky`    #5FC5FC (direct)
+   *   violet  #358fd9 → ramp `violet` #C1A6FC (now genuinely violet)
+   *   mint    #76cb9b → ramp `aqua`   #4AD5D5
+   *   lime    #46a46f → ramp `peri`   #8EB6FE
+   *   lemon   #eec053 → ramp `butter` #FFD52E
+   *   apricot #ca9721 → derived       #F2A93C (no reference alias — kept as butter's darker gold sibling)
+   *   coral   #ec5562 → ramp `blush`  #FD9F97
+   *   rose    #f6bec3 → ramp `orchid` #F88EE0
    */
-  --sky: #5cb8ff;
-  --mint: #76cb9b;
-  --lime: #46a46f;
-  --lemon: #eec053;
-  --apricot: #ca9721;
-  --coral: #ec5562;
-  --rose: #f6bec3;
-  --violet: #358fd9;
+  --sky: #5fc5fc;
+  --mint: #4ad5d5;
+  --lime: #8eb6fe;
+  --lemon: #ffd52e;
+  --apricot: #f2a93c;
+  --coral: #fd9f97;
+  --rose: #f88ee0;
+  --violet: #c1a6fc;
 
-  /* Neutrals — mapped onto Figma's Semantic tokens */
-  --ink: #354150; /* Semantic/Text/Primary & Background/Inverse */
-  --main-d: #49a7f2; /* Semantic/Action/Hover */
-  --soft: #7c8b9c; /* Semantic/Text/Secondary */
-  --wash: #f6f8fb; /* Semantic/Background/Subtle */
-  --line: #e3e9ef; /* Semantic/Border/Subtle */
-  --line-2: #d2d9e2; /* Semantic/Border/Default */
+  /* Neutrals — from the reference's `:root` block */
+  --ink: #15171c;
+  --main-d: #1d6fe0; /* brand action/hover */
+  --soft: #71757e;
+  --wash: #f6f7f9;
+  --line: #e7e9ee;
+  --line-2: #c9cdd6;
 
   /* Full atomic scale, for anything that needs a shade the 8 spectrum/neutral
-     aliases above don't cover (new work should reach for these directly). */
+     aliases above don't cover (new work should reach for these directly).
+     Re-anchored on the new --sky (500) / --main-d (600); 50–400 keep the old
+     ramp's white-blend ratios, 700–900 keep its black-blend ratios. */
   --primary-50: #f5fbff;
-  --primary-100: #eff8ff;
-  --primary-200: #e0f3ff;
-  --primary-300: #cce9ff;
-  --primary-400: #a8dbff;
-  --primary-500: #5cb8ff;
-  --primary-600: #49a7f2;
-  --primary-700: #358fd9;
-  --primary-800: #2873b3;
-  --primary-900: #1e5a8c;
+  --primary-100: #eff9ff;
+  --primary-200: #e1f4fe;
+  --primary-300: #cdedfe;
+  --primary-400: #aae0fd;
+  --primary-500: #5fc5fc;
+  --primary-600: #1d6fe0;
+  --primary-700: #155fc9;
+  --primary-800: #104ca6;
+  --primary-900: #0c3c82;
 
   --gray-50: #f6f8fb;
   --gray-100: #f0f3f7;
@@ -118,16 +119,19 @@
   --red-800: #99242e;
   --red-900: #652026;
 
-  /* Semantic aliases, straight from Figma's "Semantic Tokens" frame */
-  --bg-brand: #5cb8ff;
+  /* Semantic aliases, straight from Figma's "Semantic Tokens" frame.
+     bg-brand/text-brand/border-focus track the brand blue (sky/main-d);
+     the success/warning/error trio are functional status colors off the
+     green/yellow/red atomic scales, independent of the spectrum ramp. */
+  --bg-brand: #5fc5fc;
   --bg-success: #f6fbf8;
   --bg-warning: #fefbf3;
   --bg-error: #fef3f4;
-  --text-brand: #49a7f2;
+  --text-brand: #1d6fe0;
   --text-success: #46a46f;
   --text-warning: #997624;
   --text-error: #c72331;
-  --border-focus: #5cb8ff;
+  --border-focus: #5fc5fc;
   --border-success: #76cb9b;
   --border-warning: #eec053;
   --border-error: #ec5562;

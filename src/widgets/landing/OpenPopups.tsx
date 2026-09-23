@@ -8,10 +8,8 @@ import { Reveal } from "./Reveal";
 
 const TONE_BG: Record<string, string> = {
   sky: "bg-sky",
-  mint: "bg-mint",
   lime: "bg-lime",
   lemon: "bg-lemon",
-  apricot: "bg-apricot",
   coral: "bg-coral",
   rose: "bg-rose",
   violet: "bg-violet",

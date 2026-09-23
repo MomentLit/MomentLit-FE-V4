@@ -5,10 +5,8 @@ import { formatTimestamp, partnerOf, toneForRoom } from "../lib/partner";
 
 const TONE_BG: Record<SpectrumTone, string> = {
   sky: "bg-sky",
-  mint: "bg-mint",
   lime: "bg-lime",
   lemon: "bg-lemon",
-  apricot: "bg-apricot",
   coral: "bg-coral",
   rose: "bg-rose",
   violet: "bg-violet",

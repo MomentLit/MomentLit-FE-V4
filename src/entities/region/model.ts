@@ -30,13 +30,19 @@ export const REGION_LABELS: Record<Region, string> = {
 
 export const REGIONS = Object.keys(REGION_LABELS) as Region[];
 
-/** 8 regions map 1:1 onto the 8-color spectrum (no reuse needed, unlike categories). */
+/**
+ * 8 regions onto the 6-color spectrum, so two reuses are unavoidable: JEJU
+ * and DAEJEON_CHUNGCHEONG both get `violet` (in the region grid's 4-column
+ * layout they land in the same row at opposite ends, so the repeat isn't
+ * adjacent), and GYEONGGI_INCHEON gets `lemon` (already used by DAEGU_GYEONGBUK
+ * two tiles away in the same row — not touching either).
+ */
 export const REGION_COLORS: Record<Region, SpectrumTone> = {
   SEOUL: "sky",
-  GYEONGGI_INCHEON: "mint",
+  GYEONGGI_INCHEON: "lemon",
   BUSAN_GYEONGNAM: "lime",
   DAEGU_GYEONGBUK: "lemon",
-  DAEJEON_CHUNGCHEONG: "apricot",
+  DAEJEON_CHUNGCHEONG: "violet",
   GWANGJU_JEOLLA: "coral",
   GANGWON: "rose",
   JEJU: "violet",

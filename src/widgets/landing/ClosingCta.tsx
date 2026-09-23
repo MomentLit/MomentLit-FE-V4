@@ -6,7 +6,7 @@ import { Reveal } from "./Reveal";
 /** Closing CTA — ports `.close` from design-reference.html (ANALYSIS.md §2.1). */
 export function ClosingCta() {
   return (
-    <section className="relative overflow-hidden bg-main-d px-4 py-[50px] text-white sm:px-6 sm:py-20 lg:py-24">
+    <section className="relative overflow-hidden bg-ink px-4 py-[50px] text-white sm:px-6 sm:py-20 lg:py-24">
       <TrailLayer dark />
 
       <div className="relative z-[2]">

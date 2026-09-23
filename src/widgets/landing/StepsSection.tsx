@@ -14,7 +14,7 @@ const STEPS: Array<{ tone: string; label: string; title: string; body: string }>
     body: "호스트가 열어둔 시간대 중 원하는 구간을 골라 예약을 보냅니다.",
   },
   {
-    tone: "bg-mint",
+    tone: "bg-violet",
     label: "STEP 03",
     title: "확정",
     body: "호스트가 승인하면 확정됩니다. 남은 이야기는 메시지에서 이어갑니다.",

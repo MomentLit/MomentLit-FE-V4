@@ -3,25 +3,26 @@
 /*
  * Design tokens — MomentLit v18 palette ("각진 톤" color system, from the
  * design reference artifact). Neutrals and the brand blue got darker/cooler,
- * and the 8 category/region "spectrum" tones moved onto one continuous
- * cyan → blue → violet → pink → warm ramp (each stop at roughly S80/L69) —
- * away from the old 4-family (Primary/Green/Yellow/Red) grouping, which read
- * too blue-heavy overall.
+ * and the category/region "spectrum" tones sit on one continuous
+ * blue → violet → pink → warm ramp (each stop at roughly S80/L69) — away
+ * from the old 4-family (Primary/Green/Yellow/Red) grouping, which read too
+ * blue-heavy overall.
  *
  * The app's existing components all reference the same small set of named
  * tokens as before (`--sky`, `--ink`, `--soft`, `--wash`, `--line`,
- * `--line-2`, plus the 8 spectrum names), so only the values below changed —
+ * `--line-2`, plus the spectrum names), so only the values below changed —
  * no call sites needed renaming:
  *   - `--sky` is the new ramp's own `sky` stop (#5FC5FC) — the brand blue.
  *   - `--ink`/`--soft`/`--wash`/`--line`/`--line-2`/`--main-d` map onto the
  *     reference's neutral + brand-hover tokens 1:1.
- *   - The other 7 spectrum names take the reference's alias table (old name
- *     → new ramp stop) verbatim: mint→aqua, lime→peri, lemon→butter,
- *     coral→blush, rose→orchid, violet→violet (this one's an actual violet
- *     now, unlike the old blue-mislabeled "violet"). `apricot` has no
- *     matching alias in the reference (its ramp only has 7 stops for the
- *     old 8 names), so it keeps its old role as the ramp's second warm/gold
- *     tone — a richer amber a step darker than `butter`, not a reference hex.
+ *   - The remaining spectrum names take the reference's alias table (old
+ *     name → new ramp stop) verbatim: lime→peri, lemon→butter, coral→blush,
+ *     rose→orchid, violet→violet (this one's an actual violet now, unlike
+ *     the old blue-mislabeled "violet"). There is no `apricot` or `mint`
+ *     anymore — both were the palette's two non-reference tones (an
+ *     invented 8th color, and the ramp's cyan/`aqua` stop), dropped per
+ *     design feedback; call sites that used either now reuse one of the
+ *     6 remaining real tones instead.
  *
  * Ink-text rule (unchanged): text on top of any color field (a spectrum
  * color, or any solid background) is always `ink`, EXCEPT a photo field,
@@ -36,18 +37,14 @@
    * ramp source:
    *   sky     #5cb8ff → ramp `sky`    #5FC5FC (direct)
    *   violet  #358fd9 → ramp `violet` #C1A6FC (now genuinely violet)
-   *   mint    #76cb9b → ramp `aqua`   #4AD5D5
    *   lime    #46a46f → ramp `peri`   #8EB6FE
    *   lemon   #eec053 → ramp `butter` #FFD52E
-   *   apricot #ca9721 → derived       #F2A93C (no reference alias — kept as butter's darker gold sibling)
    *   coral   #ec5562 → ramp `blush`  #FD9F97
    *   rose    #f6bec3 → ramp `orchid` #F88EE0
    */
   --sky: #5fc5fc;
-  --mint: #4ad5d5;
   --lime: #8eb6fe;
   --lemon: #ffd52e;
-  --apricot: #f2a93c;
   --coral: #fd9f97;
   --rose: #f88ee0;
   --violet: #c1a6fc;
@@ -60,7 +57,7 @@
   --line: #e7e9ee;
   --line-2: #c9cdd6;
 
-  /* Full atomic scale, for anything that needs a shade the 8 spectrum/neutral
+  /* Full atomic scale, for anything that needs a shade the spectrum/neutral
      aliases above don't cover (new work should reach for these directly).
      Re-anchored on the new --sky (500) / --main-d (600); 50–400 keep the old
      ramp's white-blend ratios, 700–900 keep its black-blend ratios. */
@@ -144,10 +141,8 @@
   --font-mono: var(--font-geist-mono);
 
   --color-sky: var(--sky);
-  --color-mint: var(--mint);
   --color-lime: var(--lime);
   --color-lemon: var(--lemon);
-  --color-apricot: var(--apricot);
   --color-coral: var(--coral);
   --color-rose: var(--rose);
   --color-violet: var(--violet);

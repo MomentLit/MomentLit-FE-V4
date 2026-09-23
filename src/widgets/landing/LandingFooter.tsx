@@ -19,7 +19,7 @@ export function LandingFooter() {
       <div className="grid grid-cols-1 gap-6 sm:grid-cols-[1.5fr_1fr_1fr]">
         <div>
           <Link href="/" className="inline-flex items-center" aria-label="모먼트릿">
-            <Logo size={30} />
+            <Logo size={48} />
           </Link>
         </div>
 

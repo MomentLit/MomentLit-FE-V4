@@ -2,7 +2,7 @@ import type { AddressResponse, UsageUnit } from "@/entities/space";
 import type { SpectrumTone } from "@/shared/ui";
 
 /** Deterministic color cycle for cards with no server-provided tone (e.g. popups have no category). */
-const TONES: SpectrumTone[] = ["sky", "mint", "lime", "lemon", "apricot", "coral", "rose", "violet"];
+const TONES: SpectrumTone[] = ["sky", "lime", "lemon", "coral", "rose", "violet"];
 
 export function toneForIndex(id: number): SpectrumTone {
   return TONES[Math.abs(id) % TONES.length];

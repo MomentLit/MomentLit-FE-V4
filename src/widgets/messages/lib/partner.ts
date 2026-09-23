@@ -1,7 +1,7 @@
 import type { ChatRoomListItem } from "@/entities/message";
 import type { SpectrumTone } from "@/shared/ui";
 
-const TONES: SpectrumTone[] = ["sky", "mint", "lime", "lemon", "apricot", "coral", "rose", "violet"];
+const TONES: SpectrumTone[] = ["sky", "lime", "lemon", "coral", "rose", "violet"];
 
 /** Deterministic color tag for a room — the backend doesn't send one, so derive it from the id. */
 export function toneForRoom(room: ChatRoomListItem): SpectrumTone {

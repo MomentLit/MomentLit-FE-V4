@@ -41,7 +41,7 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { label: "내 공간", href: "/profile", tone: "sky" },
       { label: "관심 공간", href: "/favorites", tone: "coral" },
-      { label: "건의함", href: "/suggestions", tone: "mint" },
+      { label: "건의함", href: "/suggestions", tone: "lime" },
     ],
   },
 ];
@@ -50,7 +50,7 @@ const ADMIN_NAV_GROUP: NavGroup = {
   label: "관리",
   items: [
     { label: "공간 승인", href: "/admin/spaces", tone: "sky" },
-    { label: "건의 관리", href: "/admin/suggestions", tone: "mint" },
+    { label: "건의 관리", href: "/admin/suggestions", tone: "lime" },
   ],
 };
 

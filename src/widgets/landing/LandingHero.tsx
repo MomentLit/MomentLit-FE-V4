@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, type CSSProperties } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconArrowRight } from "@tabler/icons-react";
 import { SPACE_CATEGORY_LABELS, type SpaceCategory } from "@/entities/space-category";
 import { REGIONS, REGION_LABELS, type Region } from "@/entities/region";
-import { Dropdown } from "@/shared/ui";
+import { Dropdown, DatePicker } from "@/shared/ui";
 import { TrailLayer } from "./TrailLayer";
 import { CATEGORY_DISPLAY_ORDER } from "./layoutConfig";
 
@@ -13,8 +13,8 @@ import { CATEGORY_DISPLAY_ORDER } from "./layoutConfig";
 // which lists 9 of the 10 categories (no "기타") in mosaic order.
 const HERO_CATEGORIES = CATEGORY_DISPLAY_ORDER.filter((category) => category !== "OTHER");
 
-function pickStyle(color: string): CSSProperties {
-  return { "--pc": color } as CSSProperties;
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
 }
 
 /** Landing hero — headline, sub copy, and the region/category/date combo search. Ports `.lhero` (ANALYSIS.md §2.1). */
@@ -22,7 +22,7 @@ export function LandingHero() {
   const router = useRouter();
   const [region, setRegion] = useState<Region | "">("");
   const [category, setCategory] = useState<SpaceCategory | "">("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(todayISO);
 
   function handleSearch() {
     const params = new URLSearchParams();
@@ -50,7 +50,7 @@ export function LandingHero() {
           잇다<span className="text-coral">.</span>
         </h1>
 
-        <p className="mt-5 max-w-[42ch] text-base leading-[1.85] text-soft sm:mt-6">
+        <p className="mt-5 max-w-[42ch] break-keep text-base leading-[1.85] text-soft sm:mt-6">
           쓰지 않는 시간대만 골라 내놓고, 필요한 날짜만큼만 빌립니다. 팝업스토어·스튜디오·카페·홀을 중개인 없이 직접 연결합니다.
         </p>
 
@@ -74,37 +74,26 @@ export function LandingHero() {
               accent="var(--coral)"
             />
             <span className="font-normal text-soft">를</span>
-            <input
-              type="date"
-              className="ml-pick"
-              style={pickStyle("var(--lemon)")}
-              aria-label="날짜"
+            <DatePicker
               value={date}
-              min={new Date().toISOString().slice(0, 10)}
-              onChange={(e) => setDate(e.target.value)}
+              onChange={setDate}
+              placeholder="날짜 미정"
+              ariaLabel="날짜"
+              min={todayISO()}
+              accent="var(--lemon)"
             />
             <span className="font-normal text-soft">에</span>
           </p>
           <button
             type="button"
             onClick={handleSearch}
-            className="group inline-flex items-center gap-2.5 bg-sky px-6 py-3.5 text-[0.93rem] font-bold text-ink transition-colors hover:bg-main-d hover:text-white"
+            className="group inline-flex items-center gap-2 bg-sky px-5 py-3 text-[0.93rem] font-bold text-ink transition-colors hover:bg-main-d hover:text-white"
           >
             찾아보기
             <IconArrowRight size={17} stroke={2} className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden />
           </button>
         </div>
       </div>
-
-      <style>{`
-        .ml-pick{
-          appearance:none;-webkit-appearance:none;border:0;border-radius:0;background:transparent;
-          font:inherit;font-weight:700;color:var(--ink);cursor:pointer;padding:1px 3px 3px;
-          box-shadow:inset 0 -0.28em 0 var(--pc);
-          transition:box-shadow .26s cubic-bezier(.2,.85,.25,1),color .2s;
-        }
-        .ml-pick:hover,.ml-pick:focus{box-shadow:inset 0 -1.35em 0 var(--pc);color:var(--ink)}
-      `}</style>
     </section>
   );
 }

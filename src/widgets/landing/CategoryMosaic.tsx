@@ -10,16 +10,12 @@ import { CATEGORY_DISPLAY_ORDER, CATEGORY_MOSAIC_SPAN } from "./layoutConfig";
 
 const TONE_BG: Record<string, string> = {
   sky: "bg-sky",
-  mint: "bg-mint",
   lime: "bg-lime",
   lemon: "bg-lemon",
-  apricot: "bg-apricot",
   coral: "bg-coral",
   rose: "bg-rose",
   violet: "bg-violet",
 };
-
-const QUAD_TONES = ["bg-sky", "bg-lemon", "bg-coral", "bg-violet"];
 
 /** "어떤 공간이든" category mosaic — ports `.mos` from design-reference.html (ANALYSIS.md §2.1/§2.7). */
 export function CategoryMosaic() {
@@ -58,28 +54,16 @@ export function CategoryMosaic() {
               <Link
                 key={category}
                 href="/search"
-                className={cn("group relative flex flex-col justify-between overflow-hidden p-3.5 text-ink", spanClass)}
+                className={cn(
+                  "group relative flex flex-col justify-between overflow-hidden bg-white p-3.5 text-ink transition-colors duration-200 hover:bg-wash",
+                  spanClass,
+                )}
               >
-                <span
-                  className="absolute inset-0 grid grid-cols-2 grid-rows-2 transition-opacity duration-200 group-hover:opacity-0"
-                  aria-hidden="true"
-                >
-                  {QUAD_TONES.map((tone) => (
-                    <i key={tone} className={cn("block", tone)} />
-                  ))}
-                </span>
-                <span
-                  className="absolute inset-0 bg-white opacity-0 transition-opacity duration-200 group-hover:opacity-100"
-                  aria-hidden="true"
-                />
-                <span
-                  className="relative z-[1] text-[0.63rem] tracking-[0.12em] opacity-55"
-                  style={{ fontFamily: "var(--font-label)" }}
-                >
+                <span className="text-[0.63rem] tracking-[0.12em] opacity-55" style={{ fontFamily: "var(--font-label)" }}>
                   {num}
                 </span>
                 <span
-                  className="relative z-[1] text-[clamp(1rem,1.5vw,1.34rem)] leading-[1.16] tracking-tight"
+                  className="text-[clamp(1rem,1.5vw,1.34rem)] leading-[1.16] tracking-tight"
                   style={{ fontFamily: "var(--font-display)" }}
                 >
                   {SPACE_CATEGORY_LABELS[category]}
@@ -88,7 +72,7 @@ export function CategoryMosaic() {
                   aria-hidden
                   size={16}
                   stroke={2}
-                  className="absolute bottom-3.5 right-3.5 z-[1] -translate-x-1.5 opacity-0 transition-[opacity,transform] duration-200 group-hover:translate-x-0 group-hover:opacity-90"
+                  className="absolute bottom-3.5 right-3.5 -translate-x-1.5 opacity-0 transition-[opacity,transform] duration-200 group-hover:translate-x-0 group-hover:opacity-90"
                 />
               </Link>
             );

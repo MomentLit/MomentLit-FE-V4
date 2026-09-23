@@ -98,7 +98,7 @@ export function DuoSection() {
           </ol>
           <Link
             href="/spaces/new"
-            className="group mt-auto inline-flex w-fit items-center gap-2.5 bg-sky px-6 py-4 text-[0.94rem] font-bold text-ink transition-colors hover:bg-main-d hover:text-white"
+            className="group mt-auto inline-flex w-fit items-center gap-2.5 bg-white px-6 py-4 text-[0.94rem] font-bold text-ink transition-colors hover:bg-sky"
           >
             공간 등록하기
             <IconArrowRight size={18} stroke={2} className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden />

@@ -4,10 +4,8 @@ import { Reveal } from "./Reveal";
 
 const TONE_BG: Record<string, string> = {
   sky: "bg-sky",
-  mint: "bg-mint",
   lime: "bg-lime",
   lemon: "bg-lemon",
-  apricot: "bg-apricot",
   coral: "bg-coral",
   rose: "bg-rose",
   violet: "bg-violet",
@@ -15,10 +13,8 @@ const TONE_BG: Record<string, string> = {
 
 const TONE_HOVER_BG: Record<string, string> = {
   sky: "hover:bg-sky",
-  mint: "hover:bg-mint",
   lime: "hover:bg-lime",
   lemon: "hover:bg-lemon",
-  apricot: "hover:bg-apricot",
   coral: "hover:bg-coral",
   rose: "hover:bg-rose",
   violet: "hover:bg-violet",

@@ -7,10 +7,11 @@ import { IconArrowRight } from "@tabler/icons-react";
 import { REGIONS, REGION_LABELS, type Region } from "@/entities/region";
 import { SPACE_CATEGORIES, SPACE_CATEGORY_LABELS, type SpaceCategory } from "@/entities/space-category";
 import { fetchCategoryCounts } from "@/entities/space/api";
-import { Dropdown } from "@/shared/ui";
+import { Dropdown, DatePicker } from "@/shared/ui";
 
-const selectClass =
-  "cursor-pointer appearance-none rounded-none bg-transparent px-1 py-0.5 font-bold text-ink outline-none transition-shadow";
+function todayISO(): string {
+  return new Date().toISOString().slice(0, 10);
+}
 
 /**
  * Top combo search — region/category/date, wired to `/search`'s real filters
@@ -21,7 +22,7 @@ export function ComboSearch() {
   const router = useRouter();
   const [region, setRegion] = useState<Region | "">("");
   const [category, setCategory] = useState<SpaceCategory | "">("");
-  const [date, setDate] = useState("");
+  const [date, setDate] = useState(todayISO);
 
   const { data: categoryCounts } = useQuery({
     queryKey: ["spaces", "counts", "by-category"],
@@ -63,13 +64,13 @@ export function ComboSearch() {
             accent="var(--coral)"
           />
           <span className="font-normal text-soft">를</span>
-          <input
-            type="date"
-            aria-label="날짜"
+          <DatePicker
             value={date}
-            min={new Date().toISOString().slice(0, 10)}
-            onChange={(e) => setDate(e.target.value)}
-            className={`${selectClass} shadow-[inset_0_-0.28em_0_var(--lemon)] hover:shadow-[inset_0_-1.35em_0_var(--lemon)] focus:shadow-[inset_0_-1.35em_0_var(--lemon)]`}
+            onChange={setDate}
+            placeholder="날짜 미정"
+            ariaLabel="날짜"
+            min={todayISO()}
+            accent="var(--lemon)"
           />
           <span className="font-normal text-soft">에</span>
         </span>

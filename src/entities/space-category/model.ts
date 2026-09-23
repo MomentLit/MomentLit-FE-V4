@@ -31,23 +31,23 @@ export const SPACE_CATEGORIES = Object.keys(
 ) as SpaceCategory[];
 
 /**
- * 10 categories mapped onto the 8-color spectrum. With 10 categories and
- * only 8 colors, two colors are necessarily reused (see ANALYSIS.md §2.7):
- * design-reference.html's category mosaic maps STUDIO and CLASSROOM to the
- * same `mint`; POPUP_STORE and OTHER are the second pair we reuse `sky` for
- * (OTHER doesn't appear in the reference mosaic, so it isn't pinned to a
- * specific color there — `sky` was chosen as the neutral/default spectrum
- * color for the catch-all category).
+ * 10 categories mapped onto the 6-color spectrum, so colors are necessarily
+ * reused: STUDIO, CLASSROOM and PRACTICE_ROOM all get `rose`, POPUP_STORE
+ * and OTHER both get `sky`, and OFFICE reuses HALL's `lemon`. None of these
+ * repeats land on tiles that actually touch (edge or corner) in the
+ * mosaic's 6-column grid — see CategoryMosaic for the layout this was
+ * checked against. The landing mosaic overrides OTHER to a plain white tile
+ * regardless of this mapping.
  */
 export const SPACE_CATEGORY_COLORS: Record<SpaceCategory, SpectrumTone> = {
   POPUP_STORE: "sky",
-  STUDIO: "mint",
+  STUDIO: "rose",
   CAFE: "lime",
   HALL: "lemon",
-  OFFICE: "apricot",
+  OFFICE: "lemon",
   MEETING_ROOM: "coral",
   PRACTICE_ROOM: "rose",
   PARTY_ROOM: "violet",
-  CLASSROOM: "mint",
+  CLASSROOM: "rose",
   OTHER: "sky",
 };

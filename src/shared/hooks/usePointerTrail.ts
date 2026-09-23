@@ -17,10 +17,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 const TRAIL_COLORS: Array<[number, number, number]> = [
   [95, 197, 252], // sky
-  [74, 213, 213], // mint (aqua)
   [142, 182, 254], // lime (peri)
   [255, 213, 46], // lemon (butter)
-  [242, 169, 60], // apricot
   [253, 159, 151], // coral (blush)
   [248, 142, 224], // rose (orchid)
   [193, 166, 252], // violet

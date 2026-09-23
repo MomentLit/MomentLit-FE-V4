@@ -149,7 +149,7 @@ export function PopupReviewSection({
                 <b className="text-[0.87rem] font-bold text-ink">{review.user_name}</b>
                 <StarRating rating={review.rating} size={13} />
                 {review.is_verified && (
-                  <span className="bg-mint px-1.5 py-0.5 text-[0.63rem] font-bold text-ink">인증됨</span>
+                  <span className="bg-sky px-1.5 py-0.5 text-[0.63rem] font-bold text-ink">인증됨</span>
                 )}
                 <time className="ml-auto font-mono text-[0.68rem] text-soft">
                   {review.created_at.slice(0, 10)}

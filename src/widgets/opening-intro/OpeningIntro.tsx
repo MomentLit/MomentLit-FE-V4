@@ -25,12 +25,10 @@ type Letter = [col: number, row: number, char: string, white: 0 | 1, delay: numb
 const FILLS: Fill[] = [
   [2, 2, "--violet", 0.3],
   [6, 1, "--lemon", 0.38],
-  [1, 5, "--mint", 0.46],
   [7, 5, "--coral", 0.54],
   [3, 6, "--lime", 0.62],
   [5, 2, "--sky", 0.7],
   [4, 4, "--rose", 0.78],
-  [8, 6, "--apricot", 0.86],
 ];
 
 // "VALUABLE SPACE AND MOMENT" crossword layout — column/row offsets from the
@@ -55,7 +53,7 @@ const LETTERS: Letter[] = [
   [8, 4, "E", 0, 1.82],
 ];
 
-const SCATTER = ["--sky", "--mint", "--lime", "--lemon", "--apricot", "--coral", "--rose", "--violet"];
+const SCATTER = ["--sky", "--lime", "--lemon", "--coral", "--rose", "--violet"];
 
 interface LettersLayoutState {
   c0?: number;

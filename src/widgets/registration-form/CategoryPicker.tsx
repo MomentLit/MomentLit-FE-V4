@@ -17,10 +17,8 @@ export interface CategoryPickerProps {
 // shared/ui/Card.tsx's TONE_CLASSES.
 const TONE_BG_CLASSES: Record<SpectrumTone, string> = {
   sky: "bg-sky",
-  mint: "bg-mint",
   lime: "bg-lime",
   lemon: "bg-lemon",
-  apricot: "bg-apricot",
   coral: "bg-coral",
   rose: "bg-rose",
   violet: "bg-violet",

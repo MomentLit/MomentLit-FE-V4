@@ -78,7 +78,7 @@ export function ComboSearch() {
         <button
           type="button"
           onClick={handleSubmit}
-          className="group inline-flex items-center gap-2 rounded-md bg-sky px-6 py-3.5 text-sm font-bold text-ink transition-colors hover:bg-main-d hover:text-white"
+          className="group inline-flex items-center gap-1.5 rounded-md bg-sky px-4 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-main-d hover:text-white"
         >
           찾아보기
           <IconArrowRight size={16} stroke={2} className="transition-transform group-hover:translate-x-1" aria-hidden />

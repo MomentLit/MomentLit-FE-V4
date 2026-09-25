@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useRef, useState, type CSSProperties } from "react";
-import { IconCalendarEvent, IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
+import { Calendar } from "lucide-react";
 import { cn } from "@/shared/lib";
 
 export interface DatePickerProps {
@@ -102,7 +103,7 @@ export function DatePicker({ value, onChange, placeholder, ariaLabel, min, accen
         className="inline-flex items-center gap-1.5 px-[3px] py-[1px] pb-[3px] font-bold text-ink shadow-[inset_0_-0.28em_0_var(--pc)] transition-[box-shadow,color] duration-200 hover:shadow-[inset_0_-1.35em_0_var(--pc)]"
       >
         {value ? formatDisplay(value) : placeholder}
-        <IconCalendarEvent size={16} stroke={2} aria-hidden />
+        <Calendar size={16} strokeWidth={2} aria-hidden />
       </button>
 
       {open && (

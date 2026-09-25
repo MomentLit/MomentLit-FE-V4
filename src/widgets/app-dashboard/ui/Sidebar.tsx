@@ -4,15 +4,26 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { IconArrowRight, IconMenu2, IconX } from "@tabler/icons-react";
+import {
+  Home,
+  Search,
+  Calendar,
+  MessageSquare,
+  Store,
+  Bookmark,
+  Inbox,
+  ClipboardCheck,
+  type LucideIcon,
+} from "lucide-react";
 import { cn } from "@/shared/lib";
 import { Logo, type SpectrumTone } from "@/shared/ui";
 import { useAuthStore } from "@/entities/auth";
 import { NotificationBell } from "./NotificationBell";
-import { TONE_DOT_BG } from "./tone-dot";
 
 interface NavItem {
   label: string;
   href: string;
+  icon: LucideIcon;
   tone?: SpectrumTone;
 }
 
@@ -25,23 +36,23 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "탐색",
     items: [
-      { label: "홈", href: "/home" },
-      { label: "통합 검색", href: "/search", tone: "sky" },
+      { label: "홈", href: "/home", icon: Home },
+      { label: "통합 검색", href: "/search", icon: Search, tone: "sky" },
     ],
   },
   {
     label: "예약 · 소통",
     items: [
-      { label: "예약", href: "/reservations", tone: "lemon" },
-      { label: "메세지", href: "/messages", tone: "violet" },
+      { label: "예약", href: "/reservations", icon: Calendar, tone: "lemon" },
+      { label: "메세지", href: "/messages", icon: MessageSquare, tone: "violet" },
     ],
   },
   {
     label: "내 활동",
     items: [
-      { label: "내 공간", href: "/profile", tone: "sky" },
-      { label: "관심 공간", href: "/favorites", tone: "coral" },
-      { label: "건의함", href: "/suggestions", tone: "lime" },
+      { label: "내 공간", href: "/profile", icon: Store, tone: "sky" },
+      { label: "관심 공간", href: "/favorites", icon: Bookmark, tone: "coral" },
+      { label: "건의함", href: "/suggestions", icon: Inbox, tone: "lime" },
     ],
   },
 ];
@@ -49,14 +60,26 @@ const NAV_GROUPS: NavGroup[] = [
 const ADMIN_NAV_GROUP: NavGroup = {
   label: "관리",
   items: [
-    { label: "공간 승인", href: "/admin/spaces", tone: "sky" },
-    { label: "건의 관리", href: "/admin/suggestions", tone: "lime" },
+    { label: "공간 승인", href: "/admin/spaces", icon: ClipboardCheck, tone: "sky" },
+    { label: "건의 관리", href: "/admin/suggestions", icon: Inbox, tone: "lime" },
   ],
 };
 
 function isNavItemActive(item: NavItem, pathname: string): boolean {
   return pathname === item.href;
 }
+
+// Written out as literal class names (not built with a template string) so
+// Tailwind's static scanner can see and generate them — same reasoning as
+// shared/ui/Card.tsx's TONE_CLASSES.
+const TONE_TEXT: Record<SpectrumTone, string> = {
+  sky: "text-sky",
+  lime: "text-lime",
+  lemon: "text-lemon",
+  coral: "text-coral",
+  rose: "text-rose",
+  violet: "text-violet",
+};
 
 /**
  * Logged-in app shell sidebar — logo, nav (with color dots), register CTA, mini profile.
@@ -77,7 +100,7 @@ export function Sidebar() {
     <aside className="sticky top-0 z-30 flex flex-none flex-col border-b border-line bg-white sm:z-auto sm:h-dvh sm:w-[226px] sm:gap-4 sm:overflow-y-auto sm:border-b-0 sm:border-r sm:py-4">
       <div className="flex items-center justify-between px-4.5 py-3 sm:py-0">
         <Link href="/home" aria-label="모먼트릿 홈" className="inline-flex items-center">
-          <Logo size={27} />
+          <Logo size={48} />
         </Link>
         <div className="flex items-center gap-1">
           <NotificationBell />
@@ -114,16 +137,18 @@ export function Sidebar() {
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 className={cn(
-                  "mx-2.5 flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-bold transition-colors",
+                  "group mx-2.5 flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-bold transition-colors",
                   isActive ? "bg-primary-100 text-ink" : "text-ink hover:bg-wash",
                 )}
               >
-                <i
+                <item.icon
+                  size={18}
+                  strokeWidth={2}
                   className={cn(
-                    "h-[9px] w-[9px] flex-none",
-                    isActive ? "bg-sky" : item.tone ? TONE_DOT_BG[item.tone] : "bg-line-2",
+                    "flex-none transition-transform duration-200 group-hover:scale-125",
+                    isActive ? "text-sky" : item.tone ? TONE_TEXT[item.tone] : "text-soft",
                   )}
-                  aria-hidden="true"
+                  aria-hidden
                 />
                 <span>{item.label}</span>
               </Link>

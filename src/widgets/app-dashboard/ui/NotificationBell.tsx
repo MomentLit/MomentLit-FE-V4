@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { IconBell } from "@tabler/icons-react";
+import { Bell } from "lucide-react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/entities/auth";
 import { fetchAlarms, markAlarmRead } from "@/entities/alarm";
@@ -78,9 +78,14 @@ export function NotificationBell() {
         type="button"
         onClick={toggleOpen}
         aria-label="알림"
-        className="relative grid h-9 w-9 place-items-center text-ink hover:bg-wash"
+        className="group relative grid h-9 w-9 place-items-center text-ink hover:bg-wash"
       >
-        <IconBell size={20} stroke={1.75} aria-hidden />
+        <Bell
+          size={20}
+          strokeWidth={1.75}
+          className="transition-transform duration-200 group-hover:scale-125"
+          aria-hidden
+        />
         {unreadCount > 0 && (
           <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center bg-coral px-1 text-[0.6rem] font-bold text-ink">
             {unreadCount > 9 ? "9+" : unreadCount}

@@ -1,7 +1,3 @@
-"use client";
-
-import { IconX } from "@tabler/icons-react";
-import { cn } from "@/shared/lib";
 import { REGIONS, REGION_LABELS, type Region } from "@/entities/region";
 import {
   SPACE_CATEGORIES,
@@ -26,20 +22,19 @@ interface FilterPanelProps {
   onToggleUsageUnit: (unit: UsageUnit) => void;
   date: string | null;
   onDateChange: (date: string | null) => void;
-  onResetAll: () => void;
-  /** 모바일 전용 — 데스크톱(sm 이상)에서는 항상 보여서 무시된다. */
-  isMobileOpen: boolean;
-  onMobileClose: () => void;
 }
 
 const USAGE_UNIT_LABELS: Record<UsageUnit, string> = { HOURLY: "시간 단위", DAILY: "일 단위" };
 const USAGE_UNITS = Object.keys(USAGE_UNIT_LABELS) as UsageUnit[];
 
 /**
- * Left filter panel — region/category/capacity/usage-unit wired to real
- * counts and to `SearchPageContent`'s query params. `searchSpaces` only
+ * Space filter fields (date/region/category/capacity/usage-unit) — wired to
+ * real counts and to `SearchPageContent`'s query params. `searchSpaces` only
  * accepts a single `category`/`region` value each, so despite the checkbox
- * look, picking one clears any previous pick (radio semantics).
+ * look, picking one clears any previous pick (radio semantics). The shared
+ * aside shell (mode toggle, mobile drawer, "필터" header) lives in
+ * `SearchPageContent` so it stays mounted across a space/popup mode switch —
+ * see SearchModeToggle for why that matters for its slide animation.
  */
 export function FilterPanel({
   categoryCounts,
@@ -54,45 +49,12 @@ export function FilterPanel({
   onToggleUsageUnit,
   date,
   onDateChange,
-  onResetAll,
-  isMobileOpen,
-  onMobileClose,
 }: FilterPanelProps) {
   const regionCountMap = new Map(regionCounts.map((entry) => [entry.region, entry.count]));
   const categoryCountMap = new Map(categoryCounts.map((entry) => [entry.category, entry.count]));
-  const hasAnyFilter =
-    selectedCategory !== null || selectedRegion !== null || date !== null || maxCapacity < CAPACITY_MAX;
 
   return (
     <>
-      {isMobileOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-ink/30 sm:hidden"
-          aria-hidden="true"
-          onClick={onMobileClose}
-        />
-      )}
-      <aside
-        className={cn(
-          "z-50 flex w-[246px] flex-none flex-col gap-6 overflow-y-auto border-r border-line bg-white px-4.5 py-5",
-          "sm:static sm:flex sm:w-[246px] sm:max-w-none",
-          isMobileOpen ? "fixed inset-y-0 left-0 flex w-[82vw] max-w-[320px]" : "hidden",
-        )}
-      >
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-bold text-ink">필터</h2>
-        <div className="flex items-center gap-3">
-          {hasAnyFilter && (
-            <button type="button" onClick={onResetAll} className="text-xs font-bold text-soft hover:text-ink hover:underline">
-              전체 초기화
-            </button>
-          )}
-          <button type="button" onClick={onMobileClose} aria-label="필터 닫기" className="text-ink sm:hidden">
-            <IconX size={18} stroke={2} />
-          </button>
-        </div>
-      </div>
-
       <div className="flex flex-col gap-2.5">
         <span className="flex items-center justify-between border-b border-line pb-2 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
           날짜
@@ -187,7 +149,6 @@ export function FilterPanel({
           </label>
         ))}
       </div>
-      </aside>
     </>
   );
 }

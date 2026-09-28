@@ -20,6 +20,17 @@ const initialMessage: ChatMessage = {
   text: "어떤 공간을 찾고 계신가요? 지역, 용도, 예산을 알려주시면 추천해 드릴게요.",
 };
 
+function isStoredMessage(value: unknown): value is ChatMessage {
+  if (!value || typeof value !== "object") return false;
+  const message = value as Partial<ChatMessage>;
+  return (
+    typeof message.id === "number" &&
+    (message.role === "assistant" || message.role === "user") &&
+    typeof message.text === "string" &&
+    (message.spaces === undefined || Array.isArray(message.spaces))
+  );
+}
+
 function formatPrice(price: number): string {
   return `${new Intl.NumberFormat("ko-KR").format(price)}원 / 시간`;
 }
@@ -58,12 +69,62 @@ export function ChatbotDrawer() {
   const [conversationId, setConversationId] = useState<string>();
   const [isStreaming, setIsStreaming] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadedStorageKey, setLoadedStorageKey] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const nextId = useRef(1);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const hydrated = useAuthStore((state) => state.hydrated);
+  const userId = useAuthStore((state) => state.user?.id);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
+  const storageKey = hydrated && isAuthenticated && userId ? `momentlit_chatbot_history:${userId}` : null;
 
   useEffect(() => () => abortRef.current?.abort(), []);
+
+  // The ChatBot API exposes a conversation ID but no history endpoint. Keep the
+  // current tab's history locally so a refresh can restore both the visible
+  // messages and the ID used for the next streamed prompt. The user-specific
+  // key prevents one account's UI history from appearing for another account.
+  useEffect(() => {
+    let restoredMessages: ChatMessage[] = [initialMessage];
+    let restoredConversationId: string | undefined;
+
+    if (storageKey) {
+      try {
+        const raw = window.sessionStorage.getItem(storageKey);
+        if (raw) {
+          const saved = JSON.parse(raw) as { conversationId?: unknown; messages?: unknown };
+          if (Array.isArray(saved.messages) && saved.messages.length > 0 && saved.messages.every(isStoredMessage)) {
+            restoredMessages = saved.messages;
+          }
+          if (typeof saved.conversationId === "string") restoredConversationId = saved.conversationId;
+        }
+      } catch {
+        // Corrupt or unavailable browser storage should never prevent chat use.
+      }
+    }
+
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      setMessages(restoredMessages);
+      setConversationId(restoredConversationId);
+      nextId.current = Math.max(1, ...restoredMessages.map((message) => message.id + 1));
+      setLoadedStorageKey(storageKey);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storageKey]);
+
+  useEffect(() => {
+    if (!storageKey || loadedStorageKey !== storageKey) return;
+    try {
+      window.sessionStorage.setItem(storageKey, JSON.stringify({ conversationId, messages }));
+    } catch {
+      // Continue streaming even when browser storage is disabled or full.
+    }
+  }, [conversationId, loadedStorageKey, messages, storageKey]);
 
   function close() {
     abortRef.current?.abort();

@@ -18,6 +18,7 @@ import {
 import { cn } from "@/shared/lib";
 import { Logo, type SpectrumTone } from "@/shared/ui";
 import { useAuthStore } from "@/entities/auth";
+import { useUnreadDmStore, useUnreadDmWatcher } from "@/entities/message";
 import { NotificationBell } from "./NotificationBell";
 
 interface NavItem {
@@ -93,6 +94,8 @@ export function Sidebar() {
   const signOut = useAuthStore((state) => state.signOut);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const hasUnreadDm = useUnreadDmStore((state) => state.unreadRoomIds.size > 0);
+  useUnreadDmWatcher();
 
   const navGroups = user?.role === "ADMIN" ? [...NAV_GROUPS, ADMIN_NAV_GROUP] : NAV_GROUPS;
 
@@ -141,16 +144,29 @@ export function Sidebar() {
                   isActive ? "bg-primary-100 text-ink" : "text-ink hover:bg-wash",
                 )}
               >
-                <item.icon
-                  size={18}
-                  strokeWidth={2}
-                  className={cn(
-                    "flex-none transition-transform duration-200 group-hover:scale-125",
-                    isActive ? "text-sky" : item.tone ? TONE_TEXT[item.tone] : "text-soft",
+                <span className="relative flex-none">
+                  <item.icon
+                    size={18}
+                    strokeWidth={2}
+                    className={cn(
+                      "transition-transform duration-200 group-hover:scale-125",
+                      isActive ? "text-sky" : item.tone ? TONE_TEXT[item.tone] : "text-soft",
+                    )}
+                    aria-hidden
+                  />
+                  {item.href === "/messages" && hasUnreadDm && (
+                    <span
+                      aria-hidden
+                      className="absolute -right-0.5 -top-0.5 h-2 w-2 rounded-full bg-coral"
+                    />
                   )}
-                  aria-hidden
-                />
-                <span>{item.label}</span>
+                </span>
+                <span>
+                  {item.label}
+                  {item.href === "/messages" && hasUnreadDm && (
+                    <span className="sr-only"> (읽지 않은 메시지 있음)</span>
+                  )}
+                </span>
               </Link>
             );
           })}

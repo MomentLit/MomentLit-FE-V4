@@ -216,8 +216,8 @@ export function ChatbotDrawer() {
           </form>
         </section>
       )}
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-12 items-center gap-2 rounded-full bg-ink px-4 text-sm font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5" aria-expanded={open} aria-label={open ? "챗봇 닫기" : "AI 공간 추천 열기"}>
-        {open ? <ChevronDown size={18} /> : <Sparkles size={18} />} AI 추천
+      <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-12 items-center gap-2 rounded-full bg-ink px-4 text-sm font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5" aria-expanded={open} aria-label={open ? "챗봇 닫기" : "AI 챗봇 열기"}>
+        {open ? <ChevronDown size={18} /> : <Sparkles size={18} />} AI
       </button>
     </div>
   );

@@ -1,4 +1,5 @@
 import { Sidebar } from "@/widgets/app-dashboard";
+import { ChatbotDrawer } from "@/widgets/chatbot";
 
 /** Logged-in app shell — sidebar (home/search/reservations/messages/favorites/suggestions) + content. */
 export default function AppLayout({ children }: LayoutProps<"/">) {
@@ -6,6 +7,7 @@ export default function AppLayout({ children }: LayoutProps<"/">) {
     <div className="flex min-h-full flex-1 flex-col sm:flex-row">
       <Sidebar />
       {children}
+      <ChatbotDrawer />
     </div>
   );
 }

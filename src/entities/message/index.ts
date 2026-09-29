@@ -8,3 +8,5 @@ export type {
 } from "./model";
 export { createChatRoom, fetchChatMessages, fetchChatRooms } from "./api";
 export { useChatSocket } from "./useChatSocket";
+export { useUnreadDmStore } from "./unread-store";
+export { useUnreadDmWatcher } from "./useUnreadDmWatcher";

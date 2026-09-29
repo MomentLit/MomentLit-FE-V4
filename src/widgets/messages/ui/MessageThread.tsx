@@ -1,11 +1,17 @@
 "use client";
 
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/shared/lib";
 import { getErrorMessage } from "@/shared/api/error";
-import { fetchChatMessages, useChatSocket, type ChatMessage, type ChatRoomListItem } from "@/entities/message";
+import {
+  fetchChatMessages,
+  useChatSocket,
+  useUnreadDmStore,
+  type ChatMessage,
+  type ChatRoomListItem,
+} from "@/entities/message";
 import { formatTimestamp, partnerOf } from "../lib/partner";
 
 const ACCESS_TOKEN_KEY = "momentlit_access_token";
@@ -40,6 +46,7 @@ export function MessageThread({
   const [accessToken] = useState<string | null>(() => readAccessToken());
 
   const partner = partnerOf(room, currentUserId);
+  const clearUnread = useUnreadDmStore((state) => state.clearUnread);
 
   const {
     data: history,
@@ -49,7 +56,17 @@ export function MessageThread({
   } = useQuery({
     queryKey: ["chatMessages", room.chat_room_id],
     queryFn: () => fetchChatMessages(room.chat_room_id),
+    // 인스타 디엠처럼 상대가 읽으면 "읽음" 표시가 뜨게 하려면 상대의 읽음 처리(is_read)를
+    // 어느 정도는 다시 물어봐야 한다 — 백엔드가 읽음 이벤트를 실시간으로 broadcast하지 않아서,
+    // 채팅 자체가 이미 전제하는 것과 같은 수준의 가벼운 폴링으로 근사한다.
+    refetchInterval: 5_000,
   });
+
+  // 이 방의 히스토리를 성공적으로 불러왔다는 것 자체가 `GET /chat/:id/messages`의 서버 쪽
+  // 읽음 처리(부작용)가 끝났다는 뜻이므로, 사이드바 뱃지도 같이 지운다.
+  useEffect(() => {
+    if (history) clearUnread(room.chat_room_id);
+  }, [history, room.chat_room_id, clearUnread]);
 
   const { connected, liveMessages, send } = useChatSocket(room.chat_room_id, accessToken);
 
@@ -59,6 +76,11 @@ export function MessageThread({
     for (const message of liveMessages) byId.set(message.message_id, message);
     return Array.from(byId.values()).sort((a, b) => a.message_id - b.message_id);
   }, [history, liveMessages]);
+
+  const lastReadOwnMessageId = useMemo(() => {
+    const ownRead = messages.filter((message) => message.sender_id === currentUserId && message.is_read);
+    return ownRead.length > 0 ? ownRead[ownRead.length - 1].message_id : null;
+  }, [messages, currentUserId]);
 
   function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -89,22 +111,29 @@ export function MessageThread({
         {!isLoading && !isError && messages.length === 0 && (
           <p className="text-sm text-soft">아직 메시지가 없어요. 먼저 말을 걸어보세요.</p>
         )}
-        {messages.map((message) => (
-          <div
-            key={message.message_id}
-            className={cn(
-              "max-w-[75%] rounded-2xl px-3.5 py-2.5 text-[0.89rem] leading-relaxed",
-              message.sender_id === currentUserId
-                ? "self-end bg-sky text-ink"
-                : "self-start bg-white text-ink shadow-[inset_0_0_0_1px_var(--color-line)]",
-            )}
-          >
-            {message.content}
-            <span className="mt-1 block font-mono text-[0.62rem] opacity-55">
-              {formatTimestamp(message.created_at)}
-            </span>
-          </div>
-        ))}
+        {messages.map((message) => {
+          const isOwn = message.sender_id === currentUserId;
+          return (
+            <div key={message.message_id} className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
+              <div
+                className={cn(
+                  "max-w-[75%] rounded-2xl px-3.5 py-2.5 text-[0.89rem] leading-relaxed",
+                  isOwn
+                    ? "bg-sky text-ink"
+                    : "bg-white text-ink shadow-[inset_0_0_0_1px_var(--color-line)]",
+                )}
+              >
+                {message.content}
+                <span className="mt-1 block font-mono text-[0.62rem] opacity-55">
+                  {formatTimestamp(message.created_at)}
+                </span>
+              </div>
+              {isOwn && message.message_id === lastReadOwnMessageId && (
+                <span className="mt-0.5 mr-1 text-[0.62rem] text-soft">읽음</span>
+              )}
+            </div>
+          );
+        })}
       </div>
 
       <form className="flex flex-col gap-1.5 border-t border-line p-3 sm:p-4" onSubmit={handleSubmit}>

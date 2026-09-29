@@ -1,14 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { fetchChatRooms } from "@/entities/message";
+import { fetchChatRooms, useUnreadDmStore, type ChatRoomListItem } from "@/entities/message";
 import { useAuthStore } from "@/entities/auth";
 import { useRequireAuth } from "@/widgets/auth";
 import { getErrorMessage } from "@/shared/api/error";
 import { ConversationList } from "./ConversationList";
 import { MessageThread } from "./MessageThread";
+
+const SHELL_CLASS =
+  "mx-auto flex h-[calc(100vh-8rem)] min-h-[520px] max-w-6xl overflow-hidden rounded-3xl border border-line bg-white";
 
 /**
  * Messages widget — conversation list + thread, backed by the real chat API
@@ -44,12 +47,9 @@ export function MessagesView() {
     );
   }
 
-  const shellClass =
-    "mx-auto flex h-[calc(100vh-8rem)] min-h-[520px] max-w-6xl overflow-hidden rounded-3xl border border-line bg-white";
-
   if (isLoading) {
     return (
-      <div className={`${shellClass} items-center justify-center`}>
+      <div className={`${SHELL_CLASS} items-center justify-center`}>
         <p className="text-sm text-soft">대화 목록을 불러오는 중…</p>
       </div>
     );
@@ -57,7 +57,7 @@ export function MessagesView() {
 
   if (isError) {
     return (
-      <div className={`${shellClass} items-center justify-center`}>
+      <div className={`${SHELL_CLASS} items-center justify-center`}>
         <p className="text-sm text-coral">{getErrorMessage(error)}</p>
       </div>
     );
@@ -65,7 +65,7 @@ export function MessagesView() {
 
   if (!rooms || rooms.length === 0) {
     return (
-      <div className={`${shellClass} flex-col items-center justify-center gap-1.5`}>
+      <div className={`${SHELL_CLASS} flex-col items-center justify-center gap-1.5`}>
         <p className="text-sm font-semibold text-ink">아직 대화가 없어요</p>
         <p className="text-xs text-soft">관심 있는 공간의 상세 페이지에서 호스트에게 문의해 보세요.</p>
       </div>
@@ -75,13 +75,36 @@ export function MessagesView() {
   const active = rooms.find((room) => room.chat_room_id === activeId) ?? rooms[0];
 
   return (
-    <div className={shellClass}>
-      <ConversationList
-        rooms={rooms}
-        activeId={active.chat_room_id}
-        currentUserId={currentUserId}
-        onSelect={setActiveId}
-      />
+    <MessagesViewBody rooms={rooms} active={active} currentUserId={currentUserId} onSelect={setActiveId} />
+  );
+}
+
+/**
+ * 지금 열려 있는 방 id를 `useUnreadDmStore`에 반영 — 그 방으로 실시간 메시지가 와도
+ * 사이드바 뱃지로 치지 않게(이미 보고 있으니) 하고, 페이지를 벗어나거나 방을 바꾸면
+ * 다시 null/새 id로 되돌린다. 훅 순서를 지키려고 상위 컴포넌트의 이른 return들 밖으로 뺐다.
+ */
+function MessagesViewBody({
+  rooms,
+  active,
+  currentUserId,
+  onSelect,
+}: {
+  rooms: ChatRoomListItem[];
+  active: ChatRoomListItem;
+  currentUserId: string | undefined;
+  onSelect: (id: number) => void;
+}) {
+  const setViewingRoomId = useUnreadDmStore((state) => state.setViewingRoomId);
+
+  useEffect(() => {
+    setViewingRoomId(active.chat_room_id);
+    return () => setViewingRoomId(null);
+  }, [active.chat_room_id, setViewingRoomId]);
+
+  return (
+    <div className={SHELL_CLASS}>
+      <ConversationList rooms={rooms} activeId={active.chat_room_id} currentUserId={currentUserId} onSelect={onSelect} />
       <MessageThread room={active} currentUserId={currentUserId} />
     </div>
   );

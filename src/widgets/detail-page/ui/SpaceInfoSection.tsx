@@ -45,9 +45,20 @@ export function SpaceInfoSection({ space }: { space: SpaceDetail }) {
         </div>
       </section>
 
-      {space.ai_summary && (
+      {space.ai_summary_status === "PENDING" && (
+        <section aria-live="polite">
+          <h3 className="mb-3 text-lg font-semibold tracking-tight text-ink">AI 소개</h3>
+          <div className="rounded-xl border border-line bg-wash p-4">
+            <p className="text-[0.92rem] text-soft">AI가 공간 소개를 작성 중입니다.</p>
+            <div className="mt-3 h-3 w-[92%] animate-pulse rounded-full bg-line" aria-hidden />
+            <div className="mt-2 h-3 w-[68%] animate-pulse rounded-full bg-line" aria-hidden />
+          </div>
+        </section>
+      )}
+
+      {space.ai_summary_status === "COMPLETED" && space.ai_summary && (
         <section>
-          <h3 className="mb-3 text-lg font-semibold tracking-tight text-ink">AI 요약</h3>
+          <h3 className="mb-3 text-lg font-semibold tracking-tight text-ink">AI 소개</h3>
           <p className="text-[0.92rem] leading-[1.9] text-soft">{space.ai_summary}</p>
         </section>
       )}

@@ -1,4 +1,5 @@
 export type {
+  AiSummaryStatus,
   AddressRequest,
   AddressResponse,
   DayOfWeek,

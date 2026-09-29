@@ -33,6 +33,9 @@ export type UsageUnit = "HOURLY" | "DAILY";
 
 export type SpaceAdminStatus = "DRAFT" | "PENDING" | "APPROVED" | "REJECTED";
 
+/** Server/ChatBot-owned async summary state returned only from space detail. */
+export type AiSummaryStatus = "PENDING" | "COMPLETED" | "FAILED" | "NOT_REQUESTED";
+
 /** Shared fields across `SpaceListResponse`/`MySpaceListResponse`/`SpaceDetailResponse`. */
 interface SpaceBase {
   space_id: number;
@@ -64,7 +67,9 @@ export interface SpaceDetail extends SpaceBase {
   host_name: string;
   host_image_url: string | null;
   description: string;
+  /** Generated asynchronously by the server; never include this in create/update requests. */
   ai_summary: string | null;
+  ai_summary_status: AiSummaryStatus;
   image_urls: string[];
   admin_status: SpaceAdminStatus;
 }

@@ -60,6 +60,11 @@ export function useSpaceQuery(spaceId: number) {
     queryKey: ["space", spaceId],
     queryFn: () => fetchSpace(spaceId),
     retry: 1,
+    // The server creates the introduction after the space write has completed.
+    // Stop immediately once the terminal state is returned, so completed and
+    // failed summaries never keep polling in the background.
+    refetchInterval: (query) => (query.state.data?.ai_summary_status === "PENDING" ? 3000 : false),
+    refetchIntervalInBackground: false,
   });
 }
 

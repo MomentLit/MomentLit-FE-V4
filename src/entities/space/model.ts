@@ -66,6 +66,8 @@ export interface SpaceDetail extends SpaceBase {
   description: string;
   ai_summary: string | null;
   image_urls: string[];
+  /** 360도(등장방형 2:1) 사진 — 없으면 null. */
+  panorama_url: string | null;
   admin_status: SpaceAdminStatus;
 }
 
@@ -75,6 +77,8 @@ export interface SpaceCreateRequest {
   address: AddressRequest;
   thumbnail_url?: string;
   image_urls?: string[];
+  /** 수정 시 빈 문자열(`""`)을 보내면 360도 사진을 삭제한다. 생략하면 변경 없음. */
+  panorama_url?: string;
   price_per_hour: number;
   category: SpaceCategory;
   phone?: string;

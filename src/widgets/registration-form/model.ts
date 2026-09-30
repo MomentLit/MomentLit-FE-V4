@@ -153,7 +153,11 @@ export function validateStep(step: number, state: RegistrationFormState): string
     if (!state.sido.trim() || !state.sigungu.trim() || !state.eupMyeonDong.trim()) {
       return "시/도, 시/군/구, 읍/면/동을 입력해 주세요.";
     }
-    if (!state.roadAddress.trim()) return "도로명 주소를 입력해 주세요.";
+    if (!state.roadAddress.trim()) return "주소 검색으로 도로명 주소를 선택해 주세요.";
+    if (!state.roadAddress.trim().startsWith(state.sido.trim()) ||
+        !state.roadAddress.includes(state.sigungu.trim())) {
+      return "시/도와 시/군/구를 포함한 전체 도로명 주소를 입력해 주세요.";
+    }
     if (!state.postalCode.trim()) return "우편번호를 입력해 주세요.";
   }
   if (step === 3) {
@@ -169,7 +173,11 @@ export function validateRegistrationForm(state: RegistrationFormState): string |
   if (!state.sido.trim() || !state.sigungu.trim() || !state.eupMyeonDong.trim()) {
     return "시/도, 시/군/구, 읍/면/동을 입력해 주세요.";
   }
-  if (!state.roadAddress.trim()) return "도로명 주소를 입력해 주세요.";
+  if (!state.roadAddress.trim()) return "주소 검색으로 도로명 주소를 선택해 주세요.";
+  if (!state.roadAddress.trim().startsWith(state.sido.trim()) ||
+      !state.roadAddress.includes(state.sigungu.trim())) {
+    return "시/도와 시/군/구를 포함한 전체 도로명 주소를 입력해 주세요.";
+  }
   if (!state.postalCode.trim()) return "우편번호를 입력해 주세요.";
   const area = toOptionalNumber(state.area);
   if (area !== undefined && area < 0) return "면적은 0 이상이어야 합니다.";

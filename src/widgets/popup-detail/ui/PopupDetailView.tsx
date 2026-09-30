@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { IconHeart, IconHeartFilled } from "@tabler/icons-react";
 import { isApiError, getErrorMessage } from "@/shared/api/error";
 import { useAuthStore } from "@/entities/auth";
@@ -17,6 +18,7 @@ import { PopupReviewSection } from "./PopupReviewSection";
 export function PopupDetailView({ popupId }: { popupId: number }) {
   const popupQuery = usePopupQuery(popupId);
   const reviewsQuery = usePopupReviewsQuery(popupId, popupQuery.isSuccess);
+  const [isImageZoomed, setIsImageZoomed] = useState(false);
 
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
@@ -54,13 +56,27 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
   return (
     <div className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
       <Card
-        tone="violet"
-        className="flex aspect-[21/9] flex-col justify-between gap-8 rounded-3xl rounded-b-none p-6 sm:aspect-[21/7] sm:p-10"
+        tone={popup.thumbnail_url ? undefined : "violet"}
+        className={`relative flex aspect-[21/9] flex-col justify-between gap-8 overflow-hidden rounded-3xl rounded-b-none p-6 sm:aspect-[21/7] sm:p-10 ${
+          popup.thumbnail_url ? "text-white" : ""
+        }`}
       >
-        <span className="font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em]">
+        {popup.thumbnail_url && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
+            <img
+              src={popup.thumbnail_url}
+              alt=""
+              onClick={() => setIsImageZoomed(true)}
+              className="absolute inset-0 h-full w-full cursor-zoom-in object-cover"
+            />
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
+          </>
+        )}
+        <span className="relative font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em]">
           {popupBadge(popup.start_time, popup.end_time)} · {formatAddress(popup.address)}
         </span>
-        <div>
+        <div className="relative">
           <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{popup.title}</h1>
           <p className="mt-2 text-sm opacity-90 sm:text-base">
             {popup.space_name} · {formatDateRange(popup.start_time, popup.end_time)}
@@ -112,6 +128,22 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
           </div>
         </div>
       </div>
+
+      {isImageZoomed && popup.thumbnail_url && (
+        <div
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-ink/60 p-4 backdrop-blur-md"
+          role="dialog"
+          aria-modal="true"
+          onClick={() => setIsImageZoomed(false)}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
+          <img
+            src={popup.thumbnail_url}
+            alt=""
+            className="max-h-full max-w-full cursor-zoom-out rounded-2xl object-contain"
+          />
+        </div>
+      )}
     </div>
   );
 }

@@ -10,7 +10,7 @@ import {
   Calendar,
   MessageSquare,
   Store,
-  Bookmark,
+  Heart,
   Inbox,
   ClipboardCheck,
   type LucideIcon,
@@ -45,14 +45,14 @@ const NAV_GROUPS: NavGroup[] = [
     label: "예약 · 소통",
     items: [
       { label: "예약", href: "/reservations", icon: Calendar, tone: "lemon" },
-      { label: "메세지", href: "/messages", icon: MessageSquare, tone: "violet" },
+      { label: "메시지", href: "/messages", icon: MessageSquare, tone: "violet" },
     ],
   },
   {
     label: "내 활동",
     items: [
       { label: "내 공간", href: "/profile", icon: Store, tone: "sky" },
-      { label: "관심 공간", href: "/favorites", icon: Bookmark, tone: "coral" },
+      { label: "관심 공간", href: "/favorites", icon: Heart, tone: "coral" },
       { label: "건의함", href: "/suggestions", icon: Inbox, tone: "lime" },
     ],
   },
@@ -100,9 +100,9 @@ export function Sidebar() {
   const navGroups = user?.role === "ADMIN" ? [...NAV_GROUPS, ADMIN_NAV_GROUP] : NAV_GROUPS;
 
   return (
-    <aside className="sticky top-0 z-30 flex flex-none flex-col border-b border-line bg-white sm:z-auto sm:h-dvh sm:w-[226px] sm:gap-4 sm:overflow-y-auto sm:border-b-0 sm:border-r sm:py-4">
-      <div className="flex items-center justify-between px-4.5 py-3 sm:py-0">
-        <Link href="/home" aria-label="모먼트릿 홈" className="inline-flex items-center">
+    <aside className="sticky top-0 z-30 flex flex-none flex-col border-b border-line bg-white md:z-auto md:h-dvh md:w-[220px] md:gap-4 md:overflow-y-auto md:border-b-0 md:border-r md:py-4">
+      <div className="flex items-center justify-between px-4.5 py-3 md:py-0">
+        <Link href="/" aria-label="모먼트릿 랜딩페이지" className="inline-flex items-center">
           <Logo size={48} />
         </Link>
         <div className="flex items-center gap-1">
@@ -112,7 +112,7 @@ export function Sidebar() {
             onClick={() => setMobileOpen((open) => !open)}
             aria-label={mobileOpen ? "메뉴 닫기" : "메뉴 열기"}
             aria-expanded={mobileOpen}
-            className="grid h-9 w-9 place-items-center text-ink sm:hidden"
+            className="grid h-9 w-9 place-items-center text-ink md:hidden"
           >
             {mobileOpen ? <IconX size={20} stroke={2} /> : <IconMenu2 size={20} stroke={2} />}
           </button>
@@ -121,7 +121,7 @@ export function Sidebar() {
 
       <div
         className={cn(
-          "flex-1 flex-col gap-4 sm:flex sm:max-h-none sm:overflow-visible",
+          "flex-1 flex-col gap-4 md:flex md:max-h-none md:overflow-visible",
           mobileOpen
             ? "flex max-h-[calc(100dvh-56px)] overflow-y-auto border-t border-line py-4"
             : "hidden",
@@ -177,7 +177,7 @@ export function Sidebar() {
         <Link
           href="/spaces/new"
           onClick={() => setMobileOpen(false)}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-md bg-sky px-4 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-main-d hover:text-white"
+          className="button button--primary w-full"
         >
           공간 등록
           <IconArrowRight size={16} stroke={2} aria-hidden />

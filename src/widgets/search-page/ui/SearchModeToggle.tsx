@@ -16,11 +16,11 @@ const MODE_ITEMS: { key: SearchMode; label: string }[] = [
 /** 공간/팝업 스왑 — FilterPanel/PopupFilterPanel 맨 위에 얹어서 쓴다. */
 export function SearchModeToggle({ mode, onChange }: SearchModeToggleProps) {
   return (
-    <div className="relative flex w-[168px] rounded-md bg-sky p-0.5">
+    <div className="relative flex w-full border border-ink bg-sky p-0.5">
       <span
         className={cn(
-          "absolute inset-y-0.5 left-0.5 w-[82px] bg-white shadow-[0_2px_5px_rgba(21,23,28,0.35)] transition-transform duration-200 ease-out",
-          mode === "popup" && "translate-x-[82px]",
+          "absolute inset-y-0.5 left-0.5 w-[calc(50%-2px)] bg-white transition-transform duration-200 ease-out",
+          mode === "popup" && "translate-x-full",
         )}
         aria-hidden
       />
@@ -31,7 +31,7 @@ export function SearchModeToggle({ mode, onChange }: SearchModeToggleProps) {
           aria-pressed={mode === item.key}
           onClick={() => onChange(item.key)}
           className={cn(
-            "relative z-10 w-[82px] py-1.5 text-sm font-bold transition-colors",
+            "relative z-10 flex-1 py-2.5 text-base font-bold transition-colors",
             mode === item.key ? "text-ink" : "text-ink/55 hover:text-ink",
           )}
         >

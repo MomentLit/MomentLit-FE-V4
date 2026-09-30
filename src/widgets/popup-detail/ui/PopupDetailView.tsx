@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { IconHeart, IconHeartFilled } from "@tabler/icons-react";
+import { IconHeart, IconHeartFilled, IconX, IconZoomIn } from "@tabler/icons-react";
 import { isApiError, getErrorMessage } from "@/shared/api/error";
 import { useAuthStore } from "@/entities/auth";
+import { MediaPhoto } from "@/shared/ui/MediaPhoto";
+import { Modal } from "@/shared/ui/Modal";
 import { Card } from "@/shared/ui";
 import { formatAddress, formatDateRange, popupBadge } from "../lib/format";
 import {
@@ -54,30 +56,28 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
   }
 
   return (
-    <div className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="page-shell">
       <Card
         tone={popup.thumbnail_url ? undefined : "violet"}
-        className={`relative flex aspect-[21/9] flex-col justify-between gap-8 overflow-hidden rounded-3xl rounded-b-none p-6 sm:aspect-[21/7] sm:p-10 ${
-          popup.thumbnail_url ? "text-white" : ""
-        }`}
+        className="relative flex min-h-[300px] flex-col justify-between gap-8 overflow-hidden p-6 sm:min-h-[420px] sm:p-10"
       >
         {popup.thumbnail_url && (
           <>
-            {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
-            <img
-              src={popup.thumbnail_url}
-              alt=""
-              onClick={() => setIsImageZoomed(true)}
-              className="absolute inset-0 h-full w-full cursor-zoom-in object-cover"
-            />
-            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
+            <button type="button" onClick={() => setIsImageZoomed(true)} aria-label={`${popup.title} 대표 사진 확대`} className="absolute inset-0 cursor-zoom-in focus-visible:outline-offset-[-3px]">
+              <MediaPhoto src={popup.thumbnail_url} alt={`${popup.title} 대표 사진`} className="h-full w-full object-cover" />
+            </button>
+            <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/85 via-black/20 to-black/50" />
+            <button type="button" onClick={() => setIsImageZoomed(true)} className="button button--outline absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
+              <IconZoomIn size={18} stroke={2} aria-hidden />
+              사진 확대
+            </button>
           </>
         )}
-        <span className="relative font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em]">
+        <span className={`pointer-events-none relative ${popup.thumbnail_url ? "pr-32" : ""} font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em] ${popup.thumbnail_url ? "text-white" : "text-ink"}`}>
           {popupBadge(popup.start_time, popup.end_time)} · {formatAddress(popup.address)}
         </span>
-        <div className="relative">
-          <h1 className="text-3xl font-semibold tracking-tight sm:text-5xl">{popup.title}</h1>
+        <div className={`pointer-events-none relative ${popup.thumbnail_url ? "text-white" : "text-ink"}`}>
+          <h1 className="break-keep text-[clamp(2.2rem,5vw,4.5rem)] font-extrabold leading-tight tracking-tight">{popup.title}</h1>
           <p className="mt-2 text-sm opacity-90 sm:text-base">
             {popup.space_name} · {formatDateRange(popup.start_time, popup.end_time)}
           </p>
@@ -87,13 +87,13 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
       <div className="grid grid-cols-1 gap-px overflow-hidden rounded-b-3xl bg-line lg:grid-cols-[1fr_280px]">
         <div className="flex flex-col gap-9 bg-white p-5 sm:p-8">
           <section>
-            <h3 className="mb-3 text-lg font-semibold tracking-tight text-ink">팝업 소개</h3>
+            <h3 className="mb-3 section-title text-ink">팝업 소개</h3>
             <p className="text-[0.92rem] leading-[1.9] text-soft">{popup.description}</p>
           </section>
 
           {popup.ai_brand_summary && (
             <section>
-              <h3 className="mb-3 text-lg font-semibold tracking-tight text-ink">AI 브랜드 요약</h3>
+              <h3 className="mb-3 section-title text-ink">AI 브랜드 요약</h3>
               <p className="text-[0.92rem] leading-[1.9] text-soft">{popup.ai_brand_summary}</p>
             </section>
           )}
@@ -115,34 +115,30 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
             좋아요 <span className="tabular-nums">{likeCount}</span>
           </button>
           <div className="flex flex-col gap-1 border border-line p-3.5">
-            <span className="font-mono text-[0.6rem] uppercase tracking-wide text-soft">운영 공간</span>
+            <span className="text-xs font-bold text-soft">운영 공간</span>
             <b className="text-sm font-bold text-ink">{popup.space_name}</b>
           </div>
           <div className="flex flex-col gap-1 border border-line p-3.5">
-            <span className="font-mono text-[0.6rem] uppercase tracking-wide text-soft">운영 기간</span>
+            <span className="text-xs font-bold text-soft">운영 기간</span>
             <b className="text-sm font-bold text-ink">{formatDateRange(popup.start_time, popup.end_time)}</b>
           </div>
           <div className="flex flex-col gap-1 border border-line p-3.5">
-            <span className="font-mono text-[0.6rem] uppercase tracking-wide text-soft">조회수</span>
+            <span className="text-xs font-bold text-soft">조회수</span>
             <b className="text-sm font-bold text-ink">{popup.view_count.toLocaleString()}</b>
           </div>
         </div>
       </div>
-
       {isImageZoomed && popup.thumbnail_url && (
-        <div
-          className="fixed inset-0 z-[300] flex items-center justify-center bg-ink/60 p-4 backdrop-blur-md"
-          role="dialog"
-          aria-modal="true"
-          onClick={() => setIsImageZoomed(false)}
-        >
-          {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
-          <img
-            src={popup.thumbnail_url}
-            alt=""
-            className="max-h-full max-w-full cursor-zoom-out rounded-2xl object-contain"
-          />
-        </div>
+        <Modal label={`${popup.title} 대표 사진 확대`} onClose={() => setIsImageZoomed(false)} panelClassName="flex w-full max-w-[1200px] flex-col gap-4 overflow-y-auto bg-ink p-4 sm:p-6">
+          <div className="flex items-center justify-between gap-4">
+            <h2 className="min-w-0 truncate text-lg font-bold text-white sm:text-2xl">{popup.title}</h2>
+            <button type="button" onClick={() => setIsImageZoomed(false)} className="button button--inverse shrink-0">
+              <IconX size={18} stroke={2} aria-hidden />
+              닫기
+            </button>
+          </div>
+          <MediaPhoto src={popup.thumbnail_url} alt={`${popup.title} 확대 사진`} className="max-h-[calc(100dvh-160px)] w-full object-contain" />
+        </Modal>
       )}
     </div>
   );

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useRef, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/shared/lib";
@@ -39,6 +39,7 @@ export function MessageThread({
   room: ChatRoomListItem;
   currentUserId: string | undefined;
 }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
   const [draft, setDraft] = useState("");
   // Lazy initializer (not an effect) so this resolves synchronously on the
   // client's first render — reading `window` during SSR would just return
@@ -77,6 +78,12 @@ export function MessageThread({
     return Array.from(byId.values()).sort((a, b) => a.message_id - b.message_id);
   }, [history, liveMessages]);
 
+  const lastMessageId = messages.at(-1)?.message_id;
+  useEffect(() => {
+    const container = scrollRef.current;
+    if (container) container.scrollTop = container.scrollHeight;
+  }, [lastMessageId]);
+
   const lastReadOwnMessageId = useMemo(() => {
     const ownRead = messages.filter((message) => message.sender_id === currentUserId && message.is_read);
     return ownRead.length > 0 ? ownRead[ownRead.length - 1].message_id : null;
@@ -90,7 +97,7 @@ export function MessageThread({
   }
 
   return (
-    <div className="flex min-w-0 flex-1 flex-col">
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <div className="flex items-center gap-2.5 border-b border-line px-4 py-3.5 sm:px-5">
         <i aria-hidden className="h-8 w-8 flex-none bg-sky" />
         <div className="min-w-0">
@@ -99,13 +106,13 @@ export function MessageThread({
         </div>
         <Link
           href={`/spaces/${room.space.id}`}
-          className="ml-auto flex-none border border-ink px-3.5 py-1.5 text-xs font-semibold text-ink transition-colors hover:bg-wash"
+          className="button button--outline flex-none"
         >
           공간 보기
         </Link>
       </div>
 
-      <div className="flex flex-1 flex-col gap-3 overflow-y-auto bg-wash p-4 sm:p-5">
+      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-wash p-4 sm:p-5">
         {isLoading && <p className="text-sm text-soft">메시지를 불러오는 중…</p>}
         {isError && <p className="text-sm text-coral">{getErrorMessage(error)}</p>}
         {!isLoading && !isError && messages.length === 0 && (
@@ -117,7 +124,7 @@ export function MessageThread({
             <div key={message.message_id} className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
               <div
                 className={cn(
-                  "max-w-[75%] rounded-2xl px-3.5 py-2.5 text-[0.89rem] leading-relaxed",
+                  "max-w-[85%] break-words whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-[0.89rem] leading-relaxed",
                   isOwn
                     ? "bg-sky text-ink"
                     : "bg-white text-ink shadow-[inset_0_0_0_1px_var(--color-line)]",
@@ -148,12 +155,12 @@ export function MessageThread({
             placeholder="메시지를 입력하세요"
             aria-label="메시지 입력"
             disabled={!connected}
-            className="min-w-0 flex-1 border border-line px-4 py-2.5 text-sm outline-none focus:border-line-2 disabled:opacity-60"
+            className="min-w-0 flex-1 border border-line px-4 py-2.5 text-sm outline-none focus:border-sky disabled:opacity-60"
           />
           <button
             type="submit"
             disabled={!connected}
-            className="flex-none bg-sky px-5 py-2.5 text-sm font-semibold text-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+            className="button button--primary flex-none"
           >
             전송
           </button>

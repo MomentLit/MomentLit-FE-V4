@@ -54,7 +54,7 @@ export function SpaceDetailView({ spaceId }: { spaceId: number }) {
   const bannerMessage = statusBanner[space.admin_status];
 
   return (
-    <div className="flex-1 px-4 py-8 sm:px-6 lg:px-8">
+    <div className="page-shell">
       {bannerMessage && (
         <p className="mb-4 shadow-[inset_3px_0_0_var(--coral)] bg-wash px-4.5 py-3 text-sm font-semibold text-ink">
           {bannerMessage}

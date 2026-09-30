@@ -5,8 +5,9 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { IconArrowRight } from "@tabler/icons-react";
 import { REGIONS, REGION_LABELS, type Region } from "@/entities/region";
-import { SPACE_CATEGORIES, SPACE_CATEGORY_LABELS, type SpaceCategory } from "@/entities/space-category";
+import { SPACE_CATEGORY_DISPLAY_ORDER, SPACE_CATEGORY_LABELS, type SpaceCategory } from "@/entities/space-category";
 import { fetchCategoryCounts } from "@/entities/space/api";
+import { TrailLayer } from "@/widgets/landing/TrailLayer";
 import { Dropdown, DatePicker } from "@/shared/ui";
 
 function todayISO(): string {
@@ -39,51 +40,55 @@ export function ComboSearch() {
   }
 
   return (
-    <div className="border-b border-line px-7 py-8">
-      <h1 className="text-2xl font-bold tracking-tight text-ink sm:text-3xl">
-        오늘 열린 공간 <em className="font-bold not-italic text-main-d">{totalSpaceCount.toLocaleString()}</em>
-      </h1>
+    <section aria-label="공간 검색" className="search-hero search-hero--dashboard relative isolate border-b border-line app-gutter">
+      <TrailLayer />
+      <div className="search-hero-content relative z-[2]">
+        <h1 style={{ fontFamily: "var(--font-display)" }} className="search-hero-headline text-[clamp(2.1rem,4.5vw,4rem)] leading-tight tracking-tight text-ink">
+          <span className="underline decoration-sky decoration-4 underline-offset-8">다음 장면이 될 공간</span>
+        </h1>
 
-      <div className="mt-6 flex flex-wrap items-center gap-4">
-        <span className="flex flex-wrap items-center gap-2 text-lg font-bold tracking-tight sm:text-2xl">
-          <Dropdown
-            value={region}
-            onChange={setRegion}
-            options={REGIONS.map((option) => ({ value: option, label: REGION_LABELS[option] }))}
-            placeholder="전체 지역"
-            ariaLabel="지역"
-            accent="var(--sky)"
-          />
-          <span className="font-normal text-soft">에서</span>
-          <Dropdown
-            value={category}
-            onChange={setCategory}
-            options={SPACE_CATEGORIES.map((option) => ({ value: option, label: SPACE_CATEGORY_LABELS[option] }))}
-            placeholder="전체 카테고리"
-            ariaLabel="카테고리"
-            accent="var(--coral)"
-          />
-          <span className="font-normal text-soft">를</span>
-          <DatePicker
-            value={date}
-            onChange={setDate}
-            placeholder="날짜 미정"
-            ariaLabel="날짜"
-            min={todayISO()}
-            accent="var(--lemon)"
-          />
-          <span className="font-normal text-soft">에</span>
-        </span>
+        <p className="search-hero-description text-soft">등록된 공간 {totalSpaceCount.toLocaleString()}곳에서 당신의 아이디어를 시작하세요.</p>
+        <div className="search-hero-form">
+          <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[clamp(1.05rem,2vw,1.5rem)] font-bold tracking-tight">
+            <Dropdown
+              value={region}
+              onChange={setRegion}
+              options={REGIONS.map((option) => ({ value: option, label: REGION_LABELS[option] }))}
+              placeholder="전체 지역"
+              ariaLabel="지역"
+              accent="var(--sky)"
+            />
+            <span className="font-normal text-soft">에서</span>
+            <Dropdown
+              value={category}
+              onChange={setCategory}
+              options={SPACE_CATEGORY_DISPLAY_ORDER.map((option) => ({ value: option, label: SPACE_CATEGORY_LABELS[option] }))}
+              placeholder="전체 카테고리"
+              ariaLabel="카테고리"
+              accent="var(--coral)"
+            />
+            <span className="font-normal text-soft">를</span>
+            <DatePicker
+              value={date}
+              onChange={setDate}
+              placeholder="날짜 미정"
+              ariaLabel="날짜"
+              min={todayISO()}
+              accent="var(--lemon)"
+            />
+            <span className="font-normal text-soft">에</span>
+          </span>
 
-        <button
-          type="button"
-          onClick={handleSubmit}
-          className="group inline-flex items-center gap-1.5 rounded-md bg-sky px-4 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-main-d hover:text-white"
-        >
-          찾아보기
-          <IconArrowRight size={16} stroke={2} className="transition-transform group-hover:translate-x-1" aria-hidden />
-        </button>
+          <button
+            type="button"
+            onClick={handleSubmit}
+            className="button button--primary group"
+          >
+            검색하기
+            <IconArrowRight size={16} stroke={2} className="transition-transform group-hover:translate-x-1" aria-hidden />
+          </button>
+        </div>
       </div>
-    </div>
+    </section>
   );
 }

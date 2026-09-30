@@ -18,18 +18,19 @@ export function FavoritesView() {
 
   if (!ready) {
     return (
-      <div className="flex-1 p-6 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">관심 공간</h1>
+      <div className="page-shell">
+        <h1 className="page-title text-ink">관심 공간</h1>
         <p className="mt-3 text-sm text-soft">로그인이 필요한 서비스입니다.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 p-6 sm:p-8">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">관심 공간</h1>
+    <div className="page-shell">
+      <h1 className="page-title text-ink">관심 공간</h1>
       <p className="mt-1.5 text-sm text-soft">좋아요한 공간을 한눈에 모아봐요.</p>
 
+      <div className="collection-results">
       <ResultList
         items={likedQuery.data?.content ?? []}
         isLoading={likedQuery.isPending}
@@ -37,6 +38,7 @@ export function FavoritesView() {
         errorMessage={likedQuery.error ? getErrorMessage(likedQuery.error) : undefined}
         emptyMessage="아직 좋아요한 공간이 없어요."
       />
+      </div>
     </div>
   );
 }

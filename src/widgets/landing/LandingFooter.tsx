@@ -3,12 +3,12 @@ import { Logo } from "@/shared/ui";
 
 const SERVICE_LINKS = [
   { label: "공간 찾기", href: "/search" },
-  { label: "팝업 둘러보기", href: "/search" },
+  { label: "팝업 검색", href: "/search?mode=popup" },
   { label: "공간 등록", href: "/spaces/new" },
 ];
 
 const SUPPORT_LINKS = [
-  { label: "호스트 안내", href: "/spaces/new" },
+  { label: "호스트 안내", href: "/#host-guide" },
   { label: "건의함", href: "/suggestions" },
 ];
 
@@ -25,7 +25,7 @@ export function LandingFooter() {
 
         <div>
           <h4
-            className="mb-3 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft"
+            className="mb-3 text-lg font-bold tracking-tight text-ink"
             style={{ fontFamily: "var(--font-label)" }}
           >
             Service
@@ -43,7 +43,7 @@ export function LandingFooter() {
 
         <div>
           <h4
-            className="mb-3 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft"
+            className="mb-3 text-lg font-bold tracking-tight text-ink"
             style={{ fontFamily: "var(--font-label)" }}
           >
             Support

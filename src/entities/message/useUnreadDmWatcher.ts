@@ -32,7 +32,7 @@ export function useUnreadDmWatcher() {
   const currentUserId = useAuthStore((state) => state.user?.id);
   const markUnread = useUnreadDmStore((state) => state.markUnread);
   const currentUserIdRef = useRef(currentUserId);
-  currentUserIdRef.current = currentUserId;
+  useEffect(() => { currentUserIdRef.current = currentUserId; }, [currentUserId]);
 
   const { data: rooms } = useQuery({
     queryKey: ["chatRooms"],

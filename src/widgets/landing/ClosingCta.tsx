@@ -32,14 +32,14 @@ export function ClosingCta() {
           <div className="flex flex-wrap justify-start gap-2.5 lg:justify-end">
             <Link
               href="/spaces/new"
-              className="group inline-flex items-center gap-2.5 bg-sky px-6 py-4 text-[0.94rem] font-bold text-ink transition-colors hover:bg-white"
+              className="button button--primary group"
             >
               공간 등록하기
               <IconArrowRight size={18} stroke={2} className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden />
             </Link>
             <Link
-              href="/spaces/new"
-              className="inline-flex items-center px-6 py-4 text-[0.94rem] font-bold text-white shadow-[inset_0_0_0_1.5px_rgba(255,255,255,0.35)] transition-colors hover:bg-white hover:text-ink"
+              href="/#host-guide"
+              className="button button--inverse"
             >
               호스트 안내
             </Link>

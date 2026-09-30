@@ -21,19 +21,19 @@ const STEPS: Array<{ tone: string; label: string; title: string; body: string }>
   },
 ];
 
-/** "예약이 잡히기까지" — ports `.steps` from design-reference.html (ANALYSIS.md §2.1). */
+/** "마음에 드는 공간을 만났다면" — ports `.steps` from design-reference.html (ANALYSIS.md §2.1). */
 export function StepsSection() {
   return (
     <section className="border-b border-line px-4 py-11 sm:px-6 sm:py-16 lg:py-20">
-      <Reveal className="mb-5 flex flex-wrap items-end justify-between gap-x-10 gap-y-3 sm:mb-8">
+      <Reveal className="mb-6 flex flex-col items-start gap-3 sm:mb-8">
         <h2
           className="text-[clamp(1.5rem,3.2vw,2.4rem)] leading-[1.2] tracking-tight text-ink"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          예약이 잡히기까지
+          마음에 드는 공간을 만났다면
         </h2>
-        <p className="max-w-[30ch] text-[0.89rem] leading-[1.75] text-soft">
-          요청을 보낸 뒤 호스트가 승인하면 확정됩니다.
+        <p className="max-w-[60ch] text-[0.89rem] leading-[1.75] text-soft">
+          찾고, 이야기하고, 함께 시작해요. 공간 예약은 이렇게 이어집니다.
         </p>
       </Reveal>
 

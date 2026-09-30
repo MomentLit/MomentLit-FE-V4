@@ -28,7 +28,7 @@ const FALLBACK_CELL_PX = 76;
 const MAX_CELLS = 900;
 const FADE_MS = 150;
 
-export function usePointerTrail<T extends HTMLElement>() {
+export function usePointerTrail<T extends HTMLElement>(fit = false) {
   // A callback ref rather than a plain useRef: callers like OpeningIntro
   // render `null` on their very first pass (before deciding whether to
   // play at all), so the element doesn't exist yet when a plain ref's
@@ -49,29 +49,31 @@ export function usePointerTrail<T extends HTMLElement>() {
     if (!layer || typeof window === "undefined") return;
 
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    if (reduce) return;
 
     let cols = 0;
-    let cellSize = FALLBACK_CELL_PX;
+    let cellWidth = FALLBACK_CELL_PX;
+    let cellHeight = FALLBACK_CELL_PX;
 
     function build() {
       if (!layer) return;
       const style = getComputedStyle(layer);
-      cellSize = parseFloat(style.gridAutoRows) || FALLBACK_CELL_PX;
-      const nextCols = Math.max(1, Math.ceil(layer.clientWidth / cellSize));
-      const rows = Math.max(1, Math.ceil(layer.clientHeight / cellSize));
-      const want = Math.min(nextCols * rows, MAX_CELLS);
+      const target = parseFloat(style.gridAutoRows) || FALLBACK_CELL_PX;
+      const width = layer.getBoundingClientRect().width;
+      const height = layer.getBoundingClientRect().height;
+      const nextCols = Math.max(1, fit ? Math.round(width / target) : Math.ceil(width / target));
+      const rows = Math.max(1, fit ? Math.round(height / target) : Math.ceil(height / target));
+      cellWidth = fit ? width / nextCols : target;
+      cellHeight = fit ? height / rows : target;
+      layer.style.gridTemplateColumns = `repeat(${nextCols}, ${cellWidth}px)`;
+      layer.style.gridTemplateRows = `repeat(${rows}, ${cellHeight}px)`;
+      layer.style.setProperty("--trail-cell-width", `${cellWidth}px`);
+      layer.style.setProperty("--trail-cell-height", `${cellHeight}px`);
+      const want = reduce ? 0 : Math.min(nextCols * rows, MAX_CELLS);
       if (layer.childElementCount === want && cols === nextCols) return;
       cols = nextCols;
-      // Pin explicit tracks (using the resolved px cell size, since callers
-      // name their own `--cell`-like variable differently or hardcode it) so
-      // this hook's `idx = row * cols + col` math always matches the grid
-      // the browser actually renders — the class's own
-      // `repeat(auto-fill, <cell>)` computes its track count independently
-      // from fractional layout, which can disagree with this `Math.ceil`
-      // and shift auto-placed cells into the wrong row/column.
-      layer.style.gridTemplateColumns = `repeat(${nextCols}, ${cellSize}px)`;
-      layer.style.gridTemplateRows = `repeat(${rows}, ${cellSize}px)`;
+      for (const cell of Array.from(layer.children)) {
+        window.clearTimeout((cell as HTMLElement & { _fadeTimer?: number })._fadeTimer);
+      }
       const frag = document.createDocumentFragment();
       for (let i = 0; i < want; i++) frag.appendChild(document.createElement("b"));
       layer.textContent = "";
@@ -92,9 +94,10 @@ export function usePointerTrail<T extends HTMLElement>() {
 
     let pending: { x: number; y: number } | null = null;
     let ticking = false;
+    let frameId = 0;
 
     function onPointerMove(e: PointerEvent) {
-      if (!layer) return;
+      if (!layer || reduce) return;
       const rect = layer.getBoundingClientRect();
       if (
         e.clientX < rect.left ||
@@ -107,12 +110,12 @@ export function usePointerTrail<T extends HTMLElement>() {
       pending = { x: e.clientX - rect.left, y: e.clientY - rect.top };
       if (ticking) return;
       ticking = true;
-      requestAnimationFrame(() => {
+      frameId = requestAnimationFrame(() => {
         ticking = false;
         const p = pending;
         if (!p || !cols) return;
-        const col = Math.floor(p.x / cellSize);
-        const row = Math.floor(p.y / cellSize);
+        const col = Math.floor(p.x / cellWidth);
+        const row = Math.floor(p.y / cellHeight);
         if (col < 0 || col >= cols) return;
         const idx = row * cols + col;
         const colorIdx = (col + row) % TRAIL_COLORS.length;
@@ -130,10 +133,14 @@ export function usePointerTrail<T extends HTMLElement>() {
     window.addEventListener("pointermove", onPointerMove, { passive: true });
 
     return () => {
+      cancelAnimationFrame(frameId);
+      for (const cell of Array.from(layer.children)) {
+        window.clearTimeout((cell as HTMLElement & { _fadeTimer?: number })._fadeTimer);
+      }
       ro.disconnect();
       window.removeEventListener("pointermove", onPointerMove);
     };
-  }, [mountTick]);
+  }, [mountTick, fit]);
 
   return ref;
 }

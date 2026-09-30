@@ -1,3 +1,5 @@
+import { LandingExploreNav } from "@/widgets/landing/LandingExploreNav";
+import { Marquee } from "@/widgets/landing/Marquee";
 import {
   LandingHeader,
   LandingHero,
@@ -18,15 +20,19 @@ import {
  */
 export default function LandingPage() {
   return (
-    <main className="flex-1">
+    <main className="landing-page flex-1 bg-white">
       <LandingHeader />
-      <LandingHero />
+      <div>
+        <LandingExploreNav />
+        <LandingHero />
+      </div>
       <OpenPopups />
       <CategoryMosaic />
       <RegionGrid />
       <DuoSection />
       <StepsSection />
       <ClosingCta />
+      <Marquee />
       <LandingFooter />
     </main>
   );

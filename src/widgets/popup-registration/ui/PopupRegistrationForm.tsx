@@ -1,5 +1,6 @@
 "use client";
 
+import { PhotoUpload } from "@/shared/ui/PhotoUpload";
 import { useMemo, useState, type FormEvent } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { IconArrowRight } from "@tabler/icons-react";
@@ -101,9 +102,9 @@ export function PopupRegistrationForm() {
   }
 
   return (
-    <div className="flex flex-col gap-7 p-[clamp(22px,3vw,40px)]">
+    <div className="page-shell flex flex-col gap-7">
       <div>
-        <h1 className="text-[clamp(1.5rem,3vw,2.2rem)] font-semibold tracking-tight text-ink">팝업 등록</h1>
+        <h1 className="page-title text-ink">팝업 등록</h1>
         <p className="mt-2 text-[0.92rem] text-soft">
           승인된 예약 건에 대해 공개용 팝업 페이지를 만들어요. 운영 기간은 예약 기간과 동일하게 설정됩니다.
         </p>
@@ -111,7 +112,7 @@ export function PopupRegistrationForm() {
 
       <form onSubmit={handleSubmit} className="flex max-w-[640px] flex-col gap-4.5">
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-bold text-ink">대상 예약</span>
+          <span className="text-lg font-bold text-ink">대상 예약</span>
           {matchingsQuery.isPending ? (
             <p className="text-sm text-soft">불러오는 중…</p>
           ) : approvedMatchings.length === 0 ? (
@@ -139,7 +140,7 @@ export function PopupRegistrationForm() {
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-bold text-ink">팝업 이름</span>
+          <span className="text-lg font-bold text-ink">팝업 이름</span>
           <input
             type="text"
             required
@@ -151,7 +152,7 @@ export function PopupRegistrationForm() {
         </label>
 
         <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-bold text-ink">팝업 소개</span>
+          <span className="text-lg font-bold text-ink">팝업 소개</span>
           <textarea
             required
             value={description}
@@ -162,17 +163,10 @@ export function PopupRegistrationForm() {
           />
         </label>
 
-        <label className="flex flex-col gap-1.5">
-          <span className="text-sm font-bold text-ink">대표 사진</span>
-          <input
-            required
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            onChange={(event) => setThumbnailFile(event.target.files?.[0] ?? null)}
-            className={`${fieldInputClass} py-2.5`}
-          />
-          {thumbnailFile && <span className="text-[0.79rem] text-soft">선택됨: {thumbnailFile.name}</span>}
-        </label>
+        <div className="flex flex-col gap-1.5">
+          <span className="text-lg font-bold text-ink">대표 사진</span>
+          <PhotoUpload file={thumbnailFile} onChange={setThumbnailFile} required />
+        </div>
 
         {error && (
           <p className="shadow-[inset_3px_0_0_var(--coral)] bg-wash px-4.5 py-3 text-[0.88rem] text-coral">{error}</p>
@@ -181,7 +175,7 @@ export function PopupRegistrationForm() {
         <button
           type="submit"
           disabled={submitting || approvedMatchings.length === 0}
-          className="inline-flex items-center gap-1.5 self-start bg-sky px-6 py-3 text-sm font-bold text-ink transition-colors hover:bg-main-d hover:text-white disabled:opacity-60"
+          className="button button--primary self-start"
         >
           {submitting ? "등록 중…" : "팝업 등록하기"} <IconArrowRight size={16} stroke={2} aria-hidden />
         </button>

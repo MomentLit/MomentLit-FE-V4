@@ -17,16 +17,16 @@ const HOST_STEPS = [
 /** "양쪽 모두의 자리" — ports `.duo` from design-reference.html (ANALYSIS.md §2.1). */
 export function DuoSection() {
   return (
-    <section className="border-b border-line px-4 py-11 sm:px-6 sm:py-16 lg:py-20">
-      <Reveal className="mb-5 flex flex-wrap items-end justify-between gap-x-10 gap-y-3 sm:mb-8">
+    <section id="host-guide" className="scroll-mt-24 border-b border-line px-4 py-11 sm:px-6 sm:py-16 lg:py-20">
+      <Reveal className="mb-6 flex flex-col items-start gap-3 sm:mb-8">
         <h2
           className="text-[clamp(1.5rem,3.2vw,2.4rem)] leading-[1.2] tracking-tight text-ink"
           style={{ fontFamily: "var(--font-display)" }}
         >
           양쪽 모두의 자리
         </h2>
-        <p className="max-w-[30ch] text-[0.89rem] leading-[1.75] text-soft">
-          빌리는 쪽과 빌려주는 쪽을 같은 무게로 다룹니다.
+        <p className="max-w-[60ch] text-[0.89rem] leading-[1.75] text-soft">
+          아이디어를 펼칠 브랜드와 새로운 이야기를 기다리는 공간. 서로의 시작을 함께해요.
         </p>
       </Reveal>
 
@@ -61,7 +61,7 @@ export function DuoSection() {
           </ol>
           <Link
             href="/search"
-            className="group mt-auto inline-flex w-fit items-center gap-2.5 bg-white px-6 py-4 text-[0.94rem] font-bold text-ink transition-colors hover:bg-lemon"
+            className="button button--outline group mt-auto w-fit"
           >
             공간 둘러보기
             <IconArrowRight size={18} stroke={2} className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden />
@@ -98,7 +98,7 @@ export function DuoSection() {
           </ol>
           <Link
             href="/spaces/new"
-            className="group mt-auto inline-flex w-fit items-center gap-2.5 bg-white px-6 py-4 text-[0.94rem] font-bold text-ink transition-colors hover:bg-sky"
+            className="button button--outline group mt-auto w-fit"
           >
             공간 등록하기
             <IconArrowRight size={18} stroke={2} className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden />

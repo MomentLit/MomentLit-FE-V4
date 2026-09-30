@@ -16,8 +16,8 @@ interface ResultListProps {
 
 const SKELETON_COUNT = 6;
 
-/** grid-cols-1 sm:grid-cols-2 2xl:grid-cols-3 — widened to `aspect-3/2` cards, so 2 columns is the norm and a 3rd only fits once there's enough width to spare (2xl), instead of squeezing landscape cards down at xl like the old 4:5 cards could. */
-const GRID_CLASS = "grid grid-cols-1 gap-3 px-6 py-5 sm:grid-cols-2 2xl:grid-cols-3";
+/** Fill the available content width without squeezing cards below 250px. */
+const GRID_CLASS = "result-grid";
 
 export function ResultList({
   items,
@@ -58,7 +58,7 @@ export function ResultList({
         <Link
           key={space.space_id}
           href={`/spaces/${space.space_id}`}
-          className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white transition-all duration-300 hover:-translate-y-1.5 hover:border-ink"
+          className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white interactive-card"
         >
           <div
             className={cn(

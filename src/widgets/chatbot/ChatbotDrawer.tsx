@@ -209,15 +209,15 @@ export function ChatbotDrawer() {
 
           <form onSubmit={handleSubmit} className="border-t border-line bg-white p-3">
             <div className="flex gap-2">
-              <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="예: 성수동 20명 팝업 공간" aria-label="챗봇 메시지" disabled={isStreaming} className="min-w-0 flex-1 rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-ink disabled:bg-wash" />
+              <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="예: 성수동 20명 팝업 공간" aria-label="챗봇 메시지" disabled={isStreaming} className="min-w-0 flex-1 rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-sky disabled:bg-wash" />
               <button type="submit" disabled={!draft.trim() || isStreaming} className="grid h-10 w-10 place-items-center rounded-xl bg-ink text-white transition-opacity disabled:opacity-35" aria-label="전송"><Send size={17} /></button>
             </div>
             {!isAuthenticated && <p className="mt-2 text-center text-[0.68rem] text-soft">전송하면 로그인 화면이 열려요.</p>}
           </form>
         </section>
       )}
-      <button type="button" onClick={() => setOpen((value) => !value)} className="flex h-12 items-center gap-2 rounded-full bg-ink px-4 text-sm font-bold text-white shadow-lg transition-transform hover:-translate-y-0.5" aria-expanded={open} aria-label={open ? "챗봇 닫기" : "AI 챗봇 열기"}>
-        {open ? <ChevronDown size={18} /> : <Sparkles size={18} />} AI
+      <button type="button" onClick={() => setOpen((value) => !value)} className="button button--primary border-ink" aria-expanded={open} aria-label={open ? "챗봇 닫기" : "맞춤 공간 추천 열기"}>
+        {open ? <ChevronDown size={18} /> : <Sparkles size={18} />} 맞춤 공간 추천
       </button>
     </div>
   );

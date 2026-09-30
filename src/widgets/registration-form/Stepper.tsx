@@ -39,7 +39,7 @@ export function Stepper({ current, onSelect }: StepperProps) {
             >
               {label}
             </span>
-            <b className="text-base font-normal tracking-tight">{title}</b>
+            <b className="text-lg font-bold tracking-tight">{title}</b>
           </button>
         );
       })}

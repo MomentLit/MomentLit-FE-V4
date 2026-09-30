@@ -25,11 +25,11 @@ export function ConversationList({
   onSelect: (id: number) => void;
 }) {
   return (
-    <aside className="flex w-[290px] flex-none flex-col border-r border-line">
+    <aside className="flex min-h-0 w-full flex-col border-r border-line">
       <div className="border-b border-line px-4 py-4">
-        <h2 className="text-lg font-semibold tracking-tight text-ink">메세지</h2>
+        <h2 className="text-lg font-semibold tracking-tight text-ink">메시지</h2>
       </div>
-      <div className="flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         {rooms.map((room) => {
           const partner = partnerOf(room, currentUserId);
           return (

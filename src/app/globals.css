@@ -29,6 +29,7 @@
  * which uses a bottom gradient + white text instead.
  */
 :root {
+  --page-gutter: clamp(20px, 3vw, 40px);
   --background: #ffffff;
   --foreground: #15171c;
 
@@ -137,7 +138,7 @@
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
+  --font-sans: "Pretendard Variable", Pretendard, var(--font-geist-sans), sans-serif;
   --font-mono: var(--font-geist-mono);
 
   --color-sky: var(--sky);
@@ -237,3 +238,83 @@ body {
 button:not(:disabled) {
   cursor: pointer;
 }
+
+/* Shared layout and interaction vocabulary, used explicitly by UI surfaces. */
+html { scroll-behavior: smooth; scroll-padding-top: 88px; }
+:where(a[href], button, [role="button"]):focus-visible { outline: 3px solid var(--main-d); outline-offset: 3px; }
+.page-shell { width: 100%; min-width: 0; flex: 1; padding: var(--page-gutter); }
+.page-title { font-size: clamp(1.9rem, 3vw, 2.8rem); font-weight: 800; line-height: 1.2; letter-spacing: -.04em; }
+.section-title { font-size: clamp(1.35rem, 2vw, 1.8rem); font-weight: 800; letter-spacing: -.03em; }
+.collection-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 16px; padding: 24px var(--page-gutter); }
+.interactive-card { transition: border-color 160ms, transform 160ms; }
+.interactive-card:hover, .interactive-card:focus-visible { border-color: var(--ink); transform: translateY(-4px); }
+.button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; padding: 10px 18px; font-size: .875rem; font-weight: 700; line-height: 1.4; border-radius: 0; transition: background-color 160ms, color 160ms, border-color 160ms; }
+.button--primary { background: var(--sky); color: var(--ink); }
+.button--primary:hover { background: var(--main-d); color: white; }
+.button--outline { border-color: var(--line-2); background: white; color: var(--ink); }
+.button--outline:hover { border-color: var(--ink); background: var(--ink); color: white; }
+.button--inverse { border-color: #ffffff70; color: white; background: transparent; }
+.button--inverse:hover { background: white; color: var(--ink); }
+.button--danger { background: var(--coral); color: var(--ink); }
+.button--danger:hover { border-color: var(--ink); }
+.button:disabled { cursor: not-allowed; opacity: .5; }
+.landing-page > section, .landing-page > footer, .landing-top, .landing-explore, .landing-page > div > section { padding-inline: max(20px, calc((100% - 1280px) / 2)); }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  .interactive-card { transition: none; }
+  .interactive-card:hover { transform: none; }
+}
+
+@media (max-width: 639px) {
+  .landing-top .button { padding: 8px 10px; font-size: .75rem; }
+  .landing-explore { gap: 16px; }
+}
+
+.app-gutter { padding-inline: var(--page-gutter); }
+.collection-results { margin-inline: calc(-1 * var(--page-gutter)); }
+
+/* Explicit tracks retain empty slots; item count never changes card width. */
+@media (min-width: 640px) { .collection-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) { .collection-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (min-width: 1280px) { .collection-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.collection-grid > * { min-width: 0; }
+
+/* Landing and dashboard search share the same height and vertical rhythm. */
+.search-hero {
+  min-height: 520px;
+  padding-block: 48px;
+  display: flex;
+}
+.search-hero-content { width: 100%; min-width: 0; }
+.search-hero-headline { min-height: calc(clamp(2.6rem, 8vw, 6.4rem) * 2.04); }
+.search-hero-description {
+  margin-top: 20px;
+  min-height: 7.4em;
+  max-width: 42ch;
+  font-size: 1rem;
+  line-height: 1.85;
+  word-break: keep-all;
+}
+.search-hero-form {
+  margin-top: 32px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 16px;
+}
+@media (min-width: 640px) {
+  .search-hero { min-height: 560px; padding-block: 64px; }
+  .search-hero-description { margin-top: 24px; min-height: 3.7em; }
+  .search-hero-form { margin-top: 40px; gap: 24px; }
+}
+@media (min-width: 1024px) {
+  .search-hero { min-height: 600px; padding-block: 96px; }
+}
+@media (max-width: 359px) { .search-hero { min-height: 560px; } }
+
+/* Keep the description by the title and anchor search near the grid's bottom. */
+.search-hero--dashboard .search-hero-content { display: flex; flex-direction: column; }
+.search-hero--dashboard .search-hero-headline,
+.search-hero--dashboard .search-hero-description { min-height: 0; }
+.search-hero--dashboard .search-hero-form { margin-top: auto; margin-bottom: 32px; }

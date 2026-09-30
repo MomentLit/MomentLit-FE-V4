@@ -29,7 +29,7 @@ export function PanoramaCaptureGuide({ files, onFileChange, disabled }: Panorama
       </ul>
 
       <div className="flex items-baseline justify-between">
-        <span className="font-mono text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+        <span className="text-lg font-bold text-ink">
           촬영 순서
         </span>
         <span className="text-[0.79rem] text-soft">
@@ -44,16 +44,16 @@ export function PanoramaCaptureGuide({ files, onFileChange, disabled }: Panorama
             <label
               key={step.label}
               className={cn(
-                "flex cursor-pointer items-start gap-3 px-4 py-3.5 transition-shadow",
+                "flex cursor-pointer items-start gap-3 border px-4 py-3.5 transition-colors focus-within:border-sky",
                 file
-                  ? "bg-wash shadow-[inset_0_0_0_1.5px_var(--sky)]"
-                  : "shadow-[inset_0_0_0_1px_var(--line)] hover:shadow-[inset_0_0_0_1.5px_var(--line-2)]",
+                  ? "border-sky bg-wash"
+                  : "border-line hover:border-ink",
                 disabled && "pointer-events-none opacity-60",
               )}
             >
               <span className="font-mono text-[0.72rem] font-medium text-soft">{step.label}</span>
               <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-                <span className="text-[0.9rem] font-semibold text-ink">{step.direction}</span>
+                <span className="text-base font-bold text-ink">{step.direction}</span>
                 <span className="text-[0.79rem] text-soft">{step.hint}</span>
                 {file && <span className="truncate text-[0.79rem] text-main-d">선택됨: {file.name}</span>}
               </span>

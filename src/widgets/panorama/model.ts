@@ -63,3 +63,34 @@ export function readImageRatio(file: File): Promise<number> {
 export function isPanoramaRatio(ratio: number): boolean {
   return Math.abs(ratio - PANORAMA_RATIO) <= PANORAMA_RATIO_TOLERANCE;
 }
+
+/** 합성용 사진의 긴 변 최대 길이 — 10장을 한 번에 보내므로 요청 크기와 합성 시간을 줄인다. */
+const STITCH_MAX_SIDE = 1600;
+
+/**
+ * AI 합성 전에 브라우저에서 사진을 줄여 jpeg로 다시 만든다. `createImageBitmap`은 휴대폰 사진의
+ * EXIF 회전 정보를 반영해서 그려주므로, 서버/AI 쪽에서 사진이 옆으로 누워 보이는 일도 막는다.
+ */
+export async function downscaleForStitch(file: File): Promise<File> {
+  const bitmap = await createImageBitmap(file);
+  const scale = Math.min(1, STITCH_MAX_SIDE / Math.max(bitmap.width, bitmap.height));
+  const width = Math.round(bitmap.width * scale);
+  const height = Math.round(bitmap.height * scale);
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) {
+    bitmap.close();
+    throw new Error("사진을 처리할 수 없어요.");
+  }
+  context.drawImage(bitmap, 0, 0, width, height);
+  bitmap.close();
+
+  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
+  if (!blob) throw new Error("사진을 처리할 수 없어요.");
+
+  const baseName = file.name.replace(/\.[^.]+$/, "");
+  return new File([blob], `${baseName}.jpg`, { type: "image/jpeg" });
+}

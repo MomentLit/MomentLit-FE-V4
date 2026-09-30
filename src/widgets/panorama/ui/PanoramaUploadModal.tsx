@@ -6,7 +6,13 @@ import { cn } from "@/shared/lib";
 import { stitchPanorama, uploadPanorama } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
-import { PANORAMA_ACCEPT, PANORAMA_CAPTURE_STEPS, isPanoramaRatio, readImageRatio } from "../model";
+import {
+  PANORAMA_ACCEPT,
+  PANORAMA_CAPTURE_STEPS,
+  downscaleForStitch,
+  isPanoramaRatio,
+  readImageRatio,
+} from "../model";
 import { PanoramaCaptureGuide } from "./PanoramaCaptureGuide";
 import { PanoramaViewer } from "./PanoramaViewerModal";
 
@@ -117,7 +123,7 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
     setError(null);
     setBusy(true);
     try {
-      const url = await stitchPanorama(files);
+      const url = await stitchPanorama(await Promise.all(files.map(downscaleForStitch)));
       setStitchedUrl(url);
       setMode("PREVIEW");
     } catch (stitchError) {

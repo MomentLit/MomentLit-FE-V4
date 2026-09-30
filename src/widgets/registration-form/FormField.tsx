@@ -13,7 +13,7 @@ export interface FormFieldProps {
 export function FormField({ label, full, hint, children }: FormFieldProps) {
   return (
     <div className={cn("flex flex-col gap-1.5", full && "sm:col-span-2")}>
-      <span className="font-mono text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+      <span className="text-lg font-bold tracking-tight text-ink">
         {label}
       </span>
       {children}

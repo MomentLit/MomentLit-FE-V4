@@ -6,8 +6,8 @@ import { SPACE_CATEGORY_LABELS, type SpaceCategory } from "@/entities/space-cate
 import type { SortKey } from "../lib/constants";
 
 interface SortBarProps {
-  category: SpaceCategory | null;
-  region: Region | null;
+  categories: SpaceCategory[];
+  regions: Region[];
   totalElements: number;
   sort: SortKey;
   onSortChange: (sort: SortKey) => void;
@@ -26,8 +26,8 @@ const SORT_ITEMS: { key: SortKey; label: string }[] = [
 
 /** Results header + sort toggle. "가까운순"은 브라우저 위치 권한을 받아 거리순으로 다시 검색한다. */
 export function SortBar({
-  category,
-  region,
+  categories,
+  regions,
   totalElements,
   sort,
   onSortChange,
@@ -36,18 +36,19 @@ export function SortBar({
   unitLabel = "곳",
   showDistance = true,
 }: SortBarProps) {
-  const labelParts = [region ? REGION_LABELS[region] : null, category ? SPACE_CATEGORY_LABELS[category] : null].filter(
-    (part): part is string => Boolean(part),
-  );
+  const labelParts = [
+    regions.map((region) => REGION_LABELS[region]).join(", "),
+    categories.map((category) => SPACE_CATEGORY_LABELS[category]).join(", "),
+  ].filter(Boolean);
   const heading = labelParts.length > 0 ? labelParts.join(" · ") : `전체 ${itemLabel}`;
 
   return (
-    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-6 py-4">
-      <h2 className="text-lg font-bold tracking-tight text-ink">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line app-gutter py-4">
+      <h2 className="section-title text-ink">
         {heading} <em className="font-bold not-italic text-main-d">{totalElements}</em>
         {unitLabel}
       </h2>
-      <div className="flex gap-0.5">
+      <div className="flex gap-0 border border-line divide-x divide-line">
         {SORT_ITEMS.map((item) => (
           <button
             key={item.key}
@@ -55,8 +56,8 @@ export function SortBar({
             aria-pressed={sort === item.key}
             onClick={() => onSortChange(item.key)}
             className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-bold transition-colors",
-              sort === item.key ? "bg-primary-100 text-ink" : "border border-line text-soft hover:text-ink",
+              "min-h-11 px-3 py-2 text-sm font-bold transition-colors",
+              sort === item.key ? "bg-primary-100 text-ink" : "text-soft hover:bg-wash hover:text-ink",
             )}
           >
             {item.label}
@@ -74,8 +75,8 @@ export function SortBar({
                 : "브라우저 위치 권한을 사용해 가까운 순으로 보여줘요(권역 단위 근사치)."
             }
             className={cn(
-              "rounded-md px-3 py-1.5 text-sm font-bold transition-colors disabled:cursor-wait disabled:opacity-60",
-              sort === "distance" ? "bg-primary-100 text-ink" : "border border-line text-soft hover:text-ink",
+              "min-h-11 px-3 py-2 text-sm font-bold transition-colors disabled:cursor-wait disabled:opacity-60",
+              sort === "distance" ? "bg-primary-100 text-ink" : "text-soft hover:bg-wash hover:text-ink",
             )}
           >
             {geoStatus === "loading" ? "위치 확인 중…" : "가까운순"}

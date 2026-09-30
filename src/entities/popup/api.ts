@@ -7,10 +7,10 @@ export async function createPopup(request: PopupCreateRequest): Promise<PopupCre
   return data.data;
 }
 
-export async function fetchPopups(params: { page?: number; size?: number } = {}): Promise<
+export async function fetchPopups(params: { page?: number; size?: number } = {}, signal?: AbortSignal): Promise<
   PageResponse<PopupListItem>
 > {
-  const { data } = await publicApiClient.get<ApiResponse<PageResponse<PopupListItem>>>("/popups", { params });
+  const { data } = await publicApiClient.get<ApiResponse<PageResponse<PopupListItem>>>("/popups", { params, signal });
   return data.data;
 }
 

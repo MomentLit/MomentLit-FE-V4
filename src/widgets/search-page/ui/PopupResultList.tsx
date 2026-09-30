@@ -17,7 +17,7 @@ interface PopupResultListProps {
 const SKELETON_COUNT = 6;
 
 /** 카드 그리드는 ResultList와 같은 레이아웃 — 팝업은 카테고리가 없어 톤은 인덱스로 순환시킨다. */
-const GRID_CLASS = "grid grid-cols-1 gap-3 px-6 py-5 sm:grid-cols-2 2xl:grid-cols-3";
+const GRID_CLASS = "result-grid";
 
 export function PopupResultList({
   items,
@@ -58,7 +58,7 @@ export function PopupResultList({
         <Link
           key={popup.popup_id}
           href={`/popups/${popup.popup_id}`}
-          className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white transition-all duration-300 hover:-translate-y-1.5 hover:border-ink"
+          className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white interactive-card"
         >
           <div
             className={cn(

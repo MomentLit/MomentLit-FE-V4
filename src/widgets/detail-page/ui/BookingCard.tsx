@@ -237,7 +237,7 @@ export function BookingCard({
         type="button"
         onClick={handleReserve}
         disabled={createMatching.isPending || isDateBooked}
-        className="mt-3 inline-flex w-full items-center justify-center gap-1.5 bg-sky px-4 py-3 text-sm font-semibold text-ink transition-opacity hover:opacity-90 disabled:opacity-60"
+        className="button button--primary w-full"
       >
         {createMatching.isPending ? "요청 보내는 중…" : "예약 요청 보내기"} <IconArrowRight size={16} stroke={2} aria-hidden />
       </button>

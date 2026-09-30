@@ -50,9 +50,10 @@ function toSearchQuery(params: SpaceSearchParams): Record<string, string | numbe
   return query;
 }
 
-export async function searchSpaces(params: SpaceSearchParams = {}): Promise<PageResponse<SpaceListItem>> {
+export async function searchSpaces(params: SpaceSearchParams = {}, signal?: AbortSignal): Promise<PageResponse<SpaceListItem>> {
   const { data } = await publicApiClient.get<ApiResponse<PageResponse<SpaceListItem>>>("/spaces", {
     params: toSearchQuery(params),
+    signal,
   });
   return data.data;
 }

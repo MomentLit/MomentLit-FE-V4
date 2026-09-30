@@ -24,15 +24,15 @@ const TONE_HOVER_BG: Record<string, string> = {
 export function RegionGrid() {
   return (
     <section className="border-b border-line px-4 py-11 sm:px-6 sm:py-16 lg:py-20">
-      <Reveal className="mb-5 flex flex-wrap items-end justify-between gap-x-10 gap-y-3 sm:mb-8">
+      <Reveal className="mb-6 flex flex-col items-start gap-3 sm:mb-8">
         <h2
           className="text-[clamp(1.5rem,3.2vw,2.4rem)] leading-[1.2] tracking-tight text-ink"
           style={{ fontFamily: "var(--font-display)" }}
         >
           지역별로 보기
         </h2>
-        <p className="max-w-[30ch] text-[0.89rem] leading-[1.75] text-soft">
-          서울에만 몰려 있지 않습니다. 지역을 골라 바로 훑어볼 수 있습니다.
+        <p className="max-w-[60ch] text-[0.89rem] leading-[1.75] text-soft">
+          어느 동네에서 시작해 볼까요? 익숙한 거리부터 새로운 도시까지, 가까운 공간을 찾아보세요.
         </p>
       </Reveal>
 

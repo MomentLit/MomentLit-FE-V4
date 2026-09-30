@@ -2,10 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { IconArrowLeft, IconCamera, IconRefresh, IconUpload, IconX } from "@tabler/icons-react";
-import { cn } from "@/shared/lib";
+import { Modal } from "@/shared/ui/Modal";
 import { stitchPanorama, uploadPanorama } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
-import { fieldInputClass } from "@/widgets/registration-form/FormField";
 import {
   PANORAMA_ACCEPT,
   PANORAMA_CAPTURE_STEPS,
@@ -18,15 +17,8 @@ import { PanoramaViewer } from "./PanoramaViewerModal";
 
 type Mode = "CHOOSE" | "UPLOAD" | "CAPTURE" | "PREVIEW";
 
-const buttonBase =
-  "inline-flex items-center justify-center gap-2 px-5 py-3 text-[0.88rem] font-bold transition-colors disabled:opacity-60";
-
-/** Same as RegistrationForm's `.btn-main` / `.btn-ol` ports. */
-const primaryButtonClass = cn(buttonBase, "bg-sky text-ink hover:bg-main-d hover:text-white");
-const outlineButtonClass = cn(
-  buttonBase,
-  "text-ink shadow-[inset_0_0_0_1.5px_var(--line-2)] hover:bg-ink hover:text-white hover:shadow-[inset_0_0_0_1.5px_var(--ink)]",
-);
+const primaryButtonClass = "button button--primary";
+const outlineButtonClass = "button button--outline";
 
 const MODE_TITLES: Record<Mode, string> = {
   CHOOSE: "360° 사진 추가",
@@ -136,151 +128,142 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
   const allCaptured = captureFiles.every(Boolean);
 
   return (
-    <div
-      className="fixed inset-0 z-[300] flex items-center justify-center bg-ink/40 p-4"
-      role="dialog"
-      aria-modal="true"
-      aria-label={MODE_TITLES[mode]}
-      onClick={busy ? undefined : onClose}
-    >
-      <div
-        className="flex max-h-[90vh] w-full max-w-[760px] flex-col gap-6 overflow-y-auto rounded-2xl border border-gray-200 bg-white p-6 shadow-[0px_8px_24px_0px_rgba(53,65,80,0.12)] sm:p-8"
-        onClick={(event) => event.stopPropagation()}
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <span className="font-mono text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
-              360° Photo
-            </span>
-            <h2 className="mt-1 text-[1.3rem] font-semibold tracking-tight text-ink">{MODE_TITLES[mode]}</h2>
-          </div>
+    <Modal label={MODE_TITLES[mode]} onClose={onClose} canClose={!busy}>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <span className="font-mono text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+            360° Photo
+          </span>
+          <h2 className="mt-1 section-title text-ink">{MODE_TITLES[mode]}</h2>
+        </div>
+        <button
+          type="button"
+          onClick={onClose}
+          disabled={busy}
+          aria-label="닫기"
+          className="button button--outline shrink-0"
+        >
+          <IconX size={20} stroke={2} aria-hidden />
+        </button>
+      </div>
+
+      {mode === "CHOOSE" && (
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <button
             type="button"
-            onClick={onClose}
-            disabled={busy}
-            aria-label="닫기"
-            className="p-1.5 text-soft transition-colors hover:text-ink disabled:opacity-60"
+            onClick={() => goTo("UPLOAD")}
+            className="flex flex-col items-start gap-3 border border-line p-5 text-left transition-colors hover:border-ink hover:bg-wash"
           >
-            <IconX size={20} stroke={2} aria-hidden />
+            <IconUpload size={22} stroke={1.8} className="text-main-d" aria-hidden />
+            <span className="text-lg font-bold text-ink">360° 사진 넣기</span>
+            <span className="text-[0.84rem] leading-[1.6] text-soft">
+              360° 카메라나 파노라마 앱으로 이미 만든 사진(가로:세로 2:1)을 그대로 올려요.
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => goTo("CAPTURE")}
+            className="flex flex-col items-start gap-3 border border-line p-5 text-left transition-colors hover:border-ink hover:bg-wash"
+          >
+            <IconCamera size={22} stroke={1.8} className="text-main-d" aria-hidden />
+            <span className="text-lg font-bold text-ink">360° 사진 찍기</span>
+            <span className="text-[0.84rem] leading-[1.6] text-soft">
+              가이드에 맞춰 휴대폰으로 {PANORAMA_CAPTURE_STEPS.length}장을 찍어 올리면 AI가 360° 사진으로 합쳐 드려요.
+            </span>
           </button>
         </div>
+      )}
 
-        {mode === "CHOOSE" && (
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <button
-              type="button"
-              onClick={() => goTo("UPLOAD")}
-              className="flex flex-col items-start gap-3 rounded-2xl border border-line p-5 text-left transition-colors hover:border-sky hover:bg-wash"
-            >
-              <IconUpload size={22} stroke={1.8} className="text-main-d" aria-hidden />
-              <span className="text-[1rem] font-semibold text-ink">360° 사진 넣기</span>
-              <span className="text-[0.84rem] leading-[1.6] text-soft">
-                360° 카메라나 파노라마 앱으로 이미 만든 사진(가로:세로 2:1)을 그대로 올려요.
-              </span>
-            </button>
-            <button
-              type="button"
-              onClick={() => goTo("CAPTURE")}
-              className="flex flex-col items-start gap-3 rounded-2xl border border-line p-5 text-left transition-colors hover:border-sky hover:bg-wash"
-            >
-              <IconCamera size={22} stroke={1.8} className="text-main-d" aria-hidden />
-              <span className="text-[1rem] font-semibold text-ink">360° 사진 찍기</span>
-              <span className="text-[0.84rem] leading-[1.6] text-soft">
-                가이드에 맞춰 휴대폰으로 {PANORAMA_CAPTURE_STEPS.length}장을 찍어 올리면 AI가 360° 사진으로 합쳐 드려요.
-              </span>
-            </button>
-          </div>
-        )}
-
-        {mode === "UPLOAD" && (
-          <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-1.5">
-              <input
-                type="file"
-                accept={PANORAMA_ACCEPT}
-                disabled={busy}
-                onChange={(e) => void handlePanoramaFileChange(e.target.files?.[0])}
-                aria-label="360° 사진"
-                className={`${fieldInputClass} py-2.5`}
-              />
-              <span className="text-[0.79rem] text-soft">jpeg/png, 가로:세로 2:1 비율의 사진 한 장.</span>
-            </div>
-            {localPreviewUrl && (
-              <PanoramaViewer src={localPreviewUrl} className="h-[300px] sm:h-[360px]" />
-            )}
-          </div>
-        )}
-
-        {mode === "CAPTURE" && (
-          <PanoramaCaptureGuide files={captureFiles} onFileChange={handleCaptureFileChange} disabled={busy} />
-        )}
-
-        {mode === "PREVIEW" && stitchedUrl && (
-          <div className="flex flex-col gap-2">
-            <PanoramaViewer src={stitchedUrl} className="h-[300px] sm:h-[360px]" />
-            <span className="text-[0.79rem] text-soft">
-              드래그해서 둘러보세요. 어색하면 다시 합성하거나 사진을 바꿔서 합성할 수 있어요.
-            </span>
-          </div>
-        )}
-
-        {error && (
-          <p className="shadow-[inset_3px_0_0_var(--coral)] bg-wash px-4.5 py-3 text-[0.88rem] text-coral">{error}</p>
-        )}
-
-        {mode !== "CHOOSE" && (
-          <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={() => goTo(mode === "PREVIEW" ? "CAPTURE" : "CHOOSE")}
+      {mode === "UPLOAD" && (
+        <div className="flex flex-col gap-4">
+          <label className={`flex cursor-pointer flex-col items-center gap-3 border-2 border-dashed border-line-2 bg-wash p-6 text-center transition-colors hover:border-ink focus-within:border-sky ${busy ? "pointer-events-none opacity-60" : ""}`}>
+            <IconUpload size={28} stroke={1.5} aria-hidden />
+            <span className="button button--primary">{panoramaFile ? "360° 사진 변경" : "360° 사진 선택"}</span>
+            <span className="text-sm text-soft">{panoramaFile?.name ?? "JPG · PNG, 가로:세로 2:1 비율의 사진 한 장"}</span>
+            <input
+              type="file"
+              accept={PANORAMA_ACCEPT}
               disabled={busy}
-              className={outlineButtonClass}
+              onChange={(e) => void handlePanoramaFileChange(e.target.files?.[0])}
+              aria-label="360° 사진"
+              className="sr-only"
+            />
+          </label>
+          {localPreviewUrl && (
+            <PanoramaViewer src={localPreviewUrl} className="h-[300px] sm:h-[360px]" />
+          )}
+        </div>
+      )}
+
+      {mode === "CAPTURE" && (
+        <PanoramaCaptureGuide files={captureFiles} onFileChange={handleCaptureFileChange} disabled={busy} />
+      )}
+
+      {mode === "PREVIEW" && stitchedUrl && (
+        <div className="flex flex-col gap-2">
+          <PanoramaViewer src={stitchedUrl} className="h-[300px] sm:h-[360px]" />
+          <span className="text-[0.79rem] text-soft">
+            드래그해서 둘러보세요. 어색하면 다시 합성하거나 사진을 바꿔서 합성할 수 있어요.
+          </span>
+        </div>
+      )}
+
+      {error && (
+        <p role="alert" className="border-l-4 border-coral bg-wash px-4.5 py-3 text-[0.88rem] text-coral">{error}</p>
+      )}
+
+      {mode !== "CHOOSE" && (
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => goTo(mode === "PREVIEW" ? "CAPTURE" : "CHOOSE")}
+            disabled={busy}
+            className={outlineButtonClass}
+          >
+            <IconArrowLeft size={16} stroke={2} aria-hidden />
+            {mode === "PREVIEW" ? "사진 다시 고르기" : "이전"}
+          </button>
+
+          {mode === "UPLOAD" && (
+            <button
+              type="button"
+              onClick={() => void handleUploadConfirm()}
+              disabled={busy || !panoramaFile}
+              className={primaryButtonClass}
             >
-              <IconArrowLeft size={16} stroke={2} aria-hidden />
-              {mode === "PREVIEW" ? "사진 다시 고르기" : "이전"}
+              {busy ? "업로드 중…" : "이 사진 사용"}
             </button>
+          )}
 
-            {mode === "UPLOAD" && (
+          {mode === "CAPTURE" && (
+            <button
+              type="button"
+              onClick={() => void handleStitch()}
+              disabled={busy || !allCaptured}
+              className={primaryButtonClass}
+            >
+              {busy ? "AI 합성 중…" : "AI로 360° 사진 만들기"}
+            </button>
+          )}
+
+          {mode === "PREVIEW" && stitchedUrl && (
+            <>
+              <button type="button" onClick={() => void handleStitch()} disabled={busy} className={outlineButtonClass}>
+                <IconRefresh size={16} stroke={2} aria-hidden />
+                {busy ? "AI 합성 중…" : "다시 합성"}
+              </button>
               <button
                 type="button"
-                onClick={() => void handleUploadConfirm()}
-                disabled={busy || !panoramaFile}
+                onClick={() => onConfirm(stitchedUrl)}
+                disabled={busy}
                 className={primaryButtonClass}
               >
-                {busy ? "업로드 중…" : "이 사진 사용"}
+                이 사진 사용
               </button>
-            )}
-
-            {mode === "CAPTURE" && (
-              <button
-                type="button"
-                onClick={() => void handleStitch()}
-                disabled={busy || !allCaptured}
-                className={primaryButtonClass}
-              >
-                {busy ? "AI 합성 중…" : "AI로 360° 사진 만들기"}
-              </button>
-            )}
-
-            {mode === "PREVIEW" && stitchedUrl && (
-              <>
-                <button type="button" onClick={() => void handleStitch()} disabled={busy} className={outlineButtonClass}>
-                  <IconRefresh size={16} stroke={2} aria-hidden />
-                  {busy ? "AI 합성 중…" : "다시 합성"}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onConfirm(stitchedUrl)}
-                  disabled={busy}
-                  className={primaryButtonClass}
-                >
-                  이 사진 사용
-                </button>
-              </>
-            )}
-          </div>
-        )}
-      </div>
-    </div>
+            </>
+          )}
+        </div>
+      )}
+    </Modal>
   );
 }

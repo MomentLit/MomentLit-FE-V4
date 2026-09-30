@@ -12,10 +12,10 @@ import { TONE_DOT_BG } from "./tone-dot";
 interface FilterPanelProps {
   categoryCounts: SpaceCategoryCount[];
   regionCounts: SpaceRegionCount[];
-  selectedCategory: SpaceCategory | null;
-  onSelectCategory: (category: SpaceCategory | null) => void;
-  selectedRegion: Region | null;
-  onSelectRegion: (region: Region | null) => void;
+  selectedCategories: SpaceCategory[];
+  onSelectCategory: (category: SpaceCategory) => void;
+  selectedRegions: Region[];
+  onSelectRegion: (region: Region) => void;
   maxCapacity: number;
   onMaxCapacityChange: (value: number) => void;
   usageUnits: Record<UsageUnit, boolean>;
@@ -27,21 +27,13 @@ interface FilterPanelProps {
 const USAGE_UNIT_LABELS: Record<UsageUnit, string> = { HOURLY: "시간 단위", DAILY: "일 단위" };
 const USAGE_UNITS = Object.keys(USAGE_UNIT_LABELS) as UsageUnit[];
 
-/**
- * Space filter fields (date/region/category/capacity/usage-unit) — wired to
- * real counts and to `SearchPageContent`'s query params. `searchSpaces` only
- * accepts a single `category`/`region` value each, so despite the checkbox
- * look, picking one clears any previous pick (radio semantics). The shared
- * aside shell (mode toggle, mobile drawer, "필터" header) lives in
- * `SearchPageContent` so it stays mounted across a space/popup mode switch —
- * see SearchModeToggle for why that matters for its slide animation.
- */
+/** Region and category checkboxes independently support multiple selections. */
 export function FilterPanel({
   categoryCounts,
   regionCounts,
-  selectedCategory,
+  selectedCategories,
   onSelectCategory,
-  selectedRegion,
+  selectedRegions,
   onSelectRegion,
   maxCapacity,
   onMaxCapacityChange,
@@ -56,7 +48,7 @@ export function FilterPanel({
   return (
     <>
       <div className="flex flex-col gap-2.5">
-        <span className="flex items-center justify-between border-b border-line pb-2 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+        <span className="flex items-center justify-between border-b border-line pb-2 text-base font-bold tracking-tight text-ink">
           날짜
           {date && (
             <button type="button" onClick={() => onDateChange(null)} className="normal-case text-ink hover:underline">
@@ -76,15 +68,15 @@ export function FilterPanel({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <span className="border-b border-line pb-2 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+        <span className="border-b border-line pb-2 text-base font-bold tracking-tight text-ink">
           지역
         </span>
         {REGIONS.map((region) => (
           <label key={region} className="flex cursor-pointer items-center gap-2.5 text-[0.86rem]">
             <input
               type="checkbox"
-              checked={selectedRegion === region}
-              onChange={() => onSelectRegion(selectedRegion === region ? null : region)}
+              checked={selectedRegions.includes(region)}
+              onChange={() => onSelectRegion(region)}
               className="h-[15px] w-[15px] flex-none accent-sky"
             />
             <span className="flex-1 min-w-0 text-ink">{REGION_LABELS[region]}</span>
@@ -94,15 +86,15 @@ export function FilterPanel({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <span className="border-b border-line pb-2 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+        <span className="border-b border-line pb-2 text-base font-bold tracking-tight text-ink">
           카테고리
         </span>
         {SPACE_CATEGORIES.map((category) => (
           <label key={category} className="flex cursor-pointer items-center gap-2.5 text-[0.86rem]">
             <input
               type="checkbox"
-              checked={selectedCategory === category}
-              onChange={() => onSelectCategory(selectedCategory === category ? null : category)}
+              checked={selectedCategories.includes(category)}
+              onChange={() => onSelectCategory(category)}
               className="h-[15px] w-[15px] flex-none accent-sky"
             />
             <i
@@ -116,7 +108,7 @@ export function FilterPanel({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <span className="border-b border-line pb-2 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+        <span className="border-b border-line pb-2 text-base font-bold tracking-tight text-ink">
           수용 인원
         </span>
         <input
@@ -134,7 +126,7 @@ export function FilterPanel({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <span className="border-b border-line pb-2 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+        <span className="border-b border-line pb-2 text-base font-bold tracking-tight text-ink">
           이용 단위
         </span>
         {USAGE_UNITS.map((unit) => (

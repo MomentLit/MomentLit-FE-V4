@@ -9,7 +9,7 @@ import { usePointerTrail } from "@/shared/hooks/usePointerTrail";
  * none` keeps it from ever intercepting clicks meant for that content.
  */
 export function TrailLayer({ dark = false }: { dark?: boolean }) {
-  const ref = usePointerTrail<HTMLDivElement>();
+  const ref = usePointerTrail<HTMLDivElement>(true);
 
   return (
     <>
@@ -17,12 +17,15 @@ export function TrailLayer({ dark = false }: { dark?: boolean }) {
       <style>{`
         .ml-gl{
           position:absolute;inset:0;z-index:0;overflow:hidden;pointer-events:none;
-          display:grid;grid-template-columns:repeat(auto-fill,76px);grid-auto-rows:76px;
+          display:grid;grid-auto-rows:clamp(44px,5vw,76px);
+          --trail-cell-width:clamp(44px,5vw,76px);--trail-cell-height:clamp(44px,5vw,76px);
           background-image:linear-gradient(to right,var(--line) 1px,transparent 1px),linear-gradient(to bottom,var(--line) 1px,transparent 1px);
-          background-size:76px 76px;
+          background-size:var(--trail-cell-width) var(--trail-cell-height);
+          box-shadow:inset -1px 0 var(--line),inset 0 -1px var(--line);
         }
         .ml-gl b{display:block;background:transparent;transition:background .8s cubic-bezier(.3,0,.5,1)}
         .ml-gl--dark{
+          box-shadow:inset -1px 0 rgba(255,255,255,.07),inset 0 -1px rgba(255,255,255,.07);
           background-image:linear-gradient(to right,rgba(255,255,255,.07) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.07) 1px,transparent 1px);
         }
       `}</style>

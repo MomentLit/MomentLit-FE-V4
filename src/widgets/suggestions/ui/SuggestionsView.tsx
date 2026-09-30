@@ -46,16 +46,16 @@ export function SuggestionsView() {
 
   if (!ready) {
     return (
-      <div className="flex-1 p-6 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">건의함</h1>
+      <div className="page-shell">
+        <h1 className="page-title text-ink">건의함</h1>
         <p className="mt-3 text-sm text-soft">로그인이 필요한 페이지예요.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 p-6 sm:p-8">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">건의함</h1>
+    <div className="page-shell">
+      <h1 className="page-title text-ink">건의함</h1>
       <p className="mt-1.5 text-sm text-soft">모먼트릿에게 하고 싶은 이야기를 자유롭게 남겨주세요.</p>
 
       <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-3 border border-line bg-white p-4 sm:p-5">
@@ -78,13 +78,13 @@ export function SuggestionsView() {
         <button
           type="submit"
           disabled={createMut.isPending}
-          className="self-end bg-sky px-4 py-2 text-sm font-bold text-ink transition-opacity hover:opacity-90 disabled:opacity-60"
+          className="button button--primary"
         >
           {createMut.isPending ? "등록 중…" : "건의하기"}
         </button>
       </form>
 
-      <div className="mt-6 flex flex-col gap-3">
+      <div className="collection-grid mt-6">
         {mySuggestionsQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
         {mySuggestionsQuery.isError && (
           <p className="text-sm text-coral">불러오지 못했어요. {getErrorMessage(mySuggestionsQuery.error)}</p>

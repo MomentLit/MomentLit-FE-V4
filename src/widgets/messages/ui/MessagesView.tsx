@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { fetchChatRooms, useUnreadDmStore, type ChatRoomListItem } from "@/entities/message";
@@ -11,7 +11,7 @@ import { ConversationList } from "./ConversationList";
 import { MessageThread } from "./MessageThread";
 
 const SHELL_CLASS =
-  "mx-auto flex h-[calc(100vh-8rem)] min-h-[520px] max-w-6xl overflow-hidden rounded-3xl border border-line bg-white";
+  "flex h-[calc(100dvh-8rem)] min-h-[320px] w-full min-w-0 overflow-hidden border border-line bg-white";
 
 /**
  * Messages widget — conversation list + thread, backed by the real chat API
@@ -41,7 +41,7 @@ export function MessagesView() {
 
   if (!ready) {
     return (
-      <div className="mx-auto flex h-[calc(100vh-8rem)] min-h-[520px] max-w-6xl items-center justify-center rounded-3xl border border-line bg-white">
+      <div className={`${SHELL_CLASS} items-center justify-center`}>
         <p className="text-sm text-soft">로그인이 필요한 페이지예요.</p>
       </div>
     );
@@ -75,7 +75,7 @@ export function MessagesView() {
   const active = rooms.find((room) => room.chat_room_id === activeId) ?? rooms[0];
 
   return (
-    <MessagesViewBody rooms={rooms} active={active} currentUserId={currentUserId} onSelect={setActiveId} />
+    <MessagesViewBody rooms={rooms} active={active} currentUserId={currentUserId} onSelect={setActiveId} initiallyOpen={roomParam !== null} />
   );
 }
 
@@ -89,23 +89,42 @@ function MessagesViewBody({
   active,
   currentUserId,
   onSelect,
+  initiallyOpen,
 }: {
   rooms: ChatRoomListItem[];
   active: ChatRoomListItem;
   currentUserId: string | undefined;
   onSelect: (id: number) => void;
+  initiallyOpen: boolean;
 }) {
+  const [threadOpen, setThreadOpen] = useState(initiallyOpen);
+  const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false);
+  const threadVisible = !isMobile || threadOpen;
   const setViewingRoomId = useUnreadDmStore((state) => state.setViewingRoomId);
 
   useEffect(() => {
-    setViewingRoomId(active.chat_room_id);
+    setViewingRoomId(threadVisible ? active.chat_room_id : null);
     return () => setViewingRoomId(null);
-  }, [active.chat_room_id, setViewingRoomId]);
+  }, [active.chat_room_id, setViewingRoomId, threadVisible]);
 
   return (
     <div className={SHELL_CLASS}>
-      <ConversationList rooms={rooms} activeId={active.chat_room_id} currentUserId={currentUserId} onSelect={onSelect} />
-      <MessageThread room={active} currentUserId={currentUserId} />
+      <div className={`${threadOpen ? "hidden" : "flex"} min-h-0 w-full flex-none md:flex md:w-[280px]`}>
+        <ConversationList rooms={rooms} activeId={active.chat_room_id} currentUserId={currentUserId} onSelect={(id) => { onSelect(id); setThreadOpen(true); }} />
+      </div>
+      {threadVisible && (
+        <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <button type="button" onClick={() => setThreadOpen(false)} className="min-h-11 border-b border-line px-4 text-left text-sm font-bold md:hidden">← 대화 목록</button>
+          <MessageThread key={active.chat_room_id} room={active} currentUserId={currentUserId} />
+        </div>
+      )}
     </div>
   );
+}
+
+function getMobileSnapshot() { return window.matchMedia("(max-width: 767px)").matches; }
+function subscribeMobile(callback: () => void) {
+  const media = window.matchMedia("(max-width: 767px)");
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
 }

@@ -1,0 +1,8 @@
+.categoryLink {
+  background: white;
+  transition: background-color 150ms ease;
+}
+
+.categoryLink:hover {
+  background: var(--category-accent, var(--sky));
+}

@@ -36,6 +36,12 @@ export function ProfileView() {
   const [phone, setPhone] = useState("");
   const [intro, setIntro] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  useEffect(() => {
+    const url = imageFile ? URL.createObjectURL(imageFile) : null;
+    queueMicrotask(() => setPreviewUrl(url));
+    return () => { if (url) URL.revokeObjectURL(url); };
+  }, [imageFile]);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
   const [spaceToDelete, setSpaceToDelete] = useState<MySpaceListItem | null>(null);
@@ -100,31 +106,31 @@ export function ProfileView() {
 
   if (!ready) {
     return (
-      <div className="flex flex-col gap-9 p-6 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">마이페이지</h1>
+      <div className="page-shell flex flex-col gap-9">
+        <h1 className="page-title text-ink">마이페이지</h1>
         <p className="text-sm text-soft">로그인이 필요한 서비스입니다.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-9 p-6 sm:p-8">
+    <div className="page-shell flex flex-col gap-9">
       <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">마이페이지</h1>
+        <h1 className="page-title text-ink">마이페이지</h1>
         <p className="mt-1.5 text-sm text-soft">프로필 정보를 관리하고, 내가 등록한 공간·팝업을 확인해요.</p>
       </div>
 
-      <section className="max-w-[520px]">
-        <h2 className="mb-3 text-lg font-bold text-ink">프로필</h2>
+      <section className="w-full max-w-[520px] border border-line bg-wash p-5">
+        <h2 className="mb-3 section-title text-ink">프로필</h2>
         {meQuery.isPending ? (
           <p className="text-sm text-soft">불러오는 중…</p>
         ) : (
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex items-center gap-3.5">
-              {imageFile ? (
+              {previewUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element -- 로컬 선택 파일 미리보기
                 <img
-                  src={URL.createObjectURL(imageFile)}
+                  src={previewUrl}
                   alt="선택한 프로필 사진"
                   className="h-14 w-14 flex-none object-cover"
                 />
@@ -132,13 +138,13 @@ export function ProfileView() {
                 // eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL
                 <img src={currentImageUrl} alt={name} className="h-14 w-14 flex-none object-cover" />
               ) : (
-                <div className="grid h-14 w-14 flex-none place-items-center bg-violet text-lg font-bold text-ink">
+                <div className="grid h-14 w-14 flex-none place-items-center bg-violet section-title text-ink">
                   {name.slice(0, 1).toUpperCase()}
                 </div>
               )}
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-bold text-ink">프로필 사진</span>
-                <label className="inline-flex w-fit cursor-pointer items-center gap-1.5 border border-line bg-white px-3.5 py-2 text-xs font-bold text-ink transition-colors hover:bg-wash">
+                <label className="button button--outline">
                   {imageFile ? "사진 변경" : "사진 선택"}
                   <input
                     type="file"
@@ -183,7 +189,7 @@ export function ProfileView() {
             <button
               type="submit"
               disabled={updateMutation.isPending}
-              className="self-start bg-sky px-6 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-main-d hover:text-white disabled:opacity-60"
+              className="button button--primary self-start"
             >
               {updateMutation.isPending ? "저장 중…" : "저장하기"}
             </button>
@@ -192,13 +198,13 @@ export function ProfileView() {
       </section>
 
       <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-ink">내 공간</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="section-title text-ink">내 공간</h2>
           <Link href="/spaces/new" className="text-xs font-bold text-ink underline">
             새 공간 등록
           </Link>
         </div>
-        <div className="flex flex-col gap-2.5">
+        <div className="collection-grid">
           {mySpacesQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
           {deleteError && !spaceToDelete && <p role="alert" className="text-sm text-coral">{deleteError}</p>}
           {mySpacesQuery.isSuccess && mySpaces.length === 0 && (
@@ -209,7 +215,7 @@ export function ProfileView() {
             return (
               <div
                 key={space.space_id}
-                className="flex flex-wrap items-center gap-3 border border-line bg-white p-3.5"
+                className="interactive-card flex h-full flex-col items-start gap-4 border border-line bg-white p-5"
               >
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
@@ -219,16 +225,16 @@ export function ProfileView() {
                   </div>
                   <p className="mt-0.5 text-sm text-soft">{space.price_per_hour.toLocaleString()}원</p>
                 </div>
-                <div className="flex flex-none gap-2">
+                <div className="mt-auto flex flex-wrap gap-2">
                   <Link
                     href={`/spaces/${space.space_id}`}
-                    className="border border-line px-3.5 py-2 text-xs font-bold text-ink hover:bg-wash"
+                    className="button button--outline"
                   >
                     보기
                   </Link>
                   <Link
                     href={`/spaces/${space.space_id}/edit`}
-                    className="bg-sky px-3.5 py-2 text-xs font-bold text-ink hover:opacity-90"
+                    className="button button--primary"
                   >
                     수정
                   </Link>
@@ -238,7 +244,7 @@ export function ProfileView() {
                       setDeleteError(null);
                       setSpaceToDelete(space);
                     }}
-                    className="border border-coral px-3.5 py-2 text-xs font-bold text-coral hover:bg-coral hover:text-ink"
+                    className="button button--danger"
                   >
                     삭제
                   </button>
@@ -252,7 +258,7 @@ export function ProfileView() {
       {spaceToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" role="presentation">
           <div role="alertdialog" aria-modal="true" aria-labelledby="delete-space-title" aria-describedby="delete-space-description" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h2 id="delete-space-title" className="text-lg font-bold text-ink">공간을 삭제할까요?</h2>
+            <h2 id="delete-space-title" className="section-title text-ink">공간을 삭제할까요?</h2>
             <p id="delete-space-description" className="mt-3 text-sm leading-relaxed text-soft">
               삭제할 공간: <strong className="text-ink">{spaceToDelete.name}</strong><br />
               삭제하면 되돌릴 수 없습니다.
@@ -260,7 +266,7 @@ export function ProfileView() {
             {deleteError && <p role="alert" className="mt-3 text-sm text-coral">{deleteError}</p>}
             <div className="mt-6 flex justify-end gap-2">
               <button type="button" disabled={deleteMutation.isPending} onClick={() => setSpaceToDelete(null)} className="border border-line px-4 py-2 text-sm font-bold text-ink disabled:opacity-60">취소</button>
-              <button type="button" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(spaceToDelete.space_id)} className="bg-coral px-4 py-2 text-sm font-bold text-ink disabled:opacity-60">
+              <button type="button" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(spaceToDelete.space_id)} className="button button--danger">
                 {deleteMutation.isPending ? "삭제 중…" : "삭제"}
               </button>
             </div>
@@ -269,14 +275,14 @@ export function ProfileView() {
       )}
 
       <section>
-        <h2 className="mb-3 text-lg font-bold text-ink">내 팝업</h2>
-        <div className="flex flex-col gap-2.5">
+        <h2 className="mb-3 section-title text-ink">내 팝업</h2>
+        <div className="collection-grid">
           {myPopupsQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
           {myPopupsQuery.isSuccess && myPopups.length === 0 && (
             <p className="text-sm text-soft">아직 등록한 팝업이 없어요.</p>
           )}
           {myPopups.map((popup) => (
-            <div key={popup.popup_id} className="flex flex-wrap items-center gap-3 border border-line bg-white p-3.5">
+            <div key={popup.popup_id} className="interactive-card flex h-full flex-col items-start gap-4 border border-line bg-white p-5">
               <div className="min-w-0 flex-1">
                 <b className="font-bold text-ink">{popup.title}</b>
                 <p className="mt-0.5 text-sm text-soft">
@@ -285,7 +291,7 @@ export function ProfileView() {
               </div>
               <Link
                 href={`/popups/${popup.popup_id}`}
-                className="flex-none border border-line px-3.5 py-2 text-xs font-bold text-ink hover:bg-wash"
+                className="button button--outline flex-none"
               >
                 보기
               </Link>

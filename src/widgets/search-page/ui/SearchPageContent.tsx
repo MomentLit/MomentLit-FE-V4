@@ -4,10 +4,11 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { IconFilter, IconX } from "@tabler/icons-react";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { fetchCategoryCounts, fetchRegionCounts, searchSpaces } from "@/entities/space/api";
+import { fetchCategoryCounts, fetchRegionCounts } from "@/entities/space/api";
 import type { UsageUnit } from "@/entities/space";
-import type { Region } from "@/entities/region";
-import type { SpaceCategory } from "@/entities/space-category";
+import { REGIONS, type Region } from "@/entities/region";
+import { SPACE_CATEGORIES, type SpaceCategory } from "@/entities/space-category";
+import { collectPages, searchSelectedSpaces, toggleSelection } from "../lib/multi-search";
 import { fetchPopups } from "@/entities/popup";
 import { getErrorMessage } from "@/shared/api/error";
 import { cn } from "@/shared/lib";
@@ -37,15 +38,18 @@ const SORT_PARAM: Record<SortKey, string | undefined> = {
  * the (mostly presentational) child widgets.
  */
 export function SearchPageContent() {
-  // 홈 화면 콤보 검색(`ComboSearch`)에서 "찾아보기"로 넘어올 때 쿼리 파라미터로 필터를 미리
+  // 홈 화면 콤보 검색(`ComboSearch`)에서 "검색하기"로 넘어올 때 쿼리 파라미터로 필터를 미리
   // 채워준다 — 이후 이 페이지 안에서의 필터 변경은 URL과 다시 동기화하지 않는 로컬 상태다.
   const initialParams = useSearchParams();
-  const [mode, setMode] = useState<SearchMode>("space");
-  const [category, setCategory] = useState<SpaceCategory | null>(
-    () => (initialParams.get("category") as SpaceCategory | null) ?? null,
+  const [mode, setMode] = useState<SearchMode>(() => initialParams.get("mode") === "popup" ? "popup" : "space");
+  const requestedMode = initialParams.get("mode") === "popup" ? "popup" : "space";
+  const [categories, setCategories] = useState<SpaceCategory[]>(() =>
+    initialParams.getAll("category").filter((value): value is SpaceCategory => SPACE_CATEGORIES.includes(value as SpaceCategory)),
   );
-  const [region, setRegion] = useState<Region | null>(() => (initialParams.get("region") as Region | null) ?? null);
-  const [popupCategory, setPopupCategory] = useState<PopupCategory | null>(null);
+  const [regions, setRegions] = useState<Region[]>(() =>
+    initialParams.getAll("region").filter((value): value is Region => REGIONS.includes(value as Region)),
+  );
+  const [popupCategories, setPopupCategories] = useState<PopupCategory[]>([]);
   const [date, setDate] = useState<string | null>(() => initialParams.get("date") ?? null);
   const [nameInput, setNameInput] = useState(() => initialParams.get("name") ?? "");
   const [name, setName] = useState(nameInput);
@@ -53,6 +57,10 @@ export function SearchPageContent() {
   const [usageUnits, setUsageUnits] = useState<Record<UsageUnit, boolean>>({ HOURLY: true, DAILY: true });
   const [sort, setSort] = useState<SortKey>("latest");
   const [page, setPage] = useState(0);
+  useEffect(() => {
+    queueMicrotask(() => { setMode(requestedMode); setPage(0); });
+  }, [requestedMode]);
+
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "denied">("idle");
@@ -64,18 +72,18 @@ export function SearchPageContent() {
 
   // Any filter/sort change invalidates the current page — reset it right in the handler
   // (not via a `useEffect`, which would just cause an extra render for the same result).
-  function selectCategory(next: SpaceCategory | null) {
-    setCategory(next);
+  function selectCategory(next: SpaceCategory) {
+    setCategories((prev) => toggleSelection(prev, next));
     setPage(0);
   }
 
-  function selectRegion(next: Region | null) {
-    setRegion(next);
+  function selectRegion(next: Region) {
+    setRegions((prev) => toggleSelection(prev, next));
     setPage(0);
   }
 
-  function selectPopupCategory(next: PopupCategory | null) {
-    setPopupCategory(next);
+  function selectPopupCategory(next: PopupCategory) {
+    setPopupCategories((prev) => toggleSelection(prev, next));
     setPage(0);
   }
 
@@ -130,16 +138,16 @@ export function SearchPageContent() {
   }
 
   function resetAllFilters() {
-    setCategory(null);
-    setRegion(null);
-    setPopupCategory(null);
+    setCategories([]);
+    setRegions([]);
+    setPopupCategories([]);
     setDate(null);
     setMaxCapacity(CAPACITY_MAX);
     setUsageUnits({ HOURLY: true, DAILY: true });
     setPage(0);
   }
 
-  const hasAnyFilter = category !== null || region !== null || date !== null || maxCapacity < CAPACITY_MAX;
+  const hasAnyFilter = categories.length > 0 || regions.length > 0 || date !== null || maxCapacity < CAPACITY_MAX;
 
   // `searchSpaces` takes a single usageUnit value; both-checked or both-unchecked both mean "no filter".
   const usageUnit: UsageUnit | undefined =
@@ -152,8 +160,6 @@ export function SearchPageContent() {
     size: PAGE_SIZE,
     sort: useDistanceSort ? undefined : SORT_PARAM[sort],
     name: name || undefined,
-    category: category ?? undefined,
-    region: region ?? undefined,
     usageUnit,
     maxCapacity: maxCapacity < CAPACITY_MAX ? maxCapacity : undefined,
     date: date ?? undefined,
@@ -178,18 +184,15 @@ export function SearchPageContent() {
     isError,
     error,
   } = useQuery({
-    queryKey: ["spaces", "search", searchParams],
-    queryFn: () => searchSpaces(searchParams),
+    queryKey: ["spaces", "search", searchParams, regions, categories],
+    queryFn: ({ signal }) => searchSelectedSpaces(searchParams, regions, categories, signal),
     enabled: mode === "space",
     placeholderData: keepPreviousData,
   });
 
-  // `GET /popups` has no keyword/region/category/date filters (unlike spaces' `name`/
-  // `region`/`category`/`date`), so any active filter fetches one bigger batch and
-  // filters client-side instead of paging the backend — see POPUP_SEARCH_FETCH_SIZE
-  // and ../lib/popup-filters. `page`/pagination controls are meaningless in that state.
+  // Popup filters run over all server pages so multi-selection never drops later matches.
   const popupKeyword = name.trim().toLowerCase();
-  const hasActivePopupFilter = popupKeyword.length > 0 || region !== null || popupCategory !== null || date !== null;
+  const hasActivePopupFilter = popupKeyword.length > 0 || regions.length > 0 || popupCategories.length > 0 || date !== null;
   const popupFetchPage = hasActivePopupFilter ? 0 : page;
   const popupFetchSize = hasActivePopupFilter ? POPUP_SEARCH_FETCH_SIZE : PAGE_SIZE;
 
@@ -200,8 +203,12 @@ export function SearchPageContent() {
     isError: isPopupError,
     error: popupError,
   } = useQuery({
-    queryKey: ["popups", "search", { page: popupFetchPage, size: popupFetchSize }],
-    queryFn: () => fetchPopups({ page: popupFetchPage, size: popupFetchSize }),
+    queryKey: ["popups", "search", { page: popupFetchPage, size: popupFetchSize, all: hasActivePopupFilter }],
+    queryFn: async ({ signal }) => {
+      if (!hasActivePopupFilter) return fetchPopups({ page: popupFetchPage, size: popupFetchSize }, signal);
+      const content = await collectPages((page) => fetchPopups({ page, size: popupFetchSize }, signal));
+      return { content, page: 0, size: content.length, totalElements: content.length, totalPages: 1 };
+    },
     enabled: mode === "popup",
     placeholderData: keepPreviousData,
   });
@@ -209,24 +216,24 @@ export function SearchPageContent() {
   const popupItems = popupData?.content ?? [];
   const filteredPopups = popupItems.filter((popup) => {
     if (popupKeyword && !popup.title.toLowerCase().includes(popupKeyword)) return false;
-    if (region && !matchesRegion(popup.address.sido, region)) return false;
-    if (popupCategory && guessPopupCategory(popup.title) !== popupCategory) return false;
+    if (regions.length > 0 && !regions.some((region) => matchesRegion(popup.address.sido, region))) return false;
+    if (popupCategories.length > 0 && !popupCategories.includes(guessPopupCategory(popup.title))) return false;
     if (date && !isPopupOpenOnDate(popup, date)) return false;
     return true;
   });
   const sortedPopups =
     sort === "popular" ? [...filteredPopups].sort((a, b) => b.like_count - a.like_count) : filteredPopups;
   const popupTotalElements = hasActivePopupFilter ? sortedPopups.length : (popupData?.totalElements ?? 0);
-  const hasAnyPopupFilter = region !== null || popupCategory !== null || date !== null;
+  const hasAnyPopupFilter = regions.length > 0 || popupCategories.length > 0 || date !== null;
 
   const hasAnyActiveFilter = mode === "space" ? hasAnyFilter : hasAnyPopupFilter;
 
   return (
-    <div className="flex min-h-full flex-1 flex-col">
-      <div className="flex flex-1 flex-col sm:flex-row">
+    <div className="flex min-h-full min-w-0 flex-1 flex-col">
+      <div className="flex flex-1 flex-col lg:flex-row">
         {mobileFilterOpen && (
           <div
-            className="fixed inset-0 z-40 bg-ink/30 sm:hidden"
+            className="fixed inset-0 z-40 bg-ink/30 lg:hidden"
             aria-hidden="true"
             onClick={() => setMobileFilterOpen(false)}
           />
@@ -240,14 +247,14 @@ export function SearchPageContent() {
         <aside
           className={cn(
             "z-50 flex w-[246px] flex-none flex-col gap-6 overflow-y-auto border-r border-line bg-white px-4.5 py-5",
-            "sm:static sm:flex sm:w-[246px] sm:max-w-none",
+            "lg:static lg:flex lg:w-[246px] lg:max-w-none",
             mobileFilterOpen ? "fixed inset-y-0 left-0 flex w-[82vw] max-w-[320px]" : "hidden",
           )}
         >
           <SearchModeToggle mode={mode} onChange={changeMode} />
 
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-ink">필터</h2>
+            <h2 className="text-lg font-bold text-ink">검색 조건</h2>
             <div className="flex items-center gap-3">
               {hasAnyActiveFilter && (
                 <button
@@ -261,8 +268,8 @@ export function SearchPageContent() {
               <button
                 type="button"
                 onClick={() => setMobileFilterOpen(false)}
-                aria-label="필터 닫기"
-                className="text-ink sm:hidden"
+                aria-label="검색 조건 닫기"
+                className="text-ink lg:hidden"
               >
                 <IconX size={18} stroke={2} />
               </button>
@@ -273,9 +280,9 @@ export function SearchPageContent() {
             <FilterPanel
               categoryCounts={categoryCountsData ?? []}
               regionCounts={regionCountsData ?? []}
-              selectedCategory={category}
+              selectedCategories={categories}
               onSelectCategory={selectCategory}
-              selectedRegion={region}
+              selectedRegions={regions}
               onSelectRegion={selectRegion}
               maxCapacity={maxCapacity}
               onMaxCapacityChange={changeMaxCapacity}
@@ -286,9 +293,9 @@ export function SearchPageContent() {
             />
           ) : (
             <PopupFilterPanel
-              selectedRegion={region}
+              selectedRegions={regions}
               onSelectRegion={selectRegion}
-              selectedCategory={popupCategory}
+              selectedCategories={popupCategories}
               onSelectCategory={selectPopupCategory}
               date={date}
               onDateChange={changeDate}
@@ -296,6 +303,9 @@ export function SearchPageContent() {
           )}
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
+          <div className="app-gutter border-b border-line py-4 lg:hidden">
+            <SearchModeToggle mode={mode} onChange={changeMode} />
+          </div>
           <SearchBar
             value={nameInput}
             onChange={setNameInput}
@@ -304,10 +314,10 @@ export function SearchPageContent() {
           <button
             type="button"
             onClick={() => setMobileFilterOpen(true)}
-            className="flex items-center gap-1.5 border-b border-line px-4 py-2.5 text-sm font-bold text-ink sm:hidden"
+            className="flex items-center gap-1.5 border-b border-line px-4 py-2.5 text-sm font-bold text-ink lg:hidden"
           >
             <IconFilter size={15} stroke={2} aria-hidden />
-            필터
+            검색 조건
             {hasAnyActiveFilter && (
               <span className="ml-0.5 h-1.5 w-1.5 rounded-full bg-coral" aria-hidden />
             )}
@@ -315,8 +325,8 @@ export function SearchPageContent() {
           {mode === "space" ? (
             <>
               <SortBar
-                category={category}
-                region={region}
+                categories={categories}
+                regions={regions}
                 totalElements={data?.totalElements ?? 0}
                 sort={sort}
                 onSortChange={changeSort}
@@ -338,8 +348,8 @@ export function SearchPageContent() {
           ) : (
             <>
               <SortBar
-                category={null}
-                region={null}
+                categories={[]}
+                regions={regions}
                 totalElements={popupTotalElements}
                 sort={sort}
                 onSortChange={changeSort}
@@ -349,15 +359,15 @@ export function SearchPageContent() {
                 showDistance={false}
               />
               <PopupResultList
-                items={sortedPopups}
+                items={hasActivePopupFilter ? sortedPopups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : sortedPopups}
                 isLoading={isPopupLoading}
                 isError={isPopupError}
                 errorMessage={isPopupError ? getErrorMessage(popupError) : undefined}
                 emptyMessage={hasActivePopupFilter ? "조건에 맞는 팝업이 없어요." : "아직 등록된 팝업이 없어요."}
               />
               <Pagination
-                page={hasActivePopupFilter ? 0 : (popupData?.page ?? page)}
-                totalPages={hasActivePopupFilter ? 1 : (popupData?.totalPages ?? 0)}
+                page={hasActivePopupFilter ? page : (popupData?.page ?? page)}
+                totalPages={hasActivePopupFilter ? Math.ceil(sortedPopups.length / PAGE_SIZE) : (popupData?.totalPages ?? 0)}
                 onPageChange={setPage}
                 disabled={isPopupFetching}
               />

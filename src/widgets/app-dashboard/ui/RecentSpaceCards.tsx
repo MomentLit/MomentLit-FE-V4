@@ -21,19 +21,19 @@ export function RecentSpaceCards() {
   const spaces = data?.content ?? [];
 
   return (
-    <section className="border-b border-line px-7 py-6">
+    <section className="border-b border-line app-gutter py-8 sm:py-10">
       <div className="mb-3.5 flex items-center justify-between gap-3.5">
-        <h2 className="text-xl font-bold tracking-tight text-ink">최근에 등록된 공간</h2>
+        <h2 className="section-title text-ink">최근에 등록된 공간</h2>
         <Link
           href="/search"
-          className="text-[0.65rem] font-medium uppercase tracking-[0.12em] text-soft hover:text-ink"
+          className="shrink-0 whitespace-nowrap text-sm font-semibold text-ink/75 transition-colors hover:text-ink hover:underline underline-offset-4 sm:text-base"
         >
           전체 보기
         </Link>
       </div>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="collection-grid">
           {Array.from({ length: PAGE_SIZE }).map((_, i) => (
             <div key={i} className="aspect-3/2 animate-pulse rounded-xl border border-line bg-wash" />
           ))}
@@ -43,12 +43,12 @@ export function RecentSpaceCards() {
       ) : spaces.length === 0 ? (
         <p className="py-6 text-sm text-soft">아직 등록된 공간이 없어요.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="collection-grid">
           {spaces.map((space) => (
             <Link
               key={space.space_id}
               href={`/spaces/${space.space_id}`}
-              className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white transition-all duration-300 hover:-translate-y-1.5 hover:border-ink"
+              className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white interactive-card"
             >
               <div
                 className={cn(

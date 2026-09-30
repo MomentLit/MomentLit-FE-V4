@@ -13,38 +13,21 @@ export function LandingHeader() {
   const signOut = useAuthStore((state) => state.signOut);
 
   return (
-    <header className="sticky top-0 z-40 flex items-center gap-6 border-b border-line bg-white/95 px-4 py-3.5 backdrop-blur-md sm:px-6">
+    <header className="landing-top sticky top-0 z-40 flex h-[72px] items-center gap-3 border-b border-line bg-white/95 backdrop-blur-md">
       <Link href="/" className="inline-flex shrink-0 items-center gap-2.5" aria-label="모먼트릿 홈">
         <Logo size={48} />
       </Link>
 
-      <nav className="absolute left-1/2 top-1/2 hidden -translate-x-1/2 -translate-y-1/2 gap-2 md:flex">
-        {[
-          { label: "공간", href: "/search" },
-          { label: "팝업", href: "/home" },
-          { label: "호스트", href: "/spaces/new" },
-        ].map(({ label, href }) => (
-          <Link
-            key={label}
-            href={href}
-            className="group relative px-4 py-2 text-base font-bold text-ink"
-          >
-            {label}
-            <span className="absolute inset-x-4 bottom-0.5 h-[3px] origin-left scale-x-0 bg-sky transition-transform duration-200 group-hover:scale-x-100" />
-          </Link>
-        ))}
-      </nav>
-
       <div className="ml-auto flex items-center gap-2">
         {isAuthenticated ? (
           <>
-            <Link href="/home" className="px-2 text-sm font-bold text-ink">
-              {userName}님
+            <Link href="/home" className="hidden px-2 text-sm font-bold text-ink sm:block">
+              <span className="hidden sm:inline">{userName}님</span>
             </Link>
             <button
               type="button"
               onClick={() => signOut()}
-              className="inline-flex items-center rounded-none px-4 py-2.5 text-sm font-bold text-ink shadow-[inset_0_0_0_1.5px_var(--line-2)] transition-colors hover:bg-ink hover:text-white hover:shadow-[inset_0_0_0_1.5px_var(--ink)]"
+              className="button button--outline"
             >
               로그아웃
             </button>
@@ -53,17 +36,17 @@ export function LandingHeader() {
           <button
             type="button"
             onClick={openAuthModal}
-            className="inline-flex items-center rounded-none px-4 py-2.5 text-sm font-bold text-ink shadow-[inset_0_0_0_1.5px_var(--line-2)] transition-colors hover:bg-ink hover:text-white hover:shadow-[inset_0_0_0_1.5px_var(--ink)]"
+            className="button button--outline"
           >
             로그인
           </button>
         )}
         <Link
           href="/spaces/new"
-          className="group inline-flex items-center gap-2 bg-sky px-4 py-2.5 text-sm font-bold text-ink transition-colors hover:bg-main-d hover:text-white"
+          className="button button--primary group"
         >
           공간 등록
-          <IconArrowRight size={15} stroke={2} className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden />
+          <IconArrowRight size={15} stroke={2} className="hidden sm:block transition-transform duration-200 group-hover:translate-x-1" aria-hidden />
         </Link>
       </div>
     </header>

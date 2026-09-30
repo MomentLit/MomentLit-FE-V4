@@ -3,10 +3,10 @@ import { POPUP_CATEGORIES, POPUP_CATEGORY_LABELS, POPUP_CATEGORY_TONES, type Pop
 import { TONE_DOT_BG } from "./tone-dot";
 
 interface PopupFilterPanelProps {
-  selectedRegion: Region | null;
-  onSelectRegion: (region: Region | null) => void;
-  selectedCategory: PopupCategory | null;
-  onSelectCategory: (category: PopupCategory | null) => void;
+  selectedRegions: Region[];
+  onSelectRegion: (region: Region) => void;
+  selectedCategories: PopupCategory[];
+  onSelectCategory: (category: PopupCategory) => void;
   date: string | null;
   onDateChange: (date: string | null) => void;
 }
@@ -23,9 +23,9 @@ interface PopupFilterPanelProps {
  * docstring for why.
  */
 export function PopupFilterPanel({
-  selectedRegion,
+  selectedRegions,
   onSelectRegion,
-  selectedCategory,
+  selectedCategories,
   onSelectCategory,
   date,
   onDateChange,
@@ -33,7 +33,7 @@ export function PopupFilterPanel({
   return (
     <>
       <div className="flex flex-col gap-2.5">
-        <span className="flex items-center justify-between border-b border-line pb-2 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+        <span className="flex items-center justify-between border-b border-line pb-2 text-base font-bold tracking-tight text-ink">
           날짜
           {date && (
             <button type="button" onClick={() => onDateChange(null)} className="normal-case text-ink hover:underline">
@@ -53,15 +53,15 @@ export function PopupFilterPanel({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <span className="border-b border-line pb-2 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+        <span className="border-b border-line pb-2 text-base font-bold tracking-tight text-ink">
           지역
         </span>
         {REGIONS.map((region) => (
           <label key={region} className="flex cursor-pointer items-center gap-2.5 text-[0.86rem]">
             <input
               type="checkbox"
-              checked={selectedRegion === region}
-              onChange={() => onSelectRegion(selectedRegion === region ? null : region)}
+              checked={selectedRegions.includes(region)}
+              onChange={() => onSelectRegion(region)}
               className="h-[15px] w-[15px] flex-none accent-sky"
             />
             <span className="min-w-0 flex-1 text-ink">{REGION_LABELS[region]}</span>
@@ -70,15 +70,15 @@ export function PopupFilterPanel({
       </div>
 
       <div className="flex flex-col gap-2.5">
-        <span className="border-b border-line pb-2 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">
+        <span className="border-b border-line pb-2 text-base font-bold tracking-tight text-ink">
           카테고리
         </span>
         {POPUP_CATEGORIES.map((category) => (
           <label key={category} className="flex cursor-pointer items-center gap-2.5 text-[0.86rem]">
             <input
               type="checkbox"
-              checked={selectedCategory === category}
-              onChange={() => onSelectCategory(selectedCategory === category ? null : category)}
+              checked={selectedCategories.includes(category)}
+              onChange={() => onSelectCategory(category)}
               className="h-[15px] w-[15px] flex-none accent-sky"
             />
             <i

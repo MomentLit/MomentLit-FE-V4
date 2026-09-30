@@ -30,6 +30,20 @@ export const SPACE_CATEGORIES = Object.keys(
   SPACE_CATEGORY_LABELS,
 ) as SpaceCategory[];
 
+/** Shared presentation order for landing and main category navigation. */
+export const SPACE_CATEGORY_DISPLAY_ORDER: readonly SpaceCategory[] = [
+  "POPUP_STORE",
+  "STUDIO",
+  "CAFE",
+  "HALL",
+  "OFFICE",
+  "MEETING_ROOM",
+  "PRACTICE_ROOM",
+  "PARTY_ROOM",
+  "CLASSROOM",
+  "OTHER",
+];
+
 /**
  * 10 categories mapped onto the 6-color spectrum, so colors are necessarily
  * reused: STUDIO, CLASSROOM and PRACTICE_ROOM all get `rose`, POPUP_STORE

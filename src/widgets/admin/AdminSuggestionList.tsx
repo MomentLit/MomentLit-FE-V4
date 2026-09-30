@@ -68,8 +68,8 @@ export function AdminSuggestionList() {
   const filtered = tab === "ALL" ? suggestions : suggestions.filter((suggestion) => suggestion.status === tab);
 
   return (
-    <div className="flex-1 p-6 sm:p-8">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">건의 관리</h1>
+    <div className="page-shell">
+      <h1 className="page-title text-ink">건의 관리</h1>
       <p className="mt-1.5 text-sm text-soft">사용자가 남긴 건의를 확인하고 답변합니다.</p>
 
       <div className="mt-6 flex gap-1 border-b border-line">
@@ -92,7 +92,7 @@ export function AdminSuggestionList() {
 
       {actionError && <p className="mt-4 text-sm text-coral">{actionError}</p>}
 
-      <div className="mt-5 flex flex-col gap-3">
+      <div className="collection-grid mt-5">
         {suggestionsQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
         {suggestionsQuery.isError && (
           <p className="text-sm text-coral">목록을 불러오지 못했어요. {getErrorMessage(suggestionsQuery.error)}</p>
@@ -104,7 +104,7 @@ export function AdminSuggestionList() {
         {filtered.map((suggestion) => {
           const meta = STATUS_META[suggestion.status];
           return (
-            <Card key={suggestion.suggestion_id} className="flex flex-col gap-2 p-4">
+            <Card key={suggestion.suggestion_id} className="flex h-full flex-col gap-4 p-5">
               <div className="flex flex-wrap items-center gap-2">
                 <b className="font-bold text-ink">{suggestion.title}</b>
                 <Badge variant={meta.variant}>{meta.label}</Badge>
@@ -141,7 +141,7 @@ export function AdminSuggestionList() {
                         answerContent: drafts[suggestion.suggestion_id] ?? "",
                       });
                     }}
-                    className="flex-none self-end bg-sky px-4 py-2 text-sm font-bold text-ink transition-opacity hover:opacity-90 disabled:opacity-60 sm:self-auto"
+                    className="button button--primary flex-none"
                   >
                     답변 등록
                   </button>

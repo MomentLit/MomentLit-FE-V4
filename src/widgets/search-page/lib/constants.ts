@@ -4,12 +4,7 @@ export const CAPACITY_MAX = 60;
 
 export const PAGE_SIZE = 12;
 
-/**
- * `GET /popups` only takes `page`/`size` — there's no server-side keyword
- * filter for it like `SpaceSearchParams.name`. So a popup keyword search
- * fetches one larger batch and filters client-side instead of paging
- * through the backend; this is how many items that one batch covers.
- */
+/** Batch size when collecting all popup pages for client-side filtering. */
 export const POPUP_SEARCH_FETCH_SIZE = 60;
 
 /**

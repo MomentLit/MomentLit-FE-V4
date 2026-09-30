@@ -85,21 +85,21 @@ export function ReservationsView() {
 
   if (!ready) {
     return (
-      <div className="flex-1 p-6 sm:p-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-ink">예약</h1>
+      <div className="page-shell">
+        <h1 className="page-title text-ink">예약</h1>
         <p className="mt-3 text-sm text-soft">로그인이 필요한 서비스입니다.</p>
       </div>
     );
   }
 
   return (
-    <div className="flex-1 p-6 sm:p-8">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">예약</h1>
+    <div className="page-shell">
+      <h1 className="page-title text-ink">예약</h1>
       <p className="mt-1.5 text-sm text-soft">
         받은 예약 요청을 승인/거절하거나, 내가 보낸 요청의 진행 상황을 확인합니다.
       </p>
 
-      <div className="mt-6 flex gap-1 border-b border-line">
+      <div className="mt-6 flex gap-0 border-b border-line">
         {(
           [
             ["received", "받은 요청"],
@@ -124,7 +124,7 @@ export function ReservationsView() {
 
       {actionError && <p className="mt-4 text-sm text-coral">{actionError}</p>}
 
-      <div className="mt-5 flex flex-col gap-3">
+      <div className="collection-grid mt-5">
         {activeQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
         {activeQuery.isError && (
           <p className="text-sm text-coral">불러오지 못했어요. {getErrorMessage(activeQuery.error)}</p>
@@ -141,11 +141,11 @@ export function ReservationsView() {
           return (
             <div
               key={row.matching_id}
-              className="flex flex-col gap-3 border border-line bg-white p-4 sm:flex-row sm:items-center"
+              className="interactive-card flex h-full flex-col gap-4 border border-line bg-white p-5"
             >
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
-                  <b className="font-bold text-ink">{space?.name ?? `공간 #${row.space_id}`}</b>
+                  <Link href={`/spaces/${row.space_id}`} className="text-lg font-bold text-ink hover:underline">{space?.name ?? `공간 #${row.space_id}`}</Link>
                   <Badge variant={meta.variant}>{meta.label}</Badge>
                 </div>
                 <p className="mt-0.5 text-sm text-soft">{space?.location ?? " "}</p>
@@ -156,7 +156,7 @@ export function ReservationsView() {
               </div>
 
               {tab === "received" && row.status === "REQUESTED" && (
-                <div className="flex flex-none gap-2">
+                <div className="mt-auto flex flex-wrap gap-2">
                   <button
                     type="button"
                     disabled={busy}
@@ -164,7 +164,7 @@ export function ReservationsView() {
                       setActionError(null);
                       approveMut.mutate(row.matching_id);
                     }}
-                    className="bg-sky px-4 py-2 text-sm font-bold text-ink transition-opacity hover:opacity-90 disabled:opacity-60"
+                    className="button button--primary"
                   >
                     승인
                   </button>
@@ -175,7 +175,7 @@ export function ReservationsView() {
                       setActionError(null);
                       rejectMut.mutate(row.matching_id);
                     }}
-                    className="border border-ink px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-wash disabled:opacity-60"
+                    className="button button--outline"
                   >
                     거절
                   </button>
@@ -183,7 +183,7 @@ export function ReservationsView() {
               )}
 
               {tab === "sent" && row.status === "REQUESTED" && (
-                <div className="flex flex-none gap-2">
+                <div className="mt-auto flex flex-wrap gap-2">
                   <button
                     type="button"
                     disabled={busy}
@@ -191,7 +191,7 @@ export function ReservationsView() {
                       setActionError(null);
                       cancelMut.mutate(row.matching_id);
                     }}
-                    className="border border-ink px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-wash disabled:opacity-60"
+                    className="button button--outline"
                   >
                     요청 취소
                   </button>
@@ -199,10 +199,10 @@ export function ReservationsView() {
               )}
 
               {tab === "sent" && row.status === "APPROVED" && (
-                <div className="flex flex-none gap-2">
+                <div className="mt-auto flex flex-wrap gap-2">
                   <Link
                     href={`/popups/new?matchingId=${row.matching_id}`}
-                    className="bg-sky px-4 py-2 text-sm font-bold text-ink transition-opacity hover:opacity-90"
+                    className="button button--primary"
                   >
                     팝업 만들기
                   </Link>

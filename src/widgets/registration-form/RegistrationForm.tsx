@@ -25,16 +25,8 @@ import {
   type RegistrationFormState,
 } from "./model";
 
-const buttonBase =
-  "inline-flex items-center justify-center gap-2 px-6 py-4 text-[0.94rem] font-bold transition-colors";
-
-/** Port of design-reference.html's `.btn.btn-l.btn-main`. */
-const primaryButtonClass = cn(buttonBase, "bg-sky text-ink hover:bg-main-d hover:text-white");
-/** Port of `.btn.btn-l.btn-ol`. */
-const outlineButtonClass = cn(
-  buttonBase,
-  "text-ink shadow-[inset_0_0_0_1.5px_var(--line-2)] hover:bg-ink hover:text-white hover:shadow-[inset_0_0_0_1.5px_var(--ink)]",
-);
+const primaryButtonClass = "button button--primary";
+const outlineButtonClass = "button button--outline";
 
 /**
  * 4-step space registration wizard — orchestrates client-only form state,
@@ -129,9 +121,9 @@ export function RegistrationForm() {
   }
 
   return (
-    <div className="flex flex-col gap-7 p-[clamp(22px,3vw,40px)]">
+    <div className="page-shell flex flex-col gap-7">
       <div>
-        <h1 className="text-[clamp(1.5rem,3vw,2.2rem)] font-semibold tracking-tight text-ink">
+        <h1 className="page-title text-ink">
           공간 등록
         </h1>
         <p className="mt-2 text-[0.92rem] text-soft">

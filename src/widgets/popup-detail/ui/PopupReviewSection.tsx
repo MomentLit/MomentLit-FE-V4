@@ -107,7 +107,7 @@ function ReviewComposer({ popupId }: { popupId: number }) {
       <button
         type="submit"
         disabled={createReview.isPending}
-        className="self-end bg-sky px-4 py-2 text-sm font-semibold text-ink transition-opacity hover:opacity-90 disabled:opacity-60"
+        className="button button--primary"
       >
         {createReview.isPending ? "등록 중…" : "리뷰 등록"}
       </button>

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { Badge, type BadgeProps } from "@/shared/ui";
 import { useAuthStore } from "@/entities/auth";
@@ -53,10 +54,10 @@ export function MyReservationsTable() {
   });
 
   return (
-    <section className="px-7 py-6">
+    <section className="app-gutter py-8 sm:py-10">
       <div className="mb-3.5 flex items-center justify-between gap-3.5">
-        <h2 className="text-xl font-bold tracking-tight text-ink">내 예약</h2>
-        <span className="text-[0.65rem] font-medium uppercase tracking-[0.12em] text-soft">전체 보기</span>
+        <h2 className="section-title text-ink">내 예약</h2>
+        <Link href="/reservations" className="shrink-0 whitespace-nowrap text-sm font-semibold text-ink/75 transition-colors hover:text-ink hover:underline underline-offset-4 sm:text-base">전체 보기 →</Link>
       </div>
 
       {!hydrated ? (
@@ -67,7 +68,7 @@ export function MyReservationsTable() {
           <button
             type="button"
             onClick={openAuthModal}
-            className="rounded-md bg-sky px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-main-d hover:text-white"
+            className="button button--primary"
           >
             로그인 / 회원가입
           </button>
@@ -79,28 +80,22 @@ export function MyReservationsTable() {
       ) : matchings.length === 0 ? (
         <p className="py-6 text-sm text-soft">아직 예약 내역이 없어요.</p>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-line">
-          <div className="hidden grid-cols-[1fr_auto_auto] gap-4 bg-ink px-4 py-2 text-white sm:grid">
-            <span className="text-[0.66rem] font-medium uppercase tracking-[0.18em]">공간</span>
-            <span className="text-[0.66rem] font-medium uppercase tracking-[0.18em]">일시</span>
-            <span className="text-[0.66rem] font-medium uppercase tracking-[0.18em]">상태</span>
-          </div>
-          {matchings.map((row, i) => {
+        <div className="collection-grid">
+          {matchings.map((row) => {
             const meta = STATUS_META[row.status];
             const space = spaceById.get(row.space_id);
             return (
               <div
                 key={row.matching_id}
-                className="grid grid-cols-1 items-center gap-2 px-4 py-3.5 sm:grid-cols-[1fr_auto_auto] sm:gap-4"
-                style={i < matchings.length - 1 ? { boxShadow: "inset 0 -1px 0 var(--line)" } : undefined}
+                className="interactive-card flex flex-col items-start gap-3 border border-line bg-white p-5"
               >
                 <div className="flex min-w-0 flex-col">
-                  <b className="text-sm font-bold tracking-tight text-ink">
+                  <Link href={`/spaces/${row.space_id}`} className="text-lg font-bold tracking-tight text-ink hover:underline">
                     {space?.name ?? `공간 #${row.space_id}`}
-                  </b>
+                  </Link>
                   <span className="text-[0.78rem] text-soft">{space?.location ?? " "}</span>
                 </div>
-                <time className="whitespace-nowrap font-mono text-[0.74rem] tabular-nums text-ink">
+                <time className="font-mono text-[0.74rem] tabular-nums text-ink">
                   {formatReservationDateTime(row.start_time, row.end_time)}
                 </time>
                 <Badge variant={meta.variant} className="w-fit">

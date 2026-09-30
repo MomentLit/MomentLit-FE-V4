@@ -90,8 +90,8 @@ export function AdminSpaceList() {
   const filtered = tab === "ALL" ? spaces : spaces.filter((space) => space.adminStatus === tab);
 
   return (
-    <div className="flex-1 p-6 sm:p-8">
-      <h1 className="text-2xl font-semibold tracking-tight text-ink">공간 승인 관리</h1>
+    <div className="page-shell">
+      <h1 className="page-title text-ink">공간 승인 관리</h1>
       <p className="mt-1.5 text-sm text-soft">
         승인 대기 중인 공간을 검토하고 승인/거절합니다. 승인해야 예약 요청을 받을 수 있어요.
       </p>
@@ -116,7 +116,7 @@ export function AdminSpaceList() {
 
       {actionError && <p className="mt-4 text-sm text-coral">{actionError}</p>}
 
-      <div className="mt-5 flex flex-col gap-3">
+      <div className="collection-grid mt-5">
         {spacesQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
         {spacesQuery.isError && (
           <p className="text-sm text-coral">목록을 불러오지 못했어요. {getErrorMessage(spacesQuery.error)}</p>
@@ -126,7 +126,7 @@ export function AdminSpaceList() {
         )}
 
         {filtered.map((space) => (
-          <Card key={space.spaceId} className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center">
+          <Card key={space.spaceId} className="flex h-full flex-col gap-4 p-5">
             <div
               className={`flex h-16 w-16 flex-none items-center justify-center text-[0.6rem] font-bold uppercase ${TONE_ON_BG[SPACE_CATEGORY_COLORS[space.category]]}`}
             >
@@ -155,7 +155,7 @@ export function AdminSpaceList() {
                     setActionError(null);
                     approveMutation.mutate(space.spaceId);
                   }}
-                  className="bg-sky px-4 py-2 text-sm font-bold text-ink transition-opacity hover:opacity-90 disabled:opacity-60"
+                  className="button button--primary"
                 >
                   승인
                 </button>
@@ -166,7 +166,7 @@ export function AdminSpaceList() {
                     setActionError(null);
                     rejectMutation.mutate(space.spaceId);
                   }}
-                  className="border border-ink px-4 py-2 text-sm font-bold text-ink transition-colors hover:bg-wash disabled:opacity-60"
+                  className="button button--outline"
                 >
                   거절
                 </button>

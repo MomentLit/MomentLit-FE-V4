@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useMutation } from "@tanstack/react-query";
 import { IconArrowRight, IconHeart, IconHeartFilled } from "@tabler/icons-react";
@@ -10,6 +11,8 @@ import { getErrorMessage } from "@/shared/api/error";
 import { createChatRoom } from "@/entities/message";
 import type { SpaceAvailabilitySlot, SpaceDetail } from "@/entities/space";
 import type { HostStats } from "@/entities/matching";
+import type { MatchingCreateRequest } from "@/entities/matching";
+import { Modal } from "@/shared/ui/Modal";
 import { AvailabilityCalendar } from "./AvailabilityCalendar";
 import {
   USAGE_UNIT_LABELS,
@@ -66,6 +69,8 @@ export function BookingCard({
   const [slotKey, setSlotKey] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState(1);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
+  const [pendingRequest, setPendingRequest] = useState<MatchingCreateRequest | null>(null);
+  const [confirmationError, setConfirmationError] = useState<string | null>(null);
 
   const bookedDateSet = useMemo(() => new Set(bookedDates), [bookedDates]);
   const isDateBooked = bookedDateSet.has(date);
@@ -125,19 +130,26 @@ export function BookingCard({
     }
 
     setFeedback(null);
-    createMatching.mutate(
-      {
-        space_id: spaceId,
-        start_time: `${date}T${selectedSlot.start_time}`,
-        end_time: `${date}T${selectedSlot.end_time}`,
-        total_price: String(totalPrice),
-        guest_count: guestCount,
+    setConfirmationError(null);
+    setPendingRequest({
+      space_id: spaceId,
+      start_time: `${date}T${selectedSlot.start_time}`,
+      end_time: `${date}T${selectedSlot.end_time}`,
+      total_price: String(totalPrice),
+      guest_count: guestCount,
+    });
+  };
+
+  const confirmReserve = () => {
+    if (!pendingRequest || createMatching.isPending) return;
+    setConfirmationError(null);
+    createMatching.mutate(pendingRequest, {
+      onSuccess: () => {
+        setPendingRequest(null);
+        setFeedback({ type: "success", message: "예약 요청을 보냈습니다." });
       },
-      {
-        onSuccess: () => setFeedback({ type: "success", message: "예약 요청을 보냈습니다." }),
-        onError: (error) => setFeedback({ type: "error", message: getErrorMessage(error) }),
-      },
-    );
+      onError: (error) => setConfirmationError(getErrorMessage(error)),
+    });
   };
 
   return (
@@ -265,6 +277,36 @@ export function BookingCard({
       <p className="mt-2.5 text-[0.76rem] leading-[1.7] text-soft">
         요청을 보내면 호스트가 승인 여부를 정합니다. 결제는 모먼트릿에서 처리하지 않습니다.
       </p>
+
+      {pendingRequest && createPortal(
+        <Modal
+          label="예약 요청 확인"
+          onClose={() => { setPendingRequest(null); setConfirmationError(null); }}
+          canClose={!createMatching.isPending}
+          panelClassName="flex w-full max-w-md flex-col gap-5 overflow-y-auto border border-line bg-white p-5 sm:p-6"
+        >
+          <div>
+            <h2 className="section-title text-ink">예약 요청을 보내시겠어요?</h2>
+            <p className="mt-2 text-sm text-soft">내용을 확인한 뒤 요청을 보내주세요.</p>
+          </div>
+          <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 border-y border-line py-4 text-sm">
+            <dt className="text-soft">공간</dt><dd className="min-w-0 break-words font-bold text-ink">{space.name}</dd>
+            <dt className="text-soft">날짜</dt><dd className="font-bold text-ink">{pendingRequest.start_time.slice(0, 10)}</dd>
+            <dt className="text-soft">시간</dt><dd className="font-bold text-ink">{pendingRequest.start_time.slice(11, 16)} — {pendingRequest.end_time.slice(11, 16)}</dd>
+            <dt className="text-soft">인원</dt><dd className="font-bold text-ink">{pendingRequest.guest_count}명</dd>
+            <dt className="text-soft">예상 금액</dt><dd className="font-bold text-ink">{Number(pendingRequest.total_price).toLocaleString()}원</dd>
+          </dl>
+          <p className="text-sm leading-relaxed text-soft">호스트가 승인하면 예약이 확정됩니다. 결제는 모먼트릿에서 처리하지 않습니다.</p>
+          {confirmationError && <p role="alert" className="text-sm text-coral">{confirmationError}</p>}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button type="button" className="button button--outline" disabled={createMatching.isPending} onClick={() => { setPendingRequest(null); setConfirmationError(null); }}>취소</button>
+            <button type="button" className="button button--primary" disabled={createMatching.isPending} onClick={confirmReserve}>
+              {createMatching.isPending ? "요청 보내는 중…" : "요청 보내기"}
+            </button>
+          </div>
+        </Modal>,
+        document.body,
+      )}
 
       <div className="mt-4 flex items-center gap-2.5 border-t border-line pt-3.5">
         {space.host_image_url ? (

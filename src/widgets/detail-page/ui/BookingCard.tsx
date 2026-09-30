@@ -238,12 +238,14 @@ export function BookingCard({
         />
       </label>
 
-      {selectedSlot && (
-        <p className="mt-2.5 text-sm text-soft">
-          예상 금액 <b className="text-ink">{totalPrice.toLocaleString()}원</b> (
-          {space.usage_unit === "DAILY" ? "1일" : `${hours}시간`})
-        </p>
-      )}
+      <div className="mt-2.5 min-h-5 text-sm text-soft">
+        {selectedSlot && (
+          <p>
+            예상 금액 <b className="text-ink">{totalPrice.toLocaleString()}원</b> (
+            {space.usage_unit === "DAILY" ? "1일" : `${hours}시간`})
+          </p>
+        )}
+      </div>
 
       <button
         type="button"

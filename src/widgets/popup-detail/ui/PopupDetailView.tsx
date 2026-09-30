@@ -131,7 +131,7 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
 
       {isImageZoomed && popup.thumbnail_url && (
         <div
-          className="fixed inset-0 z-[300] flex items-center justify-center bg-ink/80 p-4"
+          className="fixed inset-0 z-[300] flex items-center justify-center bg-ink/60 p-4 backdrop-blur-md"
           role="dialog"
           aria-modal="true"
           onClick={() => setIsImageZoomed(false)}

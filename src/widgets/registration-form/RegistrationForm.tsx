@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { useRouter } from "next/navigation";
 import { IconArrowRight } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
@@ -12,7 +12,7 @@ import { getErrorMessage } from "@/shared/api/error";
 import { useRequireAuth } from "@/widgets/auth";
 import { Stepper } from "./Stepper";
 import { Step1BasicInfo } from "./Step1BasicInfo";
-import { Step2Location } from "./Step2Location";
+import { Step2Location, type SelectedAddress } from "./Step2Location";
 import { Step3Terms } from "./Step3Terms";
 import { Step4Schedule } from "./Step4Schedule";
 import {
@@ -50,6 +50,11 @@ export function RegistrationForm() {
     setState((prev) => ({ ...prev, [key]: value }));
     setSubmitError(null);
   }
+
+  const onAddressSelect = useCallback((address: SelectedAddress) => {
+    setState((previous) => ({ ...previous, ...address }));
+    setSubmitError(null);
+  }, []);
 
   function goToStep(next: number) {
     // Mirrors the Stepper's own `reachable` guard so a stray call here can
@@ -135,7 +140,7 @@ export function RegistrationForm() {
 
       <div className="max-w-[900px]">
         {step === 1 && <Step1BasicInfo state={state} onFieldChange={onFieldChange} />}
-        {step === 2 && <Step2Location state={state} onFieldChange={onFieldChange} />}
+        {step === 2 && <Step2Location state={state} onFieldChange={onFieldChange} onAddressSelect={onAddressSelect} />}
         {step === 3 && <Step3Terms state={state} onFieldChange={onFieldChange} />}
         {step === 4 && <Step4Schedule state={state} onFieldChange={onFieldChange} />}
       </div>

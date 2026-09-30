@@ -81,7 +81,7 @@ export function ProfileView() {
     try {
       let imageUrl: string | undefined;
       if (imageFile) {
-        imageUrl = await uploadImage(imageFile);
+        imageUrl = await uploadImage(imageFile, { privacyBlur: false });
       }
       updateMutation.mutate({
         name: name.trim() || undefined,

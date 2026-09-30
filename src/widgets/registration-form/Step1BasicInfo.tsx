@@ -1,4 +1,9 @@
+"use client";
+
+import { useState } from "react";
+import { IconView360 } from "@tabler/icons-react";
 import type { SpaceCategory } from "@/entities/space-category";
+import { PanoramaUploadModal, PanoramaViewerModal } from "@/widgets/panorama";
 import { FormField, fieldInputClass } from "./FormField";
 import { CategoryPicker } from "./CategoryPicker";
 import type { RegistrationFormState } from "./model";
@@ -13,6 +18,9 @@ export interface Step1BasicInfoProps {
 
 /** Step 1 — 기본 정보. Fields lifted 1:1 from design-reference.html `#p-new`. */
 export function Step1BasicInfo({ state, onFieldChange }: Step1BasicInfoProps) {
+  const [panoramaModalOpen, setPanoramaModalOpen] = useState(false);
+  const [panoramaViewerOpen, setPanoramaViewerOpen] = useState(false);
+
   return (
     <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2">
       <FormField label="공간 이름" full>
@@ -84,6 +92,59 @@ export function Step1BasicInfo({ state, onFieldChange }: Step1BasicInfoProps) {
           <span className="text-[0.79rem] text-soft">선택됨: {state.thumbnailFile.name}</span>
         )}
       </FormField>
+
+      <FormField
+        label="360° 사진 (선택)"
+        full
+        hint="이미 만든 360° 사진을 올리거나, 가이드에 맞춰 찍은 사진으로 AI가 360° 사진을 만들어 드려요."
+      >
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPanoramaModalOpen(true)}
+            className="inline-flex items-center gap-2 px-4 py-2.5 text-[0.88rem] font-bold text-ink shadow-[inset_0_0_0_1.5px_var(--line-2)] transition-colors hover:bg-ink hover:text-white hover:shadow-[inset_0_0_0_1.5px_var(--ink)]"
+          >
+            <IconView360 size={16} stroke={2} aria-hidden />
+            {state.panoramaUrl ? "다시 올리기" : "360° 사진 추가"}
+          </button>
+          {state.panoramaUrl && (
+            <>
+              <button
+                type="button"
+                onClick={() => setPanoramaViewerOpen(true)}
+                className="px-3 py-2.5 text-[0.84rem] font-semibold text-main-d hover:underline"
+              >
+                보기
+              </button>
+              <button
+                type="button"
+                onClick={() => onFieldChange("panoramaUrl", null)}
+                className="px-3 py-2.5 text-[0.84rem] font-semibold text-coral hover:underline"
+              >
+                삭제
+              </button>
+              <span className="text-[0.79rem] text-soft">등록됨</span>
+            </>
+          )}
+        </div>
+      </FormField>
+
+      {panoramaModalOpen && (
+        <PanoramaUploadModal
+          onClose={() => setPanoramaModalOpen(false)}
+          onConfirm={(panoramaUrl) => {
+            onFieldChange("panoramaUrl", panoramaUrl);
+            setPanoramaModalOpen(false);
+          }}
+        />
+      )}
+      {panoramaViewerOpen && state.panoramaUrl && (
+        <PanoramaViewerModal
+          src={state.panoramaUrl}
+          title={state.name.trim() || "새 공간"}
+          onClose={() => setPanoramaViewerOpen(false)}
+        />
+      )}
     </div>
   );
 }

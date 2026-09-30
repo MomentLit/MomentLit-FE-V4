@@ -3,6 +3,7 @@
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { IconView360 } from "@tabler/icons-react";
 import { useRequireAuth } from "@/widgets/auth";
 import { fetchSpace, updateSpace } from "@/entities/space/api";
 import type { SpaceCategory } from "@/entities/space-category";
@@ -10,6 +11,7 @@ import { uploadImage } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
 import { FormField, fieldInputClass } from "@/widgets/registration-form/FormField";
 import { CategoryPicker } from "@/widgets/registration-form/CategoryPicker";
+import { PanoramaUploadModal, PanoramaViewerModal } from "@/widgets/panorama";
 
 /**
  * 공간 정보 수정 — 등록 마법사와 달리 한 페이지짜리 단순 폼이다. 주소/주간 일정은 여기서 안 건드린다
@@ -32,6 +34,9 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const [floor, setFloor] = useState("");
   const [parkingInfo, setParkingInfo] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [panoramaUrl, setPanoramaUrl] = useState<string | null>(null);
+  const [panoramaModalOpen, setPanoramaModalOpen] = useState(false);
+  const [panoramaViewerOpen, setPanoramaViewerOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -47,6 +52,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setPrice(String(space.price_per_hour));
       setFloor(space.floor ?? "");
       setParkingInfo(space.parking_info ?? "");
+      setPanoramaUrl(space.panorama_url);
     });
   }, [spaceQuery.data]);
 
@@ -66,6 +72,10 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         thumbnailUrl = await uploadImage(thumbnailFile);
       }
 
+      // 바뀌지 않았으면 보내지 않고(undefined), 삭제했으면 빈 문자열을 보낸다 — 백엔드 `Space.updatePanoramaUrl` 규칙.
+      const originalPanoramaUrl = spaceQuery.data?.panorama_url ?? null;
+      const panoramaUrlChange = panoramaUrl === originalPanoramaUrl ? undefined : (panoramaUrl ?? "");
+
       await updateSpace(spaceId, {
         name: name.trim(),
         description: description.trim(),
@@ -76,6 +86,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         floor: floor.trim() || undefined,
         parking_info: parkingInfo.trim() || undefined,
         thumbnail_url: thumbnailUrl,
+        panorama_url: panoramaUrlChange,
       });
 
       await queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
@@ -165,6 +176,42 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           />
         </FormField>
 
+        <FormField
+          label="360° 사진 (선택)"
+          full
+          hint="이미 만든 360° 사진을 올리거나, 가이드에 맞춰 찍은 사진으로 AI가 360° 사진을 만들어 드려요."
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setPanoramaModalOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2.5 text-[0.88rem] font-bold text-ink shadow-[inset_0_0_0_1.5px_var(--line-2)] transition-colors hover:bg-ink hover:text-white hover:shadow-[inset_0_0_0_1.5px_var(--ink)]"
+            >
+              <IconView360 size={16} stroke={2} aria-hidden />
+              {panoramaUrl ? "다시 올리기" : "360° 사진 추가"}
+            </button>
+            {panoramaUrl && (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setPanoramaViewerOpen(true)}
+                  className="px-3 py-2.5 text-[0.84rem] font-semibold text-main-d hover:underline"
+                >
+                  보기
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setPanoramaUrl(null)}
+                  className="px-3 py-2.5 text-[0.84rem] font-semibold text-coral hover:underline"
+                >
+                  삭제
+                </button>
+                <span className="text-[0.79rem] text-soft">등록됨 · 저장하면 반영돼요</span>
+              </>
+            )}
+          </div>
+        </FormField>
+
         {error && (
           <p className="shadow-[inset_3px_0_0_var(--coral)] bg-wash px-4.5 py-3 text-[0.88rem] text-coral sm:col-span-2">
             {error}
@@ -179,6 +226,23 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           {submitting ? "저장 중…" : "저장하기"}
         </button>
       </form>
+
+      {panoramaModalOpen && (
+        <PanoramaUploadModal
+          onClose={() => setPanoramaModalOpen(false)}
+          onConfirm={(nextPanoramaUrl) => {
+            setPanoramaUrl(nextPanoramaUrl);
+            setPanoramaModalOpen(false);
+          }}
+        />
+      )}
+      {panoramaViewerOpen && panoramaUrl && (
+        <PanoramaViewerModal
+          src={panoramaUrl}
+          title={name.trim() || "공간"}
+          onClose={() => setPanoramaViewerOpen(false)}
+        />
+      )}
     </div>
   );
 }

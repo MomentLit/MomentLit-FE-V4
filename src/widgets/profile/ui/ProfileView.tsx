@@ -5,12 +5,12 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/widgets/auth";
 import { useAuthStore, fetchMe, updateMe } from "@/entities/auth";
-import { fetchMySpaces } from "@/entities/space/api";
+import { deleteSpace, fetchMySpaces } from "@/entities/space/api";
 import { fetchMyPopups } from "@/entities/popup";
 import { uploadImage } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
 import { Badge, type BadgeProps } from "@/shared/ui";
-import type { SpaceAdminStatus } from "@/entities/space";
+import type { MySpaceListItem, SpaceAdminStatus } from "@/entities/space";
 
 const fieldInputClass =
   "w-full border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-soft focus:border-sky";
@@ -38,6 +38,8 @@ export function ProfileView() {
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
+  const [spaceToDelete, setSpaceToDelete] = useState<MySpaceListItem | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!meQuery.data) return;
@@ -57,6 +59,19 @@ export function ProfileView() {
       await Promise.all([queryClient.invalidateQueries({ queryKey: ["me"] }), hydrate()]);
     },
     onError: (submitError) => setError(getErrorMessage(submitError)),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: deleteSpace,
+    onSuccess: async (_, spaceId) => {
+      setSpaceToDelete(null);
+      setDeleteError(null);
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: ["spaces"] }),
+        queryClient.invalidateQueries({ queryKey: ["space", spaceId] }),
+      ]);
+    },
+    onError: (deleteFailure) => setDeleteError(getErrorMessage(deleteFailure)),
   });
 
   async function handleSubmit(event: FormEvent) {
@@ -185,6 +200,7 @@ export function ProfileView() {
         </div>
         <div className="flex flex-col gap-2.5">
           {mySpacesQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
+          {deleteError && !spaceToDelete && <p role="alert" className="text-sm text-coral">{deleteError}</p>}
           {mySpacesQuery.isSuccess && mySpaces.length === 0 && (
             <p className="text-sm text-soft">아직 등록한 공간이 없어요.</p>
           )}
@@ -216,12 +232,41 @@ export function ProfileView() {
                   >
                     수정
                   </Link>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setDeleteError(null);
+                      setSpaceToDelete(space);
+                    }}
+                    className="border border-coral px-3.5 py-2 text-xs font-bold text-coral hover:bg-coral hover:text-ink"
+                  >
+                    삭제
+                  </button>
                 </div>
               </div>
             );
           })}
         </div>
       </section>
+
+      {spaceToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" role="presentation">
+          <div role="alertdialog" aria-modal="true" aria-labelledby="delete-space-title" aria-describedby="delete-space-description" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+            <h2 id="delete-space-title" className="text-lg font-bold text-ink">공간을 삭제할까요?</h2>
+            <p id="delete-space-description" className="mt-3 text-sm leading-relaxed text-soft">
+              삭제할 공간: <strong className="text-ink">{spaceToDelete.name}</strong><br />
+              삭제하면 되돌릴 수 없습니다.
+            </p>
+            {deleteError && <p role="alert" className="mt-3 text-sm text-coral">{deleteError}</p>}
+            <div className="mt-6 flex justify-end gap-2">
+              <button type="button" disabled={deleteMutation.isPending} onClick={() => setSpaceToDelete(null)} className="border border-line px-4 py-2 text-sm font-bold text-ink disabled:opacity-60">취소</button>
+              <button type="button" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(spaceToDelete.space_id)} className="bg-coral px-4 py-2 text-sm font-bold text-ink disabled:opacity-60">
+                {deleteMutation.isPending ? "삭제 중…" : "삭제"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section>
         <h2 className="mb-3 text-lg font-bold text-ink">내 팝업</h2>

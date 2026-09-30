@@ -85,6 +85,11 @@ export async function updateSpace(spaceId: number, request: SpaceUpdateRequest):
   await apiClient.patch(`/spaces/${spaceId}`, request);
 }
 
+/** Owner-only `DELETE /spaces/{space-id}`; success is 204 with no response body. */
+export async function deleteSpace(spaceId: number): Promise<void> {
+  await apiClient.delete(`/spaces/${spaceId}`);
+}
+
 export async function fetchCategoryCounts(): Promise<SpaceCategoryCount[]> {
   const { data } = await publicApiClient.get<ApiResponse<SpaceCategoryCount[]>>("/spaces/counts/by-category");
   return data.data;

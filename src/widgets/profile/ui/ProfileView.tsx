@@ -200,7 +200,7 @@ export function ProfileView() {
       <section>
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="section-title text-ink">내 공간</h2>
-          <Link href="/spaces/new" className="text-xs font-bold text-ink underline">
+          <Link href="/spaces/new" className="shrink-0 whitespace-nowrap text-sm font-semibold text-ink/75 transition-colors hover:text-ink hover:underline underline-offset-4 sm:text-base">
             새 공간 등록
           </Link>
         </div>

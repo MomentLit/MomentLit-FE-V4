@@ -40,7 +40,7 @@ export function SortBar({
     regions.map((region) => REGION_LABELS[region]).join(", "),
     categories.map((category) => SPACE_CATEGORY_LABELS[category]).join(", "),
   ].filter(Boolean);
-  const heading = labelParts.length > 0 ? labelParts.join(" · ") : `전체 ${itemLabel}`;
+  const heading = labelParts.length > 0 ? labelParts.join(", ") : `전체 ${itemLabel}`;
 
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line app-gutter py-4">

@@ -51,17 +51,42 @@ export function RecentPopupCards() {
             >
               <div
                 className={cn(
-                  "flex aspect-2/3 flex-col justify-between p-3.5",
-                  TONE_ON_BG[toneForIndex(popup.popup_id)],
+                  "relative flex aspect-2/3 flex-col justify-between overflow-hidden p-3.5",
+                  !popup.thumbnail_url && TONE_ON_BG[toneForIndex(popup.popup_id)],
                 )}
               >
-                <div className="flex items-start justify-between gap-2">
-                  <span className="text-[0.61rem] font-medium uppercase tracking-[0.13em] opacity-70">Popup</span>
+                {popup.thumbnail_url && (
+                  <>
+                    {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
+                    <img
+                      src={popup.thumbnail_url}
+                      alt=""
+                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-black/30" />
+                  </>
+                )}
+                <div className="relative flex items-start justify-between gap-2">
+                  <span
+                    className={cn(
+                      "text-[0.61rem] font-medium uppercase tracking-[0.13em]",
+                      popup.thumbnail_url ? "text-white/85" : "opacity-70",
+                    )}
+                  >
+                    Popup
+                  </span>
                   <span className="whitespace-nowrap bg-ink px-2 py-0.5 text-[0.63rem] font-medium text-white">
                     {popupBadge(popup.start_time, popup.end_time)}
                   </span>
                 </div>
-                <span className="line-clamp-3 text-lg font-bold leading-tight tracking-tight">{popup.title}</span>
+                <span
+                  className={cn(
+                    "relative line-clamp-3 text-lg font-bold leading-tight tracking-tight",
+                    popup.thumbnail_url && "text-white",
+                  )}
+                >
+                  {popup.title}
+                </span>
               </div>
               <div className="flex flex-col gap-0.5 px-3 py-2.5 shadow-[inset_0_1px_0_var(--line)]">
                 <span className="line-clamp-1 text-sm font-bold tracking-tight text-ink">{popup.title}</span>

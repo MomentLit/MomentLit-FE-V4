@@ -50,11 +50,24 @@ export function OpenPopups() {
                   className="group flex h-full flex-col shadow-[inset_0_0_0_1px_var(--line)] bg-white transition-[transform,box-shadow] duration-300 hover:-translate-y-1.5 hover:shadow-[inset_0_0_0_1px_var(--ink)]"
                 >
                   <div
-                    className={`relative flex aspect-[2/3] flex-col justify-between overflow-hidden p-3.5 text-ink ${TONE_BG[tone]}`}
+                    className={`relative flex aspect-[2/3] flex-col justify-between overflow-hidden p-3.5 ${
+                      popup.thumbnail_url ? "text-white" : `text-ink ${TONE_BG[tone]}`
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-2">
+                    {popup.thumbnail_url && (
+                      <>
+                        {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
+                        <img
+                          src={popup.thumbnail_url}
+                          alt=""
+                          className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+                        />
+                        <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/30" />
+                      </>
+                    )}
+                    <div className="relative flex items-start justify-between gap-2">
                       <span
-                        className="text-[0.61rem] font-medium uppercase tracking-[0.13em] opacity-70"
+                        className={`text-[0.61rem] font-medium uppercase tracking-[0.13em] ${popup.thumbnail_url ? "text-white/85" : "opacity-70"}`}
                         style={{ fontFamily: "var(--font-label)" }}
                       >
                         Popup store
@@ -67,7 +80,7 @@ export function OpenPopups() {
                       </span>
                     </div>
                     <span
-                      className="line-clamp-3 text-[clamp(1.1rem,1.85vw,1.4rem)] leading-[1.26] tracking-tight"
+                      className="relative line-clamp-3 text-[clamp(1.1rem,1.85vw,1.4rem)] leading-[1.26] tracking-tight"
                       style={{ fontFamily: "var(--font-display)" }}
                     >
                       {popup.title}

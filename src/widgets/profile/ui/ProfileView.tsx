@@ -121,7 +121,7 @@ export function ProfileView() {
       </div>
 
       <div className="grid min-w-0 items-start gap-9 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)] xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
-        <section className="min-w-0 w-full border border-line bg-wash p-5">
+        <section className="min-w-0 w-full border border-line bg-white p-5">
           <h2 className="mb-3 section-title text-ink">프로필</h2>
           {meQuery.isPending ? (
             <p className="text-sm text-soft">불러오는 중…</p>

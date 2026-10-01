@@ -3,6 +3,7 @@
 import { useEffect, useRef, useMemo, useState, type FormEvent } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
+import { Send } from "lucide-react";
 import { cn } from "@/shared/lib";
 import { getErrorMessage } from "@/shared/api/error";
 import {
@@ -98,21 +99,26 @@ export function MessageThread({
 
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
-      <div className="flex items-center gap-2.5 border-b border-line px-4 py-3.5 sm:px-5">
-        <i aria-hidden className="h-8 w-8 flex-none bg-sky" />
-        <div className="min-w-0">
+      <div className="flex items-center gap-3 border-b border-line px-4 py-3.5 sm:px-5">
+        <span
+          aria-hidden
+          className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-sky text-sm font-bold text-ink"
+        >
+          {partner.name.slice(0, 1)}
+        </span>
+        <div className="min-w-0 flex-1">
           <b className="block truncate text-[0.93rem] font-bold text-ink">{partner.name}</b>
           <span className="block truncate text-[0.79rem] text-soft">{room.space.name}</span>
         </div>
         <Link
           href={`/spaces/${room.space.id}`}
-          className="button button--outline flex-none"
+          className="flex-none rounded-full border border-line px-3.5 py-1.5 text-[0.78rem] font-semibold text-ink transition-colors hover:border-ink"
         >
           공간 보기
         </Link>
       </div>
 
-      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto bg-wash p-4 sm:p-5">
+      <div ref={scrollRef} className="flex min-h-0 flex-1 flex-col gap-2.5 overflow-y-auto bg-wash p-4 sm:p-5">
         {isLoading && <p className="text-sm text-soft">메시지를 불러오는 중…</p>}
         {isError && <p className="text-sm text-coral">{getErrorMessage(error)}</p>}
         {!isLoading && !isError && messages.length === 0 && (
@@ -124,20 +130,18 @@ export function MessageThread({
             <div key={message.message_id} className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
               <div
                 className={cn(
-                  "max-w-[85%] break-words whitespace-pre-wrap rounded-2xl px-3.5 py-2.5 text-[0.89rem] leading-relaxed",
-                  isOwn
-                    ? "bg-sky text-ink"
-                    : "bg-white text-ink shadow-[inset_0_0_0_1px_var(--color-line)]",
+                  "max-w-[72%] break-words whitespace-pre-wrap rounded-[22px] px-4 py-2.5 text-[0.89rem] leading-relaxed shadow-sm",
+                  isOwn ? "rounded-br-md bg-main-d text-white" : "rounded-bl-md bg-white text-ink",
                 )}
               >
                 {message.content}
-                <span className="mt-1 block font-mono text-[0.62rem] opacity-55">
-                  {formatTimestamp(message.created_at)}
-                </span>
               </div>
-              {isOwn && message.message_id === lastReadOwnMessageId && (
-                <span className="mt-0.5 mr-1 text-[0.62rem] text-soft">읽음</span>
-              )}
+              <div className="mt-1 flex items-center gap-1.5 px-1">
+                <span className="font-mono text-[0.62rem] text-soft">{formatTimestamp(message.created_at)}</span>
+                {isOwn && message.message_id === lastReadOwnMessageId && (
+                  <span className="text-[0.62rem] text-soft">· 읽음</span>
+                )}
+              </div>
             </div>
           );
         })}
@@ -147,7 +151,7 @@ export function MessageThread({
         {!connected && (
           <p className="px-1 text-xs text-soft">실시간 연결 중… 연결되면 메시지를 보낼 수 있어요.</p>
         )}
-        <div className="flex gap-2">
+        <div className="flex items-center gap-2">
           <input
             type="text"
             value={draft}
@@ -155,14 +159,15 @@ export function MessageThread({
             placeholder="메시지를 입력하세요"
             aria-label="메시지 입력"
             disabled={!connected}
-            className="min-w-0 flex-1 border border-line px-4 py-2.5 text-sm outline-none focus:border-sky disabled:opacity-60"
+            className="min-w-0 flex-1 rounded-full border border-line bg-white px-4.5 py-2.5 text-sm outline-none focus:border-sky disabled:opacity-60"
           />
           <button
             type="submit"
-            disabled={!connected}
-            className="button button--primary flex-none"
+            disabled={!connected || !draft.trim()}
+            aria-label="전송"
+            className="flex h-10 w-10 flex-none items-center justify-center rounded-full bg-main-d text-white transition-opacity disabled:opacity-40"
           >
-            전송
+            <Send size={16} aria-hidden />
           </button>
         </div>
       </form>

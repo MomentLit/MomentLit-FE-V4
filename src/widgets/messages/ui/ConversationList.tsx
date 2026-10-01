@@ -26,24 +26,33 @@ export function ConversationList({
 }) {
   return (
     <aside className="flex min-h-0 w-full flex-col border-r border-line">
-      <div className="border-b border-line px-4 py-4">
+      <div className="border-b border-line px-5 py-4">
         <h2 className="text-lg font-semibold tracking-tight text-ink">메시지</h2>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto">
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
         {rooms.map((room) => {
           const partner = partnerOf(room, currentUserId);
+          const isActive = room.chat_room_id === activeId;
           return (
             <button
               key={room.chat_room_id}
               type="button"
               onClick={() => onSelect(room.chat_room_id)}
-              aria-current={room.chat_room_id === activeId}
+              aria-current={isActive}
               className={cn(
-                "flex w-full items-start gap-2.5 border-b border-line px-4 py-3.5 text-left transition-colors hover:bg-wash",
-                room.chat_room_id === activeId && "bg-wash shadow-[inset_3px_0_0_var(--color-ink)]",
+                "flex w-full items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors hover:bg-wash",
+                isActive && "bg-wash",
               )}
             >
-              <i aria-hidden className={cn("h-[34px] w-[34px] flex-none", TONE_BG[toneForRoom(room)])} />
+              <span
+                aria-hidden
+                className={cn(
+                  "flex h-11 w-11 flex-none items-center justify-center rounded-full text-sm font-bold text-ink",
+                  TONE_BG[toneForRoom(room)],
+                )}
+              >
+                {partner.name.slice(0, 1)}
+              </span>
               <div className="flex min-w-0 flex-1 flex-col gap-0.5">
                 <span className="flex items-baseline gap-2">
                   <b className="truncate text-[0.86rem] font-bold text-ink">{partner.name}</b>

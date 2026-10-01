@@ -147,7 +147,11 @@ export function MessageThread({
         })}
       </div>
 
-      <form className="flex flex-col gap-1.5 border-t border-line p-3 sm:p-4" onSubmit={handleSubmit}>
+      {/* 우측 하단 고정 "맞춤 공간 추천" 챗봇 버튼(ChatbotDrawer)과 겹치지 않도록 오른쪽 여백을 더 둔다. */}
+      <form
+        className="flex flex-col gap-1.5 border-t border-line p-3 sm:p-4 sm:pr-40"
+        onSubmit={handleSubmit}
+      >
         {!connected && (
           <p className="px-1 text-xs text-soft">실시간 연결 중… 연결되면 메시지를 보낼 수 있어요.</p>
         )}

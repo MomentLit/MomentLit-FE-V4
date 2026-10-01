@@ -120,188 +120,192 @@ export function ProfileView() {
         <p className="mt-1.5 text-sm text-soft">프로필 정보를 관리하고, 내가 등록한 공간·팝업을 확인해요.</p>
       </div>
 
-      <section className="w-full max-w-[520px] border border-line bg-wash p-5">
-        <h2 className="mb-3 section-title text-ink">프로필</h2>
-        {meQuery.isPending ? (
-          <p className="text-sm text-soft">불러오는 중…</p>
-        ) : (
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="flex items-center gap-3.5">
-              {previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- 로컬 선택 파일 미리보기
-                <img
-                  src={previewUrl}
-                  alt="선택한 프로필 사진"
-                  className="h-14 w-14 flex-none object-cover"
-                />
-              ) : currentImageUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL
-                <img src={currentImageUrl} alt={name} className="h-14 w-14 flex-none object-cover" />
-              ) : (
-                <div className="grid h-14 w-14 flex-none place-items-center bg-violet section-title text-ink">
-                  {name.slice(0, 1).toUpperCase()}
-                </div>
-              )}
-              <div className="flex flex-col gap-1.5">
-                <span className="text-xs font-bold text-ink">프로필 사진</span>
-                <label className="button button--outline">
-                  {imageFile ? "사진 변경" : "사진 선택"}
-                  <input
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
-                    className="sr-only"
+      <div className="grid min-w-0 items-start gap-9 lg:grid-cols-[minmax(260px,320px)_minmax(0,1fr)] xl:grid-cols-[minmax(300px,360px)_minmax(0,1fr)]">
+        <section className="min-w-0 w-full border border-line bg-wash p-5">
+          <h2 className="mb-3 section-title text-ink">프로필</h2>
+          {meQuery.isPending ? (
+            <p className="text-sm text-soft">불러오는 중…</p>
+          ) : (
+            <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+              <div className="flex items-center gap-3.5">
+                {previewUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- 로컬 선택 파일 미리보기
+                  <img
+                    src={previewUrl}
+                    alt="선택한 프로필 사진"
+                    className="h-14 w-14 flex-none object-cover"
                   />
-                </label>
-                {imageFile && <span className="text-[0.7rem] text-soft">{imageFile.name}</span>}
-              </div>
-            </div>
-
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-bold text-ink">이메일</span>
-              <input value={meQuery.data?.email ?? ""} disabled className={`${fieldInputClass} bg-wash text-soft`} />
-            </label>
-
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-bold text-ink">이름</span>
-              <input value={name} onChange={(e) => setName(e.target.value)} className={fieldInputClass} />
-            </label>
-
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-bold text-ink">전화번호</span>
-              <input value={phone} onChange={(e) => setPhone(e.target.value)} className={fieldInputClass} />
-            </label>
-
-            <label className="flex flex-col gap-1.5">
-              <span className="text-sm font-bold text-ink">상태 메시지</span>
-              <textarea
-                value={intro}
-                onChange={(e) => setIntro(e.target.value)}
-                rows={2}
-                placeholder="자기소개를 남겨보세요."
-                className={`${fieldInputClass} resize-y`}
-              />
-            </label>
-
-            {error && <p className="text-sm text-coral">{error}</p>}
-            {saved && !error && <p className="text-sm text-ink">저장했어요.</p>}
-
-            <button
-              type="submit"
-              disabled={updateMutation.isPending}
-              className="button button--primary self-start"
-            >
-              {updateMutation.isPending ? "저장 중…" : "저장하기"}
-            </button>
-          </form>
-        )}
-      </section>
-
-      <section>
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-          <h2 className="section-title text-ink">내 공간</h2>
-          <Link href="/spaces/new" className="shrink-0 whitespace-nowrap text-sm font-semibold text-ink/75 transition-colors hover:text-ink hover:underline underline-offset-4 sm:text-base">
-            새 공간 등록
-          </Link>
-        </div>
-        <div className="collection-grid">
-          {mySpacesQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
-          {deleteError && !spaceToDelete && <p role="alert" className="text-sm text-coral">{deleteError}</p>}
-          {mySpacesQuery.isSuccess && mySpaces.length === 0 && (
-            <p className="text-sm text-soft">아직 등록한 공간이 없어요.</p>
-          )}
-          {mySpaces.map((space) => {
-            const meta = SPACE_STATUS_META[space.admin_status];
-            return (
-              <div
-                key={space.space_id}
-                className="interactive-card flex h-full flex-col items-start gap-4 border border-line bg-white p-5"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <b className="font-bold text-ink">{space.name}</b>
-                    <Badge variant={meta.variant}>{meta.label}</Badge>
-                    {!space.is_active && <Badge variant="neutral">비활성</Badge>}
+                ) : currentImageUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL
+                  <img src={currentImageUrl} alt={name} className="h-14 w-14 flex-none object-cover" />
+                ) : (
+                  <div className="grid h-14 w-14 flex-none place-items-center bg-violet section-title text-ink">
+                    {name.slice(0, 1).toUpperCase()}
                   </div>
-                  <p className="mt-0.5 text-sm text-soft">{space.price_per_hour.toLocaleString()}원</p>
+                )}
+                <div className="flex flex-col gap-1.5">
+                  <span className="text-xs font-bold text-ink">프로필 사진</span>
+                  <label className="button button--outline">
+                    {imageFile ? "사진 변경" : "사진 선택"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(event) => setImageFile(event.target.files?.[0] ?? null)}
+                      className="sr-only"
+                    />
+                  </label>
+                  {imageFile && <span className="text-[0.7rem] text-soft">{imageFile.name}</span>}
                 </div>
-                <div className="mt-auto flex flex-wrap gap-2">
-                  <Link
-                    href={`/spaces/${space.space_id}`}
-                    className="button button--outline"
+              </div>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-bold text-ink">이메일</span>
+                <input value={meQuery.data?.email ?? ""} disabled className={`${fieldInputClass} bg-wash text-soft`} />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-bold text-ink">이름</span>
+                <input value={name} onChange={(e) => setName(e.target.value)} className={fieldInputClass} />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-bold text-ink">전화번호</span>
+                <input value={phone} onChange={(e) => setPhone(e.target.value)} className={fieldInputClass} />
+              </label>
+
+              <label className="flex flex-col gap-1.5">
+                <span className="text-sm font-bold text-ink">상태 메시지</span>
+                <textarea
+                  value={intro}
+                  onChange={(e) => setIntro(e.target.value)}
+                  rows={2}
+                  placeholder="자기소개를 남겨보세요."
+                  className={`${fieldInputClass} resize-y`}
+                />
+              </label>
+
+              {error && <p className="text-sm text-coral">{error}</p>}
+              {saved && !error && <p className="text-sm text-ink">저장했어요.</p>}
+
+              <button
+                type="submit"
+                disabled={updateMutation.isPending}
+                className="button button--primary self-start"
+              >
+                {updateMutation.isPending ? "저장 중…" : "저장하기"}
+              </button>
+            </form>
+          )}
+        </section>
+
+        <div className="flex min-w-0 flex-col gap-9">
+          <section>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <h2 className="section-title text-ink">내 공간</h2>
+              <Link href="/spaces/new" className="shrink-0 whitespace-nowrap text-sm font-semibold text-ink/75 transition-colors hover:text-ink hover:underline underline-offset-4 sm:text-base">
+                새 공간 등록
+              </Link>
+            </div>
+            <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+              {mySpacesQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
+              {deleteError && !spaceToDelete && <p role="alert" className="text-sm text-coral">{deleteError}</p>}
+              {mySpacesQuery.isSuccess && mySpaces.length === 0 && (
+                <p className="text-sm text-soft">아직 등록한 공간이 없어요.</p>
+              )}
+              {mySpaces.map((space) => {
+                const meta = SPACE_STATUS_META[space.admin_status];
+                return (
+                  <div
+                    key={space.space_id}
+                    className="interactive-card flex h-full flex-col items-start gap-4 border border-line bg-white p-5"
                   >
-                    보기
-                  </Link>
-                  <Link
-                    href={`/spaces/${space.space_id}/edit`}
-                    className="button button--primary"
-                  >
-                    수정
-                  </Link>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setDeleteError(null);
-                      setSpaceToDelete(space);
-                    }}
-                    className="button button--danger"
-                  >
-                    삭제
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <b className="font-bold text-ink">{space.name}</b>
+                        <Badge variant={meta.variant}>{meta.label}</Badge>
+                        {!space.is_active && <Badge variant="neutral">비활성</Badge>}
+                      </div>
+                      <p className="mt-0.5 text-sm text-soft">{space.price_per_hour.toLocaleString()}원</p>
+                    </div>
+                    <div className="mt-auto flex flex-wrap gap-2">
+                      <Link
+                        href={`/spaces/${space.space_id}`}
+                        className="button button--outline"
+                      >
+                        보기
+                      </Link>
+                      <Link
+                        href={`/spaces/${space.space_id}/edit`}
+                        className="button button--primary"
+                      >
+                        수정
+                      </Link>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setDeleteError(null);
+                          setSpaceToDelete(space);
+                        }}
+                        className="button button--danger"
+                      >
+                        삭제
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </section>
+
+          {spaceToDelete && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" role="presentation">
+              <div role="alertdialog" aria-modal="true" aria-labelledby="delete-space-title" aria-describedby="delete-space-description" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
+                <h2 id="delete-space-title" className="section-title text-ink">공간을 삭제할까요?</h2>
+                <p id="delete-space-description" className="mt-3 text-sm leading-relaxed text-soft">
+                  삭제할 공간: <strong className="text-ink">{spaceToDelete.name}</strong><br />
+                  삭제하면 되돌릴 수 없습니다.
+                </p>
+                {deleteError && <p role="alert" className="mt-3 text-sm text-coral">{deleteError}</p>}
+                <div className="mt-6 flex justify-end gap-2">
+                  <button type="button" disabled={deleteMutation.isPending} onClick={() => setSpaceToDelete(null)} className="border border-line px-4 py-2 text-sm font-bold text-ink disabled:opacity-60">취소</button>
+                  <button type="button" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(spaceToDelete.space_id)} className="button button--danger">
+                    {deleteMutation.isPending ? "삭제 중…" : "삭제"}
                   </button>
                 </div>
               </div>
-            );
-          })}
-        </div>
-      </section>
-
-      {spaceToDelete && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-ink/50 p-4" role="presentation">
-          <div role="alertdialog" aria-modal="true" aria-labelledby="delete-space-title" aria-describedby="delete-space-description" className="w-full max-w-md rounded-2xl bg-white p-6 shadow-xl">
-            <h2 id="delete-space-title" className="section-title text-ink">공간을 삭제할까요?</h2>
-            <p id="delete-space-description" className="mt-3 text-sm leading-relaxed text-soft">
-              삭제할 공간: <strong className="text-ink">{spaceToDelete.name}</strong><br />
-              삭제하면 되돌릴 수 없습니다.
-            </p>
-            {deleteError && <p role="alert" className="mt-3 text-sm text-coral">{deleteError}</p>}
-            <div className="mt-6 flex justify-end gap-2">
-              <button type="button" disabled={deleteMutation.isPending} onClick={() => setSpaceToDelete(null)} className="border border-line px-4 py-2 text-sm font-bold text-ink disabled:opacity-60">취소</button>
-              <button type="button" disabled={deleteMutation.isPending} onClick={() => deleteMutation.mutate(spaceToDelete.space_id)} className="button button--danger">
-                {deleteMutation.isPending ? "삭제 중…" : "삭제"}
-              </button>
             </div>
-          </div>
-        </div>
-      )}
+          )}
 
-      <section>
-        <h2 className="mb-3 section-title text-ink">내 팝업</h2>
-        <div className="collection-grid">
-          {myPopupsQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
-          {myPopupsQuery.isSuccess && myPopups.length === 0 && (
-            <p className="text-sm text-soft">아직 등록한 팝업이 없어요.</p>
-          )}
-          {myPopups.map((popup) => (
-            <div key={popup.popup_id} className="interactive-card flex h-full flex-col items-start gap-4 border border-line bg-white p-5">
-              <div className="min-w-0 flex-1">
-                <b className="font-bold text-ink">{popup.title}</b>
-                <p className="mt-0.5 text-sm text-soft">
-                  {popup.start_time.slice(0, 10)} — {popup.end_time.slice(0, 10)}
-                </p>
-              </div>
-              <Link
-                href={`/popups/${popup.popup_id}`}
-                className="button button--outline flex-none"
-              >
-                보기
-              </Link>
+          <section>
+            <h2 className="mb-3 section-title text-ink">내 팝업</h2>
+            <div className="grid grid-cols-1 items-stretch gap-4 sm:grid-cols-2 2xl:grid-cols-3">
+              {myPopupsQuery.isPending && <p className="text-sm text-soft">불러오는 중…</p>}
+              {myPopupsQuery.isSuccess && myPopups.length === 0 && (
+                <p className="text-sm text-soft">아직 등록한 팝업이 없어요.</p>
+              )}
+              {myPopups.map((popup) => (
+                <div key={popup.popup_id} className="interactive-card flex h-full flex-col items-start gap-4 border border-line bg-white p-5">
+                  <div className="min-w-0 flex-1">
+                    <b className="font-bold text-ink">{popup.title}</b>
+                    <p className="mt-0.5 text-sm text-soft">
+                      {popup.start_time.slice(0, 10)} — {popup.end_time.slice(0, 10)}
+                    </p>
+                  </div>
+                  <Link
+                    href={`/popups/${popup.popup_id}`}
+                    className="button button--outline flex-none"
+                  >
+                    보기
+                  </Link>
+                </div>
+              ))}
+              {myPopups.length > 0 && (
+                <p className="text-[0.79rem] text-soft">팝업 수정 기능은 아직 준비 중이에요.</p>
+              )}
             </div>
-          ))}
-          {myPopups.length > 0 && (
-            <p className="text-[0.79rem] text-soft">팝업 수정 기능은 아직 준비 중이에요.</p>
-          )}
+          </section>
         </div>
-      </section>
+      </div>
     </div>
   );
 }

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconArrowRight, IconHeart, IconHeartFilled } from "@tabler/icons-react";
 import { Card } from "@/shared/ui";
 import { useAuthStore } from "@/entities/auth";
@@ -55,12 +55,19 @@ export function BookingCard({
   hostStatsLoading: boolean;
 }) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
 
   const contactHostMutation = useMutation({
     mutationFn: () => createChatRoom({ space_id: spaceId }),
-    onSuccess: ({ chat_room_id }) => router.push(`/messages?room=${chat_room_id}`),
+    onSuccess: ({ chat_room_id }) => {
+      // "chatRooms" 쿼리는 전역 staleTime(30s) 때문에, 방금 만든/재사용한 방이
+      // 목록에 반영되기 전 캐시를 그대로 쓰면 /messages에서 room id를 못 찾아
+      // 엉뚱한 대화(rooms[0])로 폴백해버린다 — 그래서 이동 전에 캐시를 비운다.
+      queryClient.removeQueries({ queryKey: ["chatRooms"] });
+      router.push(`/messages?room=${chat_room_id}`);
+    },
     onError: (error) => setFeedback({ type: "error", message: getErrorMessage(error) }),
   });
 

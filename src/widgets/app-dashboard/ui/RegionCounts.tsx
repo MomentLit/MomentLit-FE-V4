@@ -5,7 +5,17 @@ import { useQuery } from "@tanstack/react-query";
 import { REGIONS, REGION_LABELS, REGION_COLORS } from "@/entities/region";
 import { fetchRegionCounts } from "@/entities/space/api";
 import { getErrorMessage } from "@/shared/api/error";
+import type { SpectrumTone } from "@/shared/ui";
 import { TONE_DOT_BG } from "./tone-dot";
+
+const TONE_HOVER_BG: Record<SpectrumTone, string> = {
+  sky: "hover:bg-sky focus-visible:bg-sky",
+  lime: "hover:bg-lime focus-visible:bg-lime",
+  lemon: "hover:bg-lemon focus-visible:bg-lemon",
+  coral: "hover:bg-coral focus-visible:bg-coral",
+  rose: "hover:bg-rose focus-visible:bg-rose",
+  violet: "hover:bg-violet focus-visible:bg-violet",
+};
 
 /** All region categories stay visible, including those with no registered spaces. */
 export function RegionCounts() {
@@ -26,9 +36,9 @@ export function RegionCounts() {
       {isError && <p role="alert" className="mb-4 text-sm text-soft">지역별 공간 수를 불러오지 못했어요. {getErrorMessage(error)}</p>}
       <div className="grid grid-cols-2 gap-px border border-line bg-line sm:grid-cols-4" aria-busy={isLoading}>
         {REGIONS.map((region) => (
-          <Link key={region} href={`/search?region=${region}`} className="group flex flex-col gap-6 bg-white p-4 transition-colors hover:bg-wash">
+          <Link key={region} href={`/search?region=${region}`} className={`group flex flex-col gap-6 bg-white p-4 text-ink transition-colors ${TONE_HOVER_BG[REGION_COLORS[region]]}`}>
             <span className="flex items-center gap-2">
-              <i className={`block h-[9px] w-[9px] ${TONE_DOT_BG[REGION_COLORS[region]]}`} aria-hidden="true" />
+              <i className={`block h-[9px] w-[9px] transition-colors group-hover:bg-ink group-focus-visible:bg-ink ${TONE_DOT_BG[REGION_COLORS[region]]}`} aria-hidden="true" />
               <span className="font-mono text-[0.63rem] tracking-[0.1em] text-soft">{region}</span>
             </span>
             <span className="mt-auto text-lg font-bold tracking-tight text-ink">{REGION_LABELS[region]}</span>

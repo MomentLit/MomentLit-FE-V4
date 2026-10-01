@@ -24,6 +24,7 @@ export async function GET(request: NextRequest) {
         address, format: "json", type, key,
         domain,
       });
+      diagnostic = { domainSource, type, stage: "fetch" };
       const upstream = await fetch(`https://api.vworld.kr/req/address?${query}`, {
         signal: AbortSignal.any([request.signal, AbortSignal.timeout(8000)]),
         cache: "no-store",
@@ -44,7 +45,20 @@ export async function GET(request: NextRequest) {
     }
     return Response.json({ message: "주소의 위치를 찾지 못했어요." }, { status: 404 });
   } catch (error) {
-    console.error("VWorld geocoding failed", { ...diagnostic, errorName: error instanceof Error ? error.name : "unknown" });
+    const cause = error instanceof Error ? error.cause : undefined;
+    const causeCode = cause && typeof cause === "object" && "code" in cause && typeof cause.code === "string"
+      ? cause.code : undefined;
+    const nestedCodes = cause instanceof AggregateError
+      ? cause.errors.flatMap((item: unknown) => item && typeof item === "object" && "code" in item && typeof item.code === "string" ? [item.code] : [])
+      : [];
+    console.error("VWorld geocoding failed", {
+      ...diagnostic,
+      errorName: error instanceof Error ? error.name : "unknown",
+      errorMessage: error instanceof Error && error.message === "fetch failed" ? error.message : undefined,
+      causeName: cause instanceof Error ? cause.name : undefined,
+      causeCode,
+      nestedCodes: nestedCodes.length ? nestedCodes : undefined,
+    });
     return Response.json({ message: "위치 정보를 불러오지 못했어요. 잠시 후 다시 시도해 주세요." }, { status: 502 });
   }
 }

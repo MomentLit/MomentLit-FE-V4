@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { IconHeart, IconHeartFilled, IconX, IconZoomIn } from "@tabler/icons-react";
+import { Sparkles } from "lucide-react";
 import { isApiError, getErrorMessage } from "@/shared/api/error";
 import { useAuthStore } from "@/entities/auth";
 import { MediaPhoto } from "@/shared/ui/MediaPhoto";
@@ -92,9 +93,16 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
           </section>
 
           {popup.ai_brand_summary && (
-            <section>
-              <h3 className="mb-3 section-title text-ink">AI 브랜드 요약</h3>
-              <p className="text-[0.92rem] leading-[1.9] text-soft">{popup.ai_brand_summary}</p>
+            <section className="relative overflow-hidden rounded-2xl border border-sky/30 bg-gradient-to-br from-sky/10 via-white to-violet/10 p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-main-d text-white">
+                  <Sparkles size={14} aria-hidden />
+                </span>
+                <span className="font-mono text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-main-d">
+                  AI 브랜드 요약
+                </span>
+              </div>
+              <p className="text-[0.92rem] leading-[1.9] text-ink">{popup.ai_brand_summary}</p>
             </section>
           )}
 

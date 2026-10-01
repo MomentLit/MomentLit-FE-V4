@@ -6,7 +6,7 @@ import { isApiError, getErrorMessage } from "@/shared/api/error";
 import { useAuthStore } from "@/entities/auth";
 import { MediaPhoto } from "@/shared/ui/MediaPhoto";
 import { Modal } from "@/shared/ui/Modal";
-import { Card } from "@/shared/ui";
+import { AiSummaryCard, Card } from "@/shared/ui";
 import { formatAddress, formatDateRange, popupBadge } from "../lib/format";
 import {
   usePopupLikeStatusQuery,
@@ -92,10 +92,7 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
           </section>
 
           {popup.ai_brand_summary && (
-            <section>
-              <h3 className="mb-3 section-title text-ink">AI 브랜드 요약</h3>
-              <p className="text-[0.92rem] leading-[1.9] text-soft">{popup.ai_brand_summary}</p>
-            </section>
+            <AiSummaryCard label="AI 브랜드 요약" status="COMPLETED" text={popup.ai_brand_summary} />
           )}
 
           <PopupReviewSection popupId={popupId} reviews={reviewsQuery.data ?? []} isLoading={reviewsQuery.isPending} />

@@ -317,4 +317,15 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 .search-hero--dashboard .search-hero-content { display: flex; flex-direction: column; }
 .search-hero--dashboard .search-hero-headline,
 .search-hero--dashboard .search-hero-description { min-height: 0; }
+
+/* AI 소개 카드 — 은은한 배경 그라데이션이 느리게 이동하는 "생성형 AI" 느낌의 광택. */
+@keyframes ai-card-sheen {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.ai-summary-card {
+  background-size: 200% 200%;
+  animation: ai-card-sheen 6s ease-in-out infinite;
+}
 .search-hero--dashboard .search-hero-form { margin-top: auto; margin-bottom: 32px; }

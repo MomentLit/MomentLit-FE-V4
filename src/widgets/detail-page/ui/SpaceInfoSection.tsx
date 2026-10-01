@@ -1,4 +1,4 @@
-import { Sparkles } from "lucide-react";
+import { AiSummaryCard } from "@/shared/ui";
 import type { SpaceDetail } from "@/entities/space";
 import { USAGE_UNIT_LABELS } from "../model/queries";
 
@@ -46,30 +46,10 @@ export function SpaceInfoSection({ space }: { space: SpaceDetail }) {
         </div>
       </section>
 
-      {space.ai_summary_status === "PENDING" && (
-        <section aria-live="polite" className="relative overflow-hidden rounded-2xl border border-sky/30 bg-gradient-to-br from-sky/10 via-white to-violet/10 p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-main-d text-white">
-              <Sparkles size={14} aria-hidden />
-            </span>
-            <span className="font-mono text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-main-d">AI 소개</span>
-          </div>
-          <p className="text-[0.92rem] text-soft">AI가 이 공간의 소개를 작성하고 있어요…</p>
-          <div className="mt-3 h-3 w-[92%] animate-pulse rounded-full bg-sky/30" aria-hidden />
-          <div className="mt-2 h-3 w-[68%] animate-pulse rounded-full bg-sky/30" aria-hidden />
-        </section>
-      )}
+      {space.ai_summary_status === "PENDING" && <AiSummaryCard label="AI 소개" status="PENDING" />}
 
       {space.ai_summary_status === "COMPLETED" && space.ai_summary && (
-        <section className="relative overflow-hidden rounded-2xl border border-sky/30 bg-gradient-to-br from-sky/10 via-white to-violet/10 p-5">
-          <div className="mb-3 flex items-center gap-2">
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-main-d text-white">
-              <Sparkles size={14} aria-hidden />
-            </span>
-            <span className="font-mono text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-main-d">AI 소개</span>
-          </div>
-          <p className="text-[0.92rem] leading-[1.9] text-ink">{space.ai_summary}</p>
-        </section>
+        <AiSummaryCard label="AI 소개" status="COMPLETED" text={space.ai_summary} />
       )}
     </div>
   );

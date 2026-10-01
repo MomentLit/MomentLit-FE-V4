@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
   const domain = process.env.VWORLD_DOMAIN || process.env.NEXT_PUBLIC_VWORLD_DOMAIN || request.nextUrl.origin;
   const domainSource = process.env.VWORLD_DOMAIN ? "VWORLD_DOMAIN"
     : process.env.NEXT_PUBLIC_VWORLD_DOMAIN ? "NEXT_PUBLIC_VWORLD_DOMAIN" : "request origin";
-  let diagnostic: Record<string, string | number | undefined> = { domainSource };
+  let diagnostic: Record<string, string | number | undefined> = { domainSource, region: process.env.VERCEL_REGION };
   try {
     for (const type of ["ROAD", "PARCEL"]) {
       const query = new URLSearchParams({
@@ -24,12 +24,21 @@ export async function GET(request: NextRequest) {
         address, format: "json", type, key,
         domain,
       });
-      diagnostic = { domainSource, type, stage: "fetch" };
+      diagnostic = { domainSource, region: process.env.VERCEL_REGION, type, stage: "fetch" };
       const upstream = await fetch(`https://api.vworld.kr/req/address?${query}`, {
         signal: AbortSignal.any([request.signal, AbortSignal.timeout(8000)]),
         cache: "no-store",
       });
-      diagnostic = { domainSource, type, httpStatus: upstream.status, contentType: upstream.headers.get("content-type") ?? undefined };
+      diagnostic = {
+        domainSource,
+        region: process.env.VERCEL_REGION,
+        type,
+        httpStatus: upstream.status,
+        contentType: upstream.headers.get("content-type") ?? undefined,
+        server: upstream.headers.get("server") ?? undefined,
+        via: upstream.headers.get("via") ?? undefined,
+        xCache: upstream.headers.get("x-cache") ?? undefined,
+      };
       if (!upstream.ok) throw new Error("Geocoding request failed");
       const data = await upstream.json() as GeocodeResponse;
       diagnostic = { ...diagnostic, vworldStatus: data.response?.status, vworldErrorCode: data.response?.error?.code };

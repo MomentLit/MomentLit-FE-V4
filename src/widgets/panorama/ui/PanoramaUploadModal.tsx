@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { IconArrowLeft, IconCamera, IconRefresh, IconUpload, IconX } from "@tabler/icons-react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { IconArrowLeft, IconArrowRight, IconCamera, IconRefresh, IconUpload, IconX } from "@tabler/icons-react";
 import { Modal } from "@/shared/ui/Modal";
 import { stitchPanorama, uploadPanorama } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
@@ -13,9 +13,10 @@ import {
   readImageRatio,
 } from "../model";
 import { PanoramaCaptureGuide } from "./PanoramaCaptureGuide";
+import { PanoramaCaptureReview } from "./PanoramaCaptureReview";
 import { PanoramaViewer } from "./PanoramaViewerModal";
 
-type Mode = "CHOOSE" | "UPLOAD" | "CAPTURE" | "PREVIEW";
+type Mode = "CHOOSE" | "UPLOAD" | "CAPTURE" | "REVIEW" | "PREVIEW";
 
 const primaryButtonClass = "button button--primary";
 const outlineButtonClass = "button button--outline";
@@ -24,7 +25,16 @@ const MODE_TITLES: Record<Mode, string> = {
   CHOOSE: "360° 사진 추가",
   UPLOAD: "360° 사진 넣기",
   CAPTURE: "360° 사진 찍기",
+  REVIEW: "사진 검수",
   PREVIEW: "AI 합성 결과",
+};
+
+/** "이전" 버튼이 돌아갈 단계 — 합성 결과에서 돌아가면 사진을 바꿀 수 있는 검수 단계로 간다. */
+const PREVIOUS_MODES: Record<Exclude<Mode, "CHOOSE">, Mode> = {
+  UPLOAD: "CHOOSE",
+  CAPTURE: "CHOOSE",
+  REVIEW: "CAPTURE",
+  PREVIEW: "REVIEW",
 };
 
 function createEmptySlots(): (File | null)[] {
@@ -40,11 +50,13 @@ export interface PanoramaUploadModalProps {
 /**
  * 공간 등록/수정 화면의 360도 사진 모달.
  *  - 넣기: 이미 만들어진 2:1 사진 한 장 → 브라우저에서 비율 확인 → 미리보기 → 업로드
- *  - 찍기: 촬영 가이드대로 찍은 10장 → AI 합성 → 미리보기(다시 합성 가능) → 확정
+ *  - 찍기: 촬영 가이드대로 찍은 10장 → 검수(경고만, 막지 않음) → AI 합성 → 미리보기(다시 합성 가능) → 확정
+ *    모바일(화면 폭 767px 이하, MessagesView와 같은 기준)은 칸을 누르면 카메라가 바로 켜진다.
  * 모달 형태는 `AuthModal`과 같다.
  */
 export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalProps) {
   const [mode, setMode] = useState<Mode>("CHOOSE");
+  const isMobile = useSyncExternalStore(subscribeMobile, getMobileSnapshot, () => false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -196,7 +208,16 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
       )}
 
       {mode === "CAPTURE" && (
-        <PanoramaCaptureGuide files={captureFiles} onFileChange={handleCaptureFileChange} disabled={busy} />
+        <PanoramaCaptureGuide files={captureFiles} onFileChange={handleCaptureFileChange} mobile={isMobile} disabled={busy} />
+      )}
+
+      {mode === "REVIEW" && allCaptured && (
+        <PanoramaCaptureReview
+          files={captureFiles as File[]}
+          onFileChange={handleCaptureFileChange}
+          mobile={isMobile}
+          disabled={busy}
+        />
       )}
 
       {mode === "PREVIEW" && stitchedUrl && (
@@ -216,7 +237,7 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            onClick={() => goTo(mode === "PREVIEW" ? "CAPTURE" : "CHOOSE")}
+            onClick={() => goTo(PREVIOUS_MODES[mode])}
             disabled={busy}
             className={outlineButtonClass}
           >
@@ -238,11 +259,23 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
           {mode === "CAPTURE" && (
             <button
               type="button"
+              onClick={() => goTo("REVIEW")}
+              disabled={busy || !allCaptured}
+              className={primaryButtonClass}
+            >
+              다음: 사진 검수
+              <IconArrowRight size={16} stroke={2} aria-hidden />
+            </button>
+          )}
+
+          {mode === "REVIEW" && (
+            <button
+              type="button"
               onClick={() => void handleStitch()}
               disabled={busy || !allCaptured}
               className={primaryButtonClass}
             >
-              {busy ? "AI 합성 중…" : "AI로 360° 사진 만들기"}
+              {busy ? "AI 합성 중…" : "검수 완료 · AI로 360° 사진 만들기"}
             </button>
           )}
 
@@ -266,4 +299,11 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
       )}
     </Modal>
   );
+}
+
+function getMobileSnapshot() { return window.matchMedia("(max-width: 767px)").matches; }
+function subscribeMobile(callback: () => void) {
+  const media = window.matchMedia("(max-width: 767px)");
+  media.addEventListener("change", callback);
+  return () => media.removeEventListener("change", callback);
 }

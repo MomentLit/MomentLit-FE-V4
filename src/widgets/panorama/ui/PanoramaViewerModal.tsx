@@ -28,11 +28,17 @@ export function PanoramaViewer({ src, className }: { src: string; className?: st
         if (cancelled) return;
         viewer = new Viewer({
           container,
-          panorama: src,
           navbar: ["zoom", "move", "fullscreen"],
           loadingTxt: "360° 사진을 불러오는 중…",
         });
-        viewer.addEventListener("panorama-error", () => setError("360° 사진을 불러오지 못했어요."));
+        // 생성자에 panorama를 넘기면 불러오기 실패(CORS 등)가 처리되지 않은 Promise로 새어 나간다 — 직접 받아서 처리한다.
+        // 실패하면 라이브러리의 영문 오류 화면 대신 우리 안내 문구가 보이도록 뷰어를 닫는다.
+        viewer.setPanorama(src).catch(() => {
+          if (cancelled) return;
+          viewer?.destroy();
+          viewer = null;
+          setError("360° 사진을 불러오지 못했어요.");
+        });
       })
       .catch(() => {
         if (!cancelled) setError("360° 뷰어를 불러오지 못했어요.");

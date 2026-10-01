@@ -18,6 +18,8 @@ export function Modal({
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef({ onClose, canClose });
+  // 패널 안에서 누른 채로 배경에서 떼면(360° 뷰어 드래그 등) 브라우저가 배경에 click을 보낸다 — 누르기 시작한 곳도 배경일 때만 닫는다.
+  const pressStartedOnBackdropRef = useRef(false);
 
   useEffect(() => {
     closeRef.current = { onClose, canClose };
@@ -76,8 +78,11 @@ export function Modal({
   return (
     <div
       className="fixed inset-0 z-[300] flex items-center justify-center bg-ink/60 p-4 backdrop-blur-md"
+      onPointerDownCapture={(event) => {
+        pressStartedOnBackdropRef.current = event.target === event.currentTarget;
+      }}
       onClick={(event) => {
-        if (event.target === event.currentTarget && canClose) onClose();
+        if (event.target === event.currentTarget && pressStartedOnBackdropRef.current && canClose) onClose();
       }}
     >
       <div ref={panelRef} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} className={`max-h-[calc(100dvh-32px)] ${panelClassName}`}>

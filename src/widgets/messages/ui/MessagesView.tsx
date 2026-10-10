@@ -10,8 +10,7 @@ import { getErrorMessage } from "@/shared/api/error";
 import { ConversationList } from "./ConversationList";
 import { MessageThread } from "./MessageThread";
 
-const SHELL_CLASS =
-  "flex h-[calc(100dvh-8rem)] min-h-[320px] w-full min-w-0 overflow-hidden border border-line bg-white";
+const SHELL_CLASS = "flex h-full min-h-[320px] w-full min-w-0 overflow-hidden bg-white";
 
 /**
  * Messages widget — conversation list + thread, backed by the real chat API

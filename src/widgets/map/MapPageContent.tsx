@@ -21,7 +21,7 @@ export function MapPageContent() {
   const [region, setRegion] = useState<Region | null>(null);
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const queryClient = useQueryClient();
-  const configured = Boolean(process.env.NEXT_PUBLIC_VWORLD_API_KEY);
+  const configured = Boolean(process.env.NEXT_PUBLIC_KAKAO_MAP_KEY);
   const spacesQuery = useQuery({
     queryKey: ["spaces", "map", region],
     queryFn: ({ signal }) => collectPages((page) => searchSpaces({ region: region ?? undefined, page, size: 100 }, signal)),

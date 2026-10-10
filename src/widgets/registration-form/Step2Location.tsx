@@ -5,29 +5,6 @@ import { Modal } from "@/shared/ui/Modal";
 import { FormField, fieldInputClass } from "./FormField";
 import type { RegistrationFormState } from "./model";
 
-type PostcodeResult = {
-  roadAddress: string;
-  sido: string;
-  sigungu: string;
-  bname: string;
-  bname1: string;
-  bname2: string;
-  zonecode: string;
-};
-
-declare global {
-  interface Window {
-    kakao?: {
-      Postcode: new (options: {
-        oncomplete: (result: PostcodeResult) => void;
-        shorthand?: boolean;
-        width?: string;
-        height?: string;
-      }) => { embed: (element: HTMLElement, options?: { autoClose?: boolean }) => void };
-    };
-  }
-}
-
 export type SelectedAddress = Pick<
   RegistrationFormState,
   "roadAddress" | "sido" | "sigungu" | "eupMyeonDong" | "postalCode"

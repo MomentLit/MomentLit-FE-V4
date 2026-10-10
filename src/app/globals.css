@@ -318,6 +318,15 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 .search-hero--dashboard .search-hero-headline,
 .search-hero--dashboard .search-hero-description { min-height: 0; }
 
+/* 홈 콤보 검색은 랜딩 메인 히어로보다 훨씬 짧은 보조 섹션이라, 블록 자체 높이도 줄인다. */
+.search-hero--dashboard { min-height: 280px; padding-block: 32px; }
+@media (min-width: 640px) {
+  .search-hero--dashboard { min-height: 300px; padding-block: 40px; }
+}
+@media (min-width: 1024px) {
+  .search-hero--dashboard { min-height: 320px; padding-block: 48px; }
+}
+
 /* AI 소개 카드 — 은은한 배경 그라데이션이 느리게 이동하는 "생성형 AI" 느낌의 광택. */
 @keyframes ai-card-sheen {
   0% { background-position: 0% 50%; }
@@ -328,4 +337,4 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
   background-size: 200% 200%;
   animation: ai-card-sheen 6s ease-in-out infinite;
 }
-.search-hero--dashboard .search-hero-form { margin-top: auto; margin-bottom: 32px; }
+.search-hero--dashboard .search-hero-form { margin-top: 88px; margin-bottom: 32px; }

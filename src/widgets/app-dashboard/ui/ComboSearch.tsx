@@ -2,11 +2,9 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
 import { IconArrowRight } from "@tabler/icons-react";
 import { REGIONS, REGION_LABELS, type Region } from "@/entities/region";
 import { SPACE_CATEGORY_DISPLAY_ORDER, SPACE_CATEGORY_LABELS, type SpaceCategory } from "@/entities/space-category";
-import { fetchCategoryCounts } from "@/entities/space/api";
 import { TrailLayer } from "@/widgets/landing/TrailLayer";
 import { Dropdown, DatePicker } from "@/shared/ui";
 
@@ -25,12 +23,6 @@ export function ComboSearch() {
   const [category, setCategory] = useState<SpaceCategory | "">("");
   const [date, setDate] = useState(todayISO);
 
-  const { data: categoryCounts } = useQuery({
-    queryKey: ["spaces", "counts", "by-category"],
-    queryFn: fetchCategoryCounts,
-  });
-  const totalSpaceCount = categoryCounts?.reduce((sum, entry) => sum + entry.count, 0) ?? 0;
-
   function handleSubmit() {
     const params = new URLSearchParams();
     if (region) params.set("region", region);
@@ -43,11 +35,21 @@ export function ComboSearch() {
     <section aria-label="공간 검색" className="search-hero search-hero--dashboard relative isolate border-b border-line app-gutter">
       <TrailLayer />
       <div className="search-hero-content relative z-[2]">
-        <h1 style={{ fontFamily: "var(--font-display)" }} className="search-hero-headline text-[clamp(2.1rem,4.5vw,4rem)] leading-tight tracking-tight text-ink">
-          <span className="underline decoration-sky decoration-4 underline-offset-8">다음 장면이 될 공간</span>
+        <h1
+          style={{ fontFamily: "var(--font-display)" }}
+          className="search-hero-headline text-[clamp(2.1rem,4.5vw,4rem)] font-normal leading-[1.05] tracking-tight text-ink"
+        >
+          <span className="relative inline-block px-[0.06em]">
+            <span className="absolute inset-x-0 -z-10 top-[0.17em] bottom-[0.13em] bg-sky" />
+            공간
+          </span>과{" "}
+          <span className="relative inline-block px-[0.06em]">
+            <span className="absolute inset-x-0 -z-10 top-[0.17em] bottom-[0.13em] bg-lemon" />
+            브랜드
+          </span>
+          를 잇다<span className="text-coral">.</span>
         </h1>
 
-        <p className="search-hero-description text-soft">등록된 공간 {totalSpaceCount.toLocaleString()}곳에서 당신의 아이디어를 시작하세요.</p>
         <div className="search-hero-form">
           <span className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[clamp(1.05rem,2vw,1.5rem)] font-bold tracking-tight">
             <Dropdown

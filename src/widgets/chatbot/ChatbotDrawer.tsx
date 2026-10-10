@@ -1,11 +1,48 @@
 "use client";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import { Bot, ChevronDown, Send, Sparkles, X } from "lucide-react";
 import { streamChatbotReply, type ChatbotSpaceCard } from "@/entities/chatbot";
 import { useAuthStore } from "@/entities/auth";
 import { cn } from "@/shared/lib";
+
+type Corner = "tl" | "tr" | "bl" | "br";
+
+const CORNER_STORAGE_KEY = "momentlit_chatbot_corner";
+const DRAG_THRESHOLD = 4;
+const POSITION_TRANSITION =
+  "left 320ms cubic-bezier(0.22,1,0.36,1), right 320ms cubic-bezier(0.22,1,0.36,1), top 320ms cubic-bezier(0.22,1,0.36,1), bottom 320ms cubic-bezier(0.22,1,0.36,1)";
+
+function edgeMargin(): number {
+  return typeof window !== "undefined" && window.innerWidth >= 640 ? 24 : 16;
+}
+
+function isCorner(value: unknown): value is Corner {
+  return value === "tl" || value === "tr" || value === "bl" || value === "br";
+}
+
+/** 현재 corner 기준 오프셋(pos)을 화면 절대좌표(박스 좌상단)로 바꾼다 — corner가 바뀔 때 시각적 위치를 유지한 채 좌표계만 변환하는 데 쓴다. */
+function offsetToAbsolute(corner: Corner, pos: { x: number; y: number }, size: { width: number; height: number }) {
+  const x = corner.endsWith("l") ? pos.x : window.innerWidth - pos.x - size.width;
+  const y = corner.startsWith("t") ? pos.y : window.innerHeight - pos.y - size.height;
+  return { x, y };
+}
+
+/** absoluteToOffset은 offsetToAbsolute와 같은 식의 자기 역변환이다 — 좌표계만 다시 바꿔 끼운다. */
+function absoluteToOffset(corner: Corner, abs: { x: number; y: number }, size: { width: number; height: number }) {
+  const x = corner.endsWith("l") ? abs.x : window.innerWidth - abs.x - size.width;
+  const y = corner.startsWith("t") ? abs.y : window.innerHeight - abs.y - size.height;
+  return { x, y };
+}
+
+function nearestCorner(abs: { x: number; y: number }, size: { width: number; height: number }): Corner {
+  const centerX = abs.x + size.width / 2;
+  const centerY = abs.y + size.height / 2;
+  const top = centerY < window.innerHeight / 2;
+  const left = centerX < window.innerWidth / 2;
+  return `${top ? "t" : "b"}${left ? "l" : "r"}` as Corner;
+}
 
 interface ChatMessage {
   id: number;
@@ -72,6 +109,16 @@ export function ChatbotDrawer() {
   const [loadedStorageKey, setLoadedStorageKey] = useState<string | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const nextId = useRef(1);
+  // 서버는 window/localStorage가 없어서 항상 "br"+16px로 렌더한다 — 클라이언트 첫
+  // 렌더도 반드시 같은 값으로 시작해야 하이드레이션 불일치가 안 난다. 실제 저장된
+  // corner/margin은 마운트 후 아래 effect에서 반영한다.
+  const [corner, setCorner] = useState<Corner>("br");
+  const [pos, setPos] = useState({ x: 16, y: 16 });
+  const [isDragging, setIsDragging] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+  const posRef = useRef(pos);
+  const dragRef = useRef<{ startX: number; startY: number; startPos: { x: number; y: number }; corner: Corner; moved: boolean } | null>(null);
+  const justDraggedRef = useRef(false);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hydrated = useAuthStore((state) => state.hydrated);
   const userId = useAuthStore((state) => state.user?.id);
@@ -125,6 +172,120 @@ export function ChatbotDrawer() {
       // Continue streaming even when browser storage is disabled or full.
     }
   }, [conversationId, loadedStorageKey, messages, storageKey]);
+
+  useEffect(() => {
+    let cancelled = false;
+    queueMicrotask(() => {
+      if (cancelled) return;
+      let storedCorner: Corner = "br";
+      try {
+        const raw = window.localStorage.getItem(CORNER_STORAGE_KEY);
+        if (isCorner(raw)) storedCorner = raw;
+      } catch {
+        // Private browsing or disabled storage — default corner is fine.
+      }
+      const flush = { x: edgeMargin(), y: edgeMargin() };
+      posRef.current = flush;
+      setCorner(storedCorner);
+      setPos(flush);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    function handleResize() {
+      if (dragRef.current) return;
+      const flush = { x: edgeMargin(), y: edgeMargin() };
+      posRef.current = flush;
+      setPos(flush);
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    dragRef.current = { startX: event.clientX, startY: event.clientY, startPos: posRef.current, corner, moved: false };
+    setIsDragging(true);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    if (!drag || !wrapperRef.current) return;
+    const dx = event.clientX - drag.startX;
+    const dy = event.clientY - drag.startY;
+    if (!drag.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) drag.moved = true;
+    if (!drag.moved) return;
+
+    const rect = wrapperRef.current.getBoundingClientRect();
+    const margin = 4;
+    const maxX = Math.max(window.innerWidth - rect.width - margin, margin);
+    const maxY = Math.max(window.innerHeight - rect.height - margin, margin);
+    const nextX = Math.min(Math.max(drag.corner.endsWith("l") ? drag.startPos.x + dx : drag.startPos.x - dx, margin), maxX);
+    const nextY = Math.min(Math.max(drag.corner.startsWith("t") ? drag.startPos.y + dy : drag.startPos.y - dy, margin), maxY);
+    const next = { x: nextX, y: nextY };
+    posRef.current = next;
+    setPos(next);
+  }
+
+  function handlePointerUp(event: ReactPointerEvent<HTMLButtonElement>) {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    event.currentTarget.releasePointerCapture(event.pointerId);
+    if (!drag) return;
+
+    if (!drag.moved) {
+      setIsDragging(false);
+      return;
+    }
+    justDraggedRef.current = true;
+
+    const rect = wrapperRef.current?.getBoundingClientRect();
+    const size = rect ? { width: rect.width, height: rect.height } : { width: 56, height: 56 };
+    const abs = offsetToAbsolute(drag.corner, posRef.current, size);
+    const target = nearestCorner(abs, size);
+
+    if (target !== drag.corner) {
+      const bridge = absoluteToOffset(target, abs, size);
+      posRef.current = bridge;
+      setCorner(target);
+      setPos(bridge);
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          const flush = { x: edgeMargin(), y: edgeMargin() };
+          posRef.current = flush;
+          setIsDragging(false);
+          setPos(flush);
+          try {
+            window.localStorage.setItem(CORNER_STORAGE_KEY, target);
+          } catch {
+            // Non-essential convenience — safe to skip when storage is unavailable.
+          }
+        });
+      });
+    } else {
+      const flush = { x: edgeMargin(), y: edgeMargin() };
+      posRef.current = flush;
+      setIsDragging(false);
+      setPos(flush);
+    }
+  }
+
+  function handleLauncherClick() {
+    if (justDraggedRef.current) {
+      justDraggedRef.current = false;
+      return;
+    }
+    setOpen((value) => !value);
+  }
+
+  const wrapperStyle: CSSProperties = {
+    [corner.endsWith("l") ? "left" : "right"]: pos.x,
+    [corner.startsWith("t") ? "top" : "bottom"]: pos.y,
+    transition: isDragging ? "none" : POSITION_TRANSITION,
+  };
 
   function close() {
     abortRef.current?.abort();
@@ -186,9 +347,17 @@ export function ChatbotDrawer() {
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-40 sm:bottom-6 sm:right-6">
+    <div
+      ref={wrapperRef}
+      style={wrapperStyle}
+      className={cn(
+        "fixed z-40 flex gap-3",
+        corner.startsWith("t") ? "flex-col-reverse" : "flex-col",
+        corner.endsWith("l") ? "items-start" : "items-end",
+      )}
+    >
       {open && (
-        <section className="mb-3 flex h-[min(620px,calc(100dvh-7rem))] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-line bg-wash shadow-2xl" aria-label="AI 공간 추천 챗봇">
+        <section className="flex h-[min(620px,calc(100dvh-7rem))] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-line bg-wash shadow-2xl" aria-label="AI 공간 추천 챗봇">
           <header className="flex items-center gap-2 border-b border-line bg-white px-4 py-3">
             <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky text-ink"><Bot size={19} /></span>
             <span className="min-w-0 flex-1"><b className="block text-sm">AI 공간 추천</b><span className="block text-[0.68rem] text-soft">실시간으로 맞춤 공간을 찾아드려요</span></span>
@@ -216,8 +385,35 @@ export function ChatbotDrawer() {
           </form>
         </section>
       )}
-      <button type="button" onClick={() => setOpen((value) => !value)} className="button button--primary border-ink" aria-expanded={open} aria-label={open ? "챗봇 닫기" : "맞춤 공간 추천 열기"}>
-        {open ? <ChevronDown size={18} /> : <Sparkles size={18} />} 맞춤 공간 추천
+      <button
+        type="button"
+        onClick={handleLauncherClick}
+        onPointerDown={handlePointerDown}
+        onPointerMove={handlePointerMove}
+        onPointerUp={handlePointerUp}
+        onPointerCancel={handlePointerUp}
+        aria-expanded={open}
+        aria-label={open ? "챗봇 닫기" : "맞춤 공간 추천 열기"}
+        className={cn(
+          "group relative inline-flex h-12 w-48 touch-none items-center select-none",
+          corner.endsWith("l") ? "justify-start" : "justify-end",
+          isDragging ? "cursor-grabbing" : "cursor-grab",
+        )}
+      >
+        {/* 호버로 실제 보이는 알약 모양만 줄어들고, 버튼(히트박스) 자체는 항상 고정 크기다 —
+            버튼이 같이 줄면 커서가 줄어든 영역 밖으로 밀려나 hover가 꺼졌다 켜졌다를
+            반복하며 지지직거린다. */}
+        <span
+          className={cn(
+            "pointer-events-none inline-flex h-12 w-48 items-center justify-center gap-2 border border-ink bg-sky px-5 text-ink shadow-lg transition-[border-radius,width,padding,gap,background-color,color] duration-300 ease-out",
+            "group-hover:w-12 group-hover:gap-0 group-hover:rounded-full group-hover:px-0 group-hover:bg-main-d group-hover:text-white",
+          )}
+        >
+          {open ? <ChevronDown size={18} className="shrink-0" /> : <Sparkles size={18} className="shrink-0" />}
+          <span className="max-w-[9rem] overflow-hidden whitespace-nowrap text-sm font-bold transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-0 group-hover:opacity-0">
+            맞춤 공간 추천
+          </span>
+        </span>
       </button>
     </div>
   );

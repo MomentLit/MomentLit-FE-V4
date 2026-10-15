@@ -395,22 +395,22 @@ export function ChatbotDrawer() {
         aria-expanded={open}
         aria-label={open ? "챗봇 닫기" : "맞춤 공간 추천 열기"}
         className={cn(
-          "group relative inline-flex h-12 w-48 touch-none items-center select-none",
+          "group relative inline-flex h-12 w-12 touch-none items-center select-none transition-[width] duration-300 ease-out hover:w-48 focus-visible:w-48",
           corner.endsWith("l") ? "justify-start" : "justify-end",
           isDragging ? "cursor-grabbing" : "cursor-grab",
         )}
       >
-        {/* 호버로 실제 보이는 알약 모양만 줄어들고, 버튼(히트박스) 자체는 항상 고정 크기다 —
-            버튼이 같이 줄면 커서가 줄어든 영역 밖으로 밀려나 hover가 꺼졌다 켜졌다를
-            반복하며 지지직거린다. */}
+        {/* 기본은 아이콘만 있는 원형, 호버하면 고정된 모서리 쪽에서 바깥으로 펼쳐진다 —
+            커서 아래 영역은 펼쳐지는 동안에도 계속 버튼 안이라 hover가 끊기지 않는다. */}
         <span
           className={cn(
-            "pointer-events-none inline-flex h-12 w-48 items-center justify-center gap-2 border border-ink bg-sky px-5 text-ink shadow-lg transition-[border-radius,width,padding,gap,background-color,color] duration-300 ease-out",
-            "group-hover:w-12 group-hover:gap-0 group-hover:rounded-full group-hover:px-0 group-hover:bg-main-d group-hover:text-white",
+            "pointer-events-none inline-flex h-12 w-full items-center justify-center gap-0 rounded-[24px] border border-ink bg-sky px-0 text-ink shadow-lg transition-[border-radius,padding,gap,background-color,color] duration-300 ease-out",
+            "group-hover:gap-2 group-hover:rounded-none group-hover:bg-main-d group-hover:px-5 group-hover:text-white",
+            "group-focus-visible:gap-2 group-focus-visible:rounded-none group-focus-visible:bg-main-d group-focus-visible:px-5 group-focus-visible:text-white",
           )}
         >
           {open ? <ChevronDown size={18} className="shrink-0" /> : <Sparkles size={18} className="shrink-0" />}
-          <span className="max-w-[9rem] overflow-hidden whitespace-nowrap text-sm font-bold transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-0 group-hover:opacity-0">
+          <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-bold opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-[9rem] group-hover:opacity-100 group-focus-visible:max-w-[9rem] group-focus-visible:opacity-100">
             맞춤 공간 추천
           </span>
         </span>

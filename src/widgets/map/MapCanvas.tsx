@@ -9,6 +9,18 @@ const CENTER = { lat: 36.3, lng: 127.5 };
 const DEFAULT_LEVEL = 13;
 const MAX_LEVEL = 13;
 const SELECTED_LEVEL = 3;
+const USER_LEVEL = 6;
+
+function buildUserLocationContent(): HTMLDivElement {
+  const dot = document.createElement("div");
+  dot.className = "pointer-events-none relative h-4 w-4";
+  dot.setAttribute("aria-label", "내 위치");
+  dot.innerHTML = `
+    <span class="absolute inset-0 animate-ping rounded-full bg-main-d opacity-40"></span>
+    <span class="absolute inset-0 rounded-full border-2 border-white bg-main-d shadow-md"></span>
+  `;
+  return dot;
+}
 
 export default function MapCanvas({ pins, selectedId, onSelect }: {
   pins: SpacePin[];
@@ -19,6 +31,10 @@ export default function MapCanvas({ pins, selectedId, onSelect }: {
   const mapRef = useRef<KakaoMap | null>(null);
   const overlaysRef = useRef<KakaoCustomOverlay[]>([]);
   const onSelectRef = useRef(onSelect);
+  // 내 위치로 먼저 포커싱됐다면, 첫 공간 목록 도착 시 전체 핀에 맞추는 줌아웃을 건너뛴다.
+  const userLocatedRef = useRef(false);
+  const hasFitRef = useRef(false);
+  const [mapReady, setMapReady] = useState(false);
   const [mapError, setMapError] = useState(false);
   useEffect(() => { onSelectRef.current = onSelect; }, [onSelect]);
 
@@ -26,6 +42,7 @@ export default function MapCanvas({ pins, selectedId, onSelect }: {
     if (!target.current) return;
     let cancelled = false;
     let observer: ResizeObserver | null = null;
+    let userOverlay: KakaoCustomOverlay | null = null;
     loadKakaoMaps()
       .then((kakao) => {
         if (cancelled || !target.current) return;
@@ -37,11 +54,27 @@ export default function MapCanvas({ pins, selectedId, onSelect }: {
         mapRef.current = map;
         observer = new ResizeObserver(() => map.relayout());
         observer.observe(target.current);
+        setMapReady(true);
+
+        navigator.geolocation?.getCurrentPosition(
+          ({ coords }) => {
+            if (cancelled) return;
+            const position = new kakao.LatLng(coords.latitude, coords.longitude);
+            userOverlay = new kakao.CustomOverlay({ position, content: buildUserLocationContent(), xAnchor: 0.5, yAnchor: 0.5, zIndex: 0 });
+            userOverlay.setMap(map);
+            userLocatedRef.current = true;
+            map.setLevel(USER_LEVEL);
+            map.setCenter(position);
+          },
+          () => {},
+          { enableHighAccuracy: false, timeout: 10000, maximumAge: 60000 },
+        );
       })
       .catch(() => setMapError(true));
     return () => {
       cancelled = true;
       observer?.disconnect();
+      userOverlay?.setMap(null);
       overlaysRef.current.forEach((overlay) => overlay.setMap(null));
       overlaysRef.current = [];
       mapRef.current = null;
@@ -70,6 +103,9 @@ export default function MapCanvas({ pins, selectedId, onSelect }: {
         map.panTo(position);
         map.setLevel(SELECTED_LEVEL, { anchor: position });
       } else if (pins.length > 0) {
+        const skipFit = userLocatedRef.current && !hasFitRef.current;
+        hasFitRef.current = true;
+        if (skipFit) return;
         const bounds = new kakao.LatLngBounds();
         pins.forEach((pin) => bounds.extend(new kakao.LatLng(pin.latitude, pin.longitude)));
         map.setBounds(bounds, 60, 60, 60, 60);
@@ -78,7 +114,7 @@ export default function MapCanvas({ pins, selectedId, onSelect }: {
     return () => {
       cancelled = true;
     };
-  }, [pins, selectedId]);
+  }, [mapReady, pins, selectedId]);
 
   return (
     <div className="relative min-w-0 overflow-hidden border border-line bg-wash">

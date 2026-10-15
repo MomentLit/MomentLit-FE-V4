@@ -32,7 +32,7 @@ export function ComboSearch() {
   }
 
   return (
-    <section aria-label="공간 검색" className="search-hero search-hero--dashboard relative isolate border-b border-line app-gutter">
+    <section aria-label="공간 검색" className="search-hero search-hero--dashboard relative isolate z-10 border-b border-line app-gutter">
       <TrailLayer />
       <div className="search-hero-content relative z-[2]">
         <h1

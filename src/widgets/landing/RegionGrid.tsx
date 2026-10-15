@@ -47,12 +47,12 @@ export function RegionGrid() {
             >
               <span className="flex items-center gap-2">
                 <i className={`block h-[9px] w-[9px] transition-colors group-hover:bg-ink ${TONE_BG[tone]}`} />
-                <span className="text-[0.63rem] tracking-[0.1em]" style={{ fontFamily: "var(--font-label)" }}>
+                <span className="text-[0.72rem] tracking-[0.1em]" style={{ fontFamily: "var(--font-label)" }}>
                   {String(i + 1).padStart(2, "0")}
                 </span>
               </span>
               <span
-                className="mt-auto text-[1.12rem] leading-none tracking-tight"
+                className="mt-auto text-[1.32rem] leading-none tracking-tight"
                 style={{ fontFamily: "var(--font-display)" }}
               >
                 {REGION_LABELS[region]}

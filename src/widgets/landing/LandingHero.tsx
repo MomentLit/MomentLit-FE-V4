@@ -59,7 +59,7 @@ export function LandingHero() {
           </p>
 
           <div className="search-hero-form">
-            <p className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[clamp(1.5rem,3vw,2.3rem)] font-bold tracking-tight text-ink">
+            <p className="flex flex-wrap items-center gap-x-3 gap-y-2 text-[clamp(1.65rem,3.3vw,2.55rem)] font-bold tracking-tight text-ink">
               <Dropdown
                 value={region}
                 onChange={setRegion}

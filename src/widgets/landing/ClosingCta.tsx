@@ -25,9 +25,14 @@ export function ClosingCta() {
           delayMs={80}
           className="mt-6 grid grid-cols-1 items-end gap-6 sm:mt-9 lg:grid-cols-[1.15fr_1fr] lg:gap-10"
         >
-          <p className="max-w-[36ch] text-[0.95rem] leading-[1.85] text-gray-400">
-            사진이 없어도 등록됩니다. 비어 있는 시간대만 골라 열어두고, 요청을 받을지는 직접 정하세요. 등록에도 승인에도
-            수수료는 없습니다.
+          {/* 어절 중간에서 끊기지 않도록 의미 단위로 줄을 나눈다. */}
+          <p className="text-[0.95rem] leading-[1.85] break-keep text-gray-400">
+            <span className="block">사진이 없어도 등록됩니다.</span>
+            <span className="block">
+              비어 있는 시간대만 골라 열어두고,
+              <br className="sm:hidden" /> 요청을 받을지는 직접 정하세요.
+            </span>
+            <span className="block">등록에도 승인에도 수수료는 없습니다.</span>
           </p>
           <div className="flex flex-wrap justify-start gap-2.5 lg:justify-end">
             <Link

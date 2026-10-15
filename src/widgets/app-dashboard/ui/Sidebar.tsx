@@ -51,8 +51,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "내 활동",
     items: [
-      { label: "내 공간", href: "/profile", icon: Store, tone: "sky" },
-      { label: "관심 공간", href: "/favorites", icon: Heart, tone: "coral" },
+      { label: "내 공간 및 팝업", href: "/profile", icon: Store, tone: "sky" },
+      { label: "관심", href: "/favorites", icon: Heart, tone: "coral" },
       { label: "건의함", href: "/suggestions", icon: Inbox, tone: "lime" },
     ],
   },

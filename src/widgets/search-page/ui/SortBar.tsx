@@ -15,7 +15,7 @@ interface SortBarProps {
   /** "공간"(기본) 또는 "팝업" — 헤딩/개수 단위 문구만 바뀐다. */
   itemLabel?: string;
   unitLabel?: string;
-  /** 팝업엔 좌표가 없어 "가까운순"이 안 맞는다 — 그 모드에선 숨긴다. */
+  /** "가까운순" 버튼 노출 여부. 팝업은 응답에 좌표가 없어 주소를 지오코딩해 클라이언트에서 정렬한다. */
   showDistance?: boolean;
 }
 

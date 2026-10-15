@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { IconFilter, IconX } from "@tabler/icons-react";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchCategoryCounts, fetchRegionCounts } from "@/entities/space/api";
 import type { UsageUnit } from "@/entities/space";
 import { REGIONS, type Region } from "@/entities/region";
 import { SPACE_CATEGORIES, type SpaceCategory } from "@/entities/space-category";
 import { collectPages, searchSelectedSpaces, toggleSelection } from "../lib/multi-search";
-import { fetchPopups } from "@/entities/popup";
+import { fetchPopups, type PopupListItem } from "@/entities/popup";
+import { distanceKm, geocodeAddress, type Coordinates } from "@/widgets/map/lib/geocode";
 import { getErrorMessage } from "@/shared/api/error";
 import { cn } from "@/shared/lib";
 import { CAPACITY_MAX, PAGE_SIZE, POPUP_SEARCH_FETCH_SIZE, type SearchMode, type SortKey } from "../lib/constants";
@@ -24,6 +25,10 @@ import { PopupResultList } from "./PopupResultList";
 import { Pagination } from "./Pagination";
 
 const NAME_DEBOUNCE_MS = 350;
+
+function popupAddress(popup: PopupListItem): string {
+  return popup.address.road_address || popup.address.jibun_address || "";
+}
 
 const SORT_PARAM: Record<SortKey, string | undefined> = {
   latest: undefined, // backend default: createdAt,desc
@@ -61,6 +66,7 @@ export function SearchPageContent() {
     queueMicrotask(() => { setMode(requestedMode); setPage(0); });
   }, [requestedMode]);
 
+  const queryClient = useQueryClient();
   const [mobileFilterOpen, setMobileFilterOpen] = useState(false);
   const [coords, setCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [geoStatus, setGeoStatus] = useState<"idle" | "loading" | "denied">("idle");
@@ -192,7 +198,9 @@ export function SearchPageContent() {
 
   // Popup filters run over all server pages so multi-selection never drops later matches.
   const popupKeyword = name.trim().toLowerCase();
-  const hasActivePopupFilter = popupKeyword.length > 0 || regions.length > 0 || popupCategories.length > 0 || date !== null;
+  // 팝업 거리순은 서버가 지원하지 않아 전체를 받아 클라이언트에서 정렬한다 — 그래서 필터와 같은 "전체 조회" 경로를 탄다.
+  const hasActivePopupFilter =
+    popupKeyword.length > 0 || regions.length > 0 || popupCategories.length > 0 || date !== null || useDistanceSort;
   const popupFetchPage = hasActivePopupFilter ? 0 : page;
   const popupFetchSize = hasActivePopupFilter ? POPUP_SEARCH_FETCH_SIZE : PAGE_SIZE;
 
@@ -221,8 +229,50 @@ export function SearchPageContent() {
     if (date && !isPopupOpenOnDate(popup, date)) return false;
     return true;
   });
+
+  // 팝업 응답엔 좌표가 없어서, 주소를 카카오 지오코더로 좌표화해 내 위치와의 직선 거리로 정렬한다.
+  const popupAddresses = useDistanceSort
+    ? [...new Set(filteredPopups.map(popupAddress).filter((address) => address.length > 0))].sort()
+    : [];
+  const { data: popupCoords, isLoading: isPopupGeocoding } = useQuery({
+    queryKey: ["popups", "geocode", popupAddresses],
+    enabled: mode === "popup" && useDistanceSort && popupAddresses.length > 0,
+    retry: false,
+    queryFn: async ({ signal }) => {
+      const located: Record<string, Coordinates | null> = {};
+      for (let start = 0; start < popupAddresses.length; start += 4) {
+        await Promise.all(popupAddresses.slice(start, start + 4).map(async (address) => {
+          try {
+            located[address] = await queryClient.fetchQuery({
+              queryKey: ["address", "geocode", address],
+              queryFn: () => geocodeAddress(address, signal),
+              staleTime: 24 * 60 * 60 * 1000,
+              retry: false,
+            });
+          } catch (geocodeError) {
+            if (signal.aborted) throw geocodeError;
+            located[address] = null;
+          }
+        }));
+      }
+      return located;
+    },
+    placeholderData: keepPreviousData,
+  });
+
+  function popupDistance(popup: PopupListItem): number {
+    const here = coords ? { latitude: coords.lat, longitude: coords.lng } : null;
+    const there = popupCoords?.[popupAddress(popup)];
+    // 좌표를 못 찾은 팝업은 맨 뒤로 보낸다.
+    return here && there ? distanceKm(here, there) : Number.POSITIVE_INFINITY;
+  }
+
   const sortedPopups =
-    sort === "popular" ? [...filteredPopups].sort((a, b) => b.like_count - a.like_count) : filteredPopups;
+    sort === "popular"
+      ? [...filteredPopups].sort((a, b) => b.like_count - a.like_count)
+      : useDistanceSort
+        ? [...filteredPopups].sort((a, b) => popupDistance(a) - popupDistance(b))
+        : filteredPopups;
   const popupTotalElements = hasActivePopupFilter ? sortedPopups.length : (popupData?.totalElements ?? 0);
   const hasAnyPopupFilter = regions.length > 0 || popupCategories.length > 0 || date !== null;
 
@@ -356,11 +406,10 @@ export function SearchPageContent() {
                 geoStatus={geoStatus}
                 itemLabel="팝업"
                 unitLabel="개"
-                showDistance={false}
               />
               <PopupResultList
                 items={hasActivePopupFilter ? sortedPopups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : sortedPopups}
-                isLoading={isPopupLoading}
+                isLoading={isPopupLoading || isPopupGeocoding}
                 isError={isPopupError}
                 errorMessage={isPopupError ? getErrorMessage(popupError) : undefined}
                 emptyMessage={hasActivePopupFilter ? "조건에 맞는 팝업이 없어요." : "아직 등록된 팝업이 없어요."}

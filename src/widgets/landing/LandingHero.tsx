@@ -33,7 +33,7 @@ export function LandingHero() {
   }
 
   return (
-    <section className="search-hero relative border-b border-line px-4 sm:px-6">
+    <section className="search-hero relative border-b border-line px-5 sm:px-10">
       <TrailLayer />
 
       <div className="search-hero-content relative z-[2]">
@@ -53,13 +53,13 @@ export function LandingHero() {
             잇다<span className="text-coral">.</span>
           </h1>
 
-          <p className="search-hero-description text-soft">
+          <p className="search-hero-description text-ink/70">
             비어 있던 공간에, 브랜드의 다음 장면을.
             팝업부터 스튜디오까지 당신의 아이디어가 머물 자리를 찾아보세요.
           </p>
 
           <div className="search-hero-form">
-            <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[clamp(1.05rem,2vw,1.5rem)] font-bold tracking-tight text-ink">
+            <p className="flex flex-wrap items-center gap-x-2.5 gap-y-1.5 text-[clamp(1.15rem,2.2vw,1.65rem)] font-bold tracking-tight text-ink">
               <Dropdown
                 value={region}
                 onChange={setRegion}

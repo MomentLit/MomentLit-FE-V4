@@ -2,7 +2,7 @@ const MARQUEE_ITEMS = [
   { en: "VALUABLE SPACE & MOMENT" },
   { kr: "공간과 브랜드를 잇다" },
   { en: "POPUP · STUDIO · CAFE · HALL" },
-  { kr: "중개 수수료 0원" },
+  { kr: "중개 수수료 0원", emphasize: true },
 ];
 
 /** Infinite-scroll ticker banner — ports `.marq` from design-reference.html (ANALYSIS.md §2.1). */
@@ -22,7 +22,10 @@ export function Marquee() {
                     {item.en}
                   </span>
                 ) : (
-                  <span className="text-xl" style={{ fontFamily: "var(--font-display)" }}>
+                  <span
+                    className={"emphasize" in item && item.emphasize ? "text-xl text-lemon" : "text-xl"}
+                    style={{ fontFamily: "var(--font-display)" }}
+                  >
                     {item.kr}
                   </span>
                 )}

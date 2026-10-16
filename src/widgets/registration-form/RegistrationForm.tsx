@@ -8,7 +8,7 @@ import { cn } from "@/shared/lib";
 // directly from the api module instead (entities files are read-only in this scope).
 import { createSpace, updateAvailability } from "@/entities/space/api";
 import { uploadImage } from "@/shared/api/upload";
-import { resolvePhotoUrls } from "@/shared/ui/MultiPhotoUpload";
+import { resolvePhotoUrls, useRevokePhotoItemsOnUnmount } from "@/shared/ui/MultiPhotoUpload";
 import { getErrorMessage } from "@/shared/api/error";
 import { useRequireAuth } from "@/widgets/auth";
 import { Stepper } from "./Stepper";
@@ -41,6 +41,7 @@ export function RegistrationForm() {
 
   const [step, setStep] = useState(1);
   const [state, setState] = useState<RegistrationFormState>(createInitialFormState);
+  useRevokePhotoItemsOnUnmount(state.photos);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
 

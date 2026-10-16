@@ -1,7 +1,13 @@
 "use client";
 
-import { MultiPhotoUpload, resolvePhotoUrls, toPhotoItems, type PhotoItem } from "@/shared/ui/MultiPhotoUpload";
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  MultiPhotoUpload,
+  resolvePhotoUrls,
+  toPhotoItems,
+  useRevokePhotoItemsOnUnmount,
+  type PhotoItem,
+} from "@/shared/ui/MultiPhotoUpload";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/widgets/auth";
@@ -36,12 +42,17 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const [parkingInfo, setParkingInfo] = useState("");
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [photoOverflow, setPhotoOverflow] = useState(false);
+  useRevokePhotoItemsOnUnmount(photos);
+  // 폼은 처음 불러왔을 때(또는 다른 공간으로 바뀌었을 때) 한 번만 채운다 — 창 복귀 등으로
+  // 재조회될 때마다 다시 채우면 저장하지 않은 수정 내용이 서버 값으로 덮어써진다.
+  const initializedSpaceIdRef = useRef<number | null>(null);
   const [panoramaUrl, setPanoramaUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!spaceQuery.data) return;
+    if (!spaceQuery.data || initializedSpaceIdRef.current === spaceId) return;
+    initializedSpaceIdRef.current = spaceId;
     const space = spaceQuery.data;
     queueMicrotask(() => {
       setName(space.name);
@@ -55,7 +66,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setPanoramaUrl(space.panorama_url ?? null);
       setPhotos(toPhotoItems(getSpacePhotoUrls(space)));
     });
-  }, [spaceQuery.data]);
+  }, [spaceQuery.data, spaceId]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -63,6 +74,13 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
 
     if (!name.trim() || !description.trim()) {
       setError("공간 이름과 소개를 입력해 주세요.");
+      return;
+    }
+
+    // 백엔드는 thumbnail_url이 비어 있으면 "변경 없음"으로 처리해 대표 사진을 지울 수 없다.
+    // 전부 지우고 저장하면 성공처럼 보이지만 대표 사진이 그대로 남으므로 막는다.
+    if (photos.length === 0 && spaceQuery.data && getSpacePhotoUrls(spaceQuery.data).length > 0) {
+      setError("등록된 사진을 모두 지울 수는 없어요. 대표 사진으로 쓸 사진을 한 장 이상 남겨 주세요.");
       return;
     }
 
@@ -83,8 +101,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         price_per_hour: price.trim() ? Number(price) : undefined,
         floor: floor.trim() || undefined,
         parking_info: parkingInfo.trim() || undefined,
-        // 백엔드는 image_urls가 오면 기존 사진 목록을 통째로 교체한다. 대표 사진은 null이면 그대로 두므로,
-        // 전부 지운 경우에는 기존 대표 사진이 남는다.
+        // 백엔드는 image_urls가 오면 기존 사진 목록을 통째로 교체한다.
         thumbnail_url: imageUrls[0],
         image_urls: imageUrls,
         panorama_url: panoramaUrlChange,

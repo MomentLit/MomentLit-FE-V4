@@ -27,6 +27,19 @@ function revokeIfBlob(item: PhotoItem) {
   if (item.file && item.url.startsWith("blob:")) URL.revokeObjectURL(item.url);
 }
 
+/**
+ * 사진 목록을 가진 폼이 사라질 때 남은 미리보기 blob URL을 해제한다.
+ * 업로더가 아니라 목록 주인(폼)이 불러야 한다 — 등록 마법사는 단계를 옮기면 업로더만 언마운트되는데,
+ * 그때 해제하면 1단계로 돌아왔을 때 미리보기가 깨진다.
+ */
+export function useRevokePhotoItemsOnUnmount(items: PhotoItem[]) {
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+  useEffect(() => () => itemsRef.current.forEach(revokeIfBlob), []);
+}
+
 export interface MultiPhotoUploadProps {
   items: PhotoItem[];
   onChange: (items: PhotoItem[]) => void;
@@ -40,14 +53,9 @@ export interface MultiPhotoUploadProps {
 /**
  * 여러 장 사진 업로더 — 첫 번째 사진이 대표 사진이다.
  * 실제 업로드는 제출 시점에 `resolvePhotoUrls`로 한 번에 한다 (고르기만 하고 취소하면 S3에 쓰레기가 안 남게).
+ * 삭제한 사진의 미리보기 URL은 여기서 해제하고, 남은 것은 폼이 `useRevokePhotoItemsOnUnmount`로 해제한다.
  */
 export function MultiPhotoUpload({ items, onChange, max, onOverflow, disabled = false, label = "공간 사진" }: MultiPhotoUploadProps) {
-  const itemsRef = useRef(items);
-  useEffect(() => {
-    itemsRef.current = items;
-  }, [items]);
-  useEffect(() => () => itemsRef.current.forEach(revokeIfBlob), []);
-
   function handleSelect(fileList: FileList | null) {
     const files = Array.from(fileList ?? []);
     if (!files.length) return;

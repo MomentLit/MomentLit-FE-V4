@@ -61,6 +61,9 @@ export interface MySpaceListItem extends SpaceBase {
   is_active: boolean;
 }
 
+/** INTERNAL: 모먼트릿에서 예약 요청을 받음, EXTERNAL: 호스트의 외부 홈페이지에서 예약. */
+export type BookingType = "INTERNAL" | "EXTERNAL";
+
 /** `GET /spaces/{id}`. */
 export interface SpaceDetail extends SpaceBase {
   host_id: string;
@@ -74,6 +77,9 @@ export interface SpaceDetail extends SpaceBase {
   /** 360도(등장방형 2:1) 사진 — 없으면 null. */
   panorama_url: string | null;
   admin_status: SpaceAdminStatus;
+  /** 백엔드 배포 전 응답에는 없을 수 있다 — 없으면 INTERNAL로 본다. */
+  booking_type?: BookingType;
+  external_booking_url?: string | null;
 }
 
 export interface SpaceCreateRequest {
@@ -93,6 +99,9 @@ export interface SpaceCreateRequest {
   parking_info?: string;
   usage_unit?: UsageUnit;
   is_draft?: boolean;
+  booking_type?: BookingType;
+  /** EXTERNAL일 때 필수 (http/https). 수정 시 빈 문자열이면 링크 삭제. */
+  external_booking_url?: string;
 }
 
 export type SpaceUpdateRequest = Partial<SpaceCreateRequest>;
@@ -134,4 +143,19 @@ export const MAX_SPACE_PHOTOS = 10;
 export function getSpacePhotoUrls(space: Pick<SpaceDetail, "thumbnail_url" | "image_urls">): string[] {
   const urls = [space.thumbnail_url, ...(space.image_urls ?? [])].filter((url): url is string => Boolean(url));
   return Array.from(new Set(urls));
+}
+
+/** 외부 예약 링크가 http(s) 주소인지 — 백엔드 `Space.updateBooking`과 같은 기준. */
+export function isValidExternalBookingUrl(url: string): boolean {
+  try {
+    const parsed = new URL(url.trim());
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && Boolean(parsed.hostname);
+  } catch {
+    return false;
+  }
+}
+
+/** 외부 예약 공간이면 이동할 링크를, 아니면 null을 돌려준다. */
+export function getExternalBookingUrl(space: Pick<SpaceDetail, "booking_type" | "external_booking_url">): string | null {
+  return space.booking_type === "EXTERNAL" && space.external_booking_url ? space.external_booking_url : null;
 }

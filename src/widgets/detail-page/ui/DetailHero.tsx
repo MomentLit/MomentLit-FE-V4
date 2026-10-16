@@ -1,17 +1,17 @@
 "use client";
 
 import { useState } from "react";
-import { IconView360 } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight, IconView360 } from "@tabler/icons-react";
 
 import { Card } from "@/shared/ui";
 import { cn } from "@/shared/lib";
 import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-category";
 import { REGION_LABELS } from "@/entities/region";
-import type { SpaceDetail } from "@/entities/space";
+import { getSpacePhotoUrls, type SpaceDetail } from "@/entities/space";
 import { PanoramaViewerModal } from "@/widgets/panorama";
 
 /**
- * Hero band — host가 올린 대표 사진이 있으면 그 사진을, 없으면 카테고리 색상 필드를 보여준다.
+ * Hero band — host가 올린 사진이 있으면 사진을(여러 장이면 좌우로 넘겨볼 수 있다), 없으면 카테고리 색상 필드를 보여준다.
  * Ported from design-reference `.dt-hero`.
  */
 export function DetailHero({ space }: { space: SpaceDetail }) {
@@ -19,8 +19,13 @@ export function DetailHero({ space }: { space: SpaceDetail }) {
   const { address } = space;
   const shortLocation = address.region ? REGION_LABELS[address.region] : address.sido;
   const fullLocation = `${address.sido} ${address.sigungu} ${address.eup_myeon_dong}`;
-  const hasPhoto = Boolean(space.thumbnail_url);
+  const photos = getSpacePhotoUrls(space);
+  const hasPhoto = photos.length > 0;
+  const [photoIndex, setPhotoIndex] = useState(0);
+  const currentPhoto = photos[Math.min(photoIndex, photos.length - 1)];
   const [panoramaOpen, setPanoramaOpen] = useState(false);
+
+  const showPhoto = (delta: number) => setPhotoIndex((index) => (index + delta + photos.length) % photos.length);
 
   return (
     <>
@@ -31,9 +36,32 @@ export function DetailHero({ space }: { space: SpaceDetail }) {
         {hasPhoto && (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
-            <img src={space.thumbnail_url!} alt="" className="absolute inset-0 h-full w-full object-cover" />
+            <img src={currentPhoto} alt="" className="absolute inset-0 h-full w-full object-cover" />
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/40" />
           </>
+        )}
+        {photos.length > 1 && (
+          <div className="absolute bottom-4 right-4 z-10 flex items-center gap-1 sm:bottom-6 sm:right-6">
+            <button
+              type="button"
+              onClick={() => showPhoto(-1)}
+              aria-label="이전 사진"
+              className="flex h-9 w-9 items-center justify-center bg-black/55 text-white hover:bg-black/80"
+            >
+              <IconChevronLeft size={18} stroke={2.5} aria-hidden />
+            </button>
+            <span className="min-w-14 bg-black/55 px-2 py-2 text-center font-mono text-xs text-white" aria-live="polite">
+              {Math.min(photoIndex, photos.length - 1) + 1} / {photos.length}
+            </span>
+            <button
+              type="button"
+              onClick={() => showPhoto(1)}
+              aria-label="다음 사진"
+              className="flex h-9 w-9 items-center justify-center bg-black/55 text-white hover:bg-black/80"
+            >
+              <IconChevronRight size={18} stroke={2.5} aria-hidden />
+            </button>
+          </div>
         )}
         {space.panorama_url && (
           <button type="button" onClick={() => setPanoramaOpen(true)} className="button button--outline absolute right-4 top-4 z-10 sm:right-6 sm:top-6">

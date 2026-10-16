@@ -1,5 +1,7 @@
 import type { SpaceCategory } from "@/entities/space-category";
-import { PhotoUpload } from "@/shared/ui/PhotoUpload";
+import { useState } from "react";
+import { MAX_SPACE_PHOTOS } from "@/entities/space";
+import { MultiPhotoUpload } from "@/shared/ui/MultiPhotoUpload";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
 import { FormField, fieldInputClass } from "./FormField";
 import { CategoryPicker } from "./CategoryPicker";
@@ -15,6 +17,8 @@ export interface Step1BasicInfoProps {
 
 /** Step 1 — 기본 정보. Fields lifted 1:1 from design-reference.html `#p-new`. */
 export function Step1BasicInfo({ state, onFieldChange }: Step1BasicInfoProps) {
+  const [photoOverflow, setPhotoOverflow] = useState(false);
+
   return (
     <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2">
       <FormField label="공간 이름" full>
@@ -71,11 +75,23 @@ export function Step1BasicInfo({ state, onFieldChange }: Step1BasicInfoProps) {
       </FormField>
 
       <FormField
-        label="대표 사진 (선택)"
+        label="공간 사진 (선택)"
         full
-        hint="사진 없이도 등록됩니다. 지금 올려두고 싶다면 jpeg/png/webp 파일 하나를 선택해 주세요."
+        hint={
+          photoOverflow
+            ? `사진은 최대 ${MAX_SPACE_PHOTOS}장까지 올릴 수 있어요. 넘친 사진은 빠졌어요.`
+            : "사진 없이도 등록됩니다. 여러 장을 한 번에 선택할 수 있어요."
+        }
       >
-        <PhotoUpload file={state.thumbnailFile} onChange={(file) => onFieldChange("thumbnailFile", file)} />
+        <MultiPhotoUpload
+          items={state.photos}
+          max={MAX_SPACE_PHOTOS}
+          onChange={(photos) => {
+            setPhotoOverflow(false);
+            onFieldChange("photos", photos);
+          }}
+          onOverflow={() => setPhotoOverflow(true)}
+        />
       </FormField>
       <PanoramaPhotoField
         value={state.panoramaUrl}

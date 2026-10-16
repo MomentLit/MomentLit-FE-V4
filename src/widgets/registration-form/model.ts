@@ -1,5 +1,6 @@
 import type { SpaceCategory } from "@/entities/space-category";
 import type { DayOfWeek, SpaceAvailabilitySlot, SpaceCreateRequest } from "@/entities/space";
+import type { PhotoItem } from "@/shared/ui/MultiPhotoUpload";
 
 /**
  * 4-step space registration wizard state.
@@ -68,8 +69,8 @@ export interface RegistrationFormState {
   area: string;
   capacity: string;
   description: string;
-  /** Optional — selected via a plain file input, uploaded on submit via `uploadImage()`. */
-  thumbnailFile: File | null;
+  /** Optional — 고르기만 해두고 제출할 때 `resolvePhotoUrls()`로 한 번에 업로드한다. 첫 번째가 대표 사진. */
+  photos: PhotoItem[];
   /** Optional — already uploaded (or AI-stitched) by `PanoramaUploadModal`, so this is the final S3 URL. */
   panoramaUrl: string | null;
 
@@ -101,7 +102,7 @@ export function createInitialFormState(): RegistrationFormState {
     area: "",
     capacity: "",
     description: "",
-    thumbnailFile: null,
+    photos: [],
     panoramaUrl: null,
 
     sido: "",
@@ -195,7 +196,8 @@ export function validateRegistrationForm(state: RegistrationFormState): string |
 }
 
 export interface SpaceSubmitOptions {
-  thumbnailUrl?: string;
+  /** 업로드가 끝난 사진 URL — 첫 번째가 대표 사진(`thumbnail_url`). */
+  imageUrls?: string[];
   isDraft?: boolean;
 }
 
@@ -215,7 +217,8 @@ export function toSpaceCreateRequest(
       detail_address: state.addressDetail.trim() || undefined,
       postal_code: state.postalCode.trim(),
     },
-    thumbnail_url: options.thumbnailUrl,
+    thumbnail_url: options.imageUrls?.[0],
+    image_urls: options.imageUrls?.length ? options.imageUrls : undefined,
     panorama_url: state.panoramaUrl ?? undefined,
     price_per_hour: toOptionalNumber(state.pricePerUnit) ?? 0,
     category: state.category,

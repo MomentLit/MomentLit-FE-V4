@@ -126,3 +126,12 @@ export interface SpaceRegionCount {
   region: string;
   count: number;
 }
+
+/** 공간 하나에 올릴 수 있는 사진 수 (대표 사진 포함). */
+export const MAX_SPACE_PHOTOS = 10;
+
+/** 대표 사진 + 추가 사진을 중복 없이 순서대로 — 대표 사진이 항상 첫 번째. */
+export function getSpacePhotoUrls(space: Pick<SpaceDetail, "thumbnail_url" | "image_urls">): string[] {
+  const urls = [space.thumbnail_url, ...(space.image_urls ?? [])].filter((url): url is string => Boolean(url));
+  return Array.from(new Set(urls));
+}

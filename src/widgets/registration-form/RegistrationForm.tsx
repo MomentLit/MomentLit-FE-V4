@@ -8,6 +8,7 @@ import { cn } from "@/shared/lib";
 // directly from the api module instead (entities files are read-only in this scope).
 import { createSpace, updateAvailability } from "@/entities/space/api";
 import { uploadImage } from "@/shared/api/upload";
+import { resolvePhotoUrls } from "@/shared/ui/MultiPhotoUpload";
 import { getErrorMessage } from "@/shared/api/error";
 import { useRequireAuth } from "@/widgets/auth";
 import { Stepper } from "./Stepper";
@@ -80,8 +81,8 @@ export function RegistrationForm() {
 
   /**
    * Shared submission path for both "등록하기" and "임시 저장" — only
-   * `is_draft` differs. Creates the space, uploads+attaches the thumbnail
-   * when one was picked, writes the weekly availability template, then
+   * `is_draft` differs. Creates the space, uploads+attaches the picked
+   * photos (first one is the thumbnail), writes the weekly availability template, then
    * routes to the new space's detail page.
    */
   async function submit(isDraft: boolean) {
@@ -94,13 +95,10 @@ export function RegistrationForm() {
     setSubmitError(null);
     setSubmitting(true);
     try {
-      let thumbnailUrl: string | undefined;
-      if (state.thumbnailFile) {
-        thumbnailUrl = await uploadImage(state.thumbnailFile);
-      }
+      const imageUrls = await resolvePhotoUrls(state.photos, (file) => uploadImage(file));
 
       const { space_id } = await createSpace(
-        toSpaceCreateRequest(state, { thumbnailUrl, isDraft }),
+        toSpaceCreateRequest(state, { imageUrls, isDraft }),
       );
       await updateAvailability(space_id, toAvailabilitySlots(state.weeklySchedule));
 

@@ -1,11 +1,12 @@
 "use client";
 
-import { PhotoUpload } from "@/shared/ui/PhotoUpload";
+import { MultiPhotoUpload, resolvePhotoUrls, toPhotoItems, type PhotoItem } from "@/shared/ui/MultiPhotoUpload";
 import { useEffect, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/widgets/auth";
 import { fetchSpace, updateSpace } from "@/entities/space/api";
+import { MAX_SPACE_PHOTOS, getSpacePhotoUrls } from "@/entities/space";
 import type { SpaceCategory } from "@/entities/space-category";
 import { uploadImage } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
@@ -33,7 +34,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const [price, setPrice] = useState("");
   const [floor, setFloor] = useState("");
   const [parkingInfo, setParkingInfo] = useState("");
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [photoOverflow, setPhotoOverflow] = useState(false);
   const [panoramaUrl, setPanoramaUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setFloor(space.floor ?? "");
       setParkingInfo(space.parking_info ?? "");
       setPanoramaUrl(space.panorama_url ?? null);
+      setPhotos(toPhotoItems(getSpacePhotoUrls(space)));
     });
   }, [spaceQuery.data]);
 
@@ -65,10 +68,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
 
     setSubmitting(true);
     try {
-      let thumbnailUrl: string | undefined;
-      if (thumbnailFile) {
-        thumbnailUrl = await uploadImage(thumbnailFile);
-      }
+      const imageUrls = await resolvePhotoUrls(photos, (file) => uploadImage(file));
 
       // 바뀌지 않았으면 보내지 않고(undefined), 삭제했으면 빈 문자열을 보낸다 — 백엔드 `Space.updatePanoramaUrl` 규칙.
       const originalPanoramaUrl = spaceQuery.data?.panorama_url ?? null;
@@ -83,7 +83,10 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         price_per_hour: price.trim() ? Number(price) : undefined,
         floor: floor.trim() || undefined,
         parking_info: parkingInfo.trim() || undefined,
-        thumbnail_url: thumbnailUrl,
+        // 백엔드는 image_urls가 오면 기존 사진 목록을 통째로 교체한다. 대표 사진은 null이면 그대로 두므로,
+        // 전부 지운 경우에는 기존 대표 사진이 남는다.
+        thumbnail_url: imageUrls[0],
+        image_urls: imageUrls,
         panorama_url: panoramaUrlChange,
       });
 
@@ -165,8 +168,21 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           />
         </FormField>
 
-        <FormField label="대표 사진 (선택 — 새로 올리면 기존 사진을 대체해요)" full>
-          <PhotoUpload file={thumbnailFile} onChange={setThumbnailFile} />
+        <FormField
+          label="공간 사진"
+          full
+          hint={photoOverflow ? `사진은 최대 ${MAX_SPACE_PHOTOS}장까지 올릴 수 있어요. 넘친 사진은 빠졌어요.` : undefined}
+        >
+          <MultiPhotoUpload
+            items={photos}
+            max={MAX_SPACE_PHOTOS}
+            disabled={submitting}
+            onChange={(next) => {
+              setPhotoOverflow(false);
+              setPhotos(next);
+            }}
+            onOverflow={() => setPhotoOverflow(true)}
+          />
         </FormField>
 
         <PanoramaPhotoField

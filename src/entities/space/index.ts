@@ -15,3 +15,4 @@ export type {
   SpaceUpdateRequest,
   UsageUnit,
 } from "./model";
+export { MAX_SPACE_PHOTOS, getSpacePhotoUrls } from "./model";

@@ -1,5 +1,6 @@
 import { cn } from "@/shared/lib";
 import { FormField, fieldInputClass } from "./FormField";
+import { BookingTypeField } from "./BookingTypeField";
 import { USAGE_UNIT_LABELS, type RegistrationFormState, type UsageUnit } from "./model";
 
 export interface Step3TermsProps {
@@ -94,6 +95,13 @@ export function Step3Terms({ state, onFieldChange }: Step3TermsProps) {
           className={fieldInputClass}
         />
       </FormField>
+
+      <BookingTypeField
+        bookingType={state.bookingType}
+        externalBookingUrl={state.externalBookingUrl}
+        onBookingTypeChange={(bookingType) => onFieldChange("bookingType", bookingType)}
+        onExternalBookingUrlChange={(url) => onFieldChange("externalBookingUrl", url)}
+      />
     </div>
   );
 }

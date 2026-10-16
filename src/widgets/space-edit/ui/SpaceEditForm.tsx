@@ -12,12 +12,18 @@ import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/widgets/auth";
 import { fetchSpace, updateSpace } from "@/entities/space/api";
-import { MAX_SPACE_PHOTOS, getSpacePhotoUrls } from "@/entities/space";
+import {
+  MAX_SPACE_PHOTOS,
+  getSpacePhotoUrls,
+  isValidExternalBookingUrl,
+  type BookingType,
+} from "@/entities/space";
 import type { SpaceCategory } from "@/entities/space-category";
 import { uploadImage } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
 import { FormField, fieldInputClass } from "@/widgets/registration-form/FormField";
 import { CategoryPicker } from "@/widgets/registration-form/CategoryPicker";
+import { BookingTypeField } from "@/widgets/registration-form/BookingTypeField";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
 
 /**
@@ -47,6 +53,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   // 재조회될 때마다 다시 채우면 저장하지 않은 수정 내용이 서버 값으로 덮어써진다.
   const initializedSpaceIdRef = useRef<number | null>(null);
   const [panoramaUrl, setPanoramaUrl] = useState<string | null>(null);
+  const [bookingType, setBookingType] = useState<BookingType>("INTERNAL");
+  const [externalBookingUrl, setExternalBookingUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -65,6 +73,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setParkingInfo(space.parking_info ?? "");
       setPanoramaUrl(space.panorama_url ?? null);
       setPhotos(toPhotoItems(getSpacePhotoUrls(space)));
+      setBookingType(space.booking_type ?? "INTERNAL");
+      setExternalBookingUrl(space.external_booking_url ?? "");
     });
   }, [spaceQuery.data, spaceId]);
 
@@ -81,6 +91,11 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
     // 전부 지우고 저장하면 성공처럼 보이지만 대표 사진이 그대로 남으므로 막는다.
     if (photos.length === 0 && spaceQuery.data && getSpacePhotoUrls(spaceQuery.data).length > 0) {
       setError("등록된 사진을 모두 지울 수는 없어요. 대표 사진으로 쓸 사진을 한 장 이상 남겨 주세요.");
+      return;
+    }
+
+    if (bookingType === "EXTERNAL" && !isValidExternalBookingUrl(externalBookingUrl)) {
+      setError("예약 페이지 링크를 http:// 또는 https://로 시작하는 주소로 입력해 주세요.");
       return;
     }
 
@@ -105,6 +120,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         thumbnail_url: imageUrls[0],
         image_urls: imageUrls,
         panorama_url: panoramaUrlChange,
+        booking_type: bookingType,
+        external_booking_url: bookingType === "EXTERNAL" ? externalBookingUrl.trim() : undefined,
       });
 
       await queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
@@ -175,6 +192,13 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         <FormField label="주차 정보" full>
           <input value={parkingInfo} onChange={(e) => setParkingInfo(e.target.value)} className={fieldInputClass} />
         </FormField>
+
+        <BookingTypeField
+          bookingType={bookingType}
+          externalBookingUrl={externalBookingUrl}
+          onBookingTypeChange={setBookingType}
+          onExternalBookingUrlChange={setExternalBookingUrl}
+        />
 
         <FormField label="공간 소개" full>
           <textarea

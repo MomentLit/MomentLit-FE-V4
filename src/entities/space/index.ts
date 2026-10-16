@@ -1,5 +1,6 @@
 export type {
   AiSummaryStatus,
+  BookingType,
   AddressRequest,
   AddressResponse,
   DayOfWeek,
@@ -15,4 +16,9 @@ export type {
   SpaceUpdateRequest,
   UsageUnit,
 } from "./model";
-export { MAX_SPACE_PHOTOS, getSpacePhotoUrls } from "./model";
+export {
+  MAX_SPACE_PHOTOS,
+  getExternalBookingUrl,
+  getSpacePhotoUrls,
+  isValidExternalBookingUrl,
+} from "./model";

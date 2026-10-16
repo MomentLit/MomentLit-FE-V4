@@ -4,12 +4,13 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { IconArrowRight, IconHeart, IconHeartFilled } from "@tabler/icons-react";
+import { IconArrowRight, IconExternalLink, IconHeart, IconHeartFilled } from "@tabler/icons-react";
 import { Card } from "@/shared/ui";
 import { useAuthStore } from "@/entities/auth";
 import { getErrorMessage } from "@/shared/api/error";
 import { createChatRoom } from "@/entities/message";
-import type { SpaceAvailabilitySlot, SpaceDetail } from "@/entities/space";
+import { getExternalBookingUrl, type SpaceAvailabilitySlot, type SpaceDetail } from "@/entities/space";
+import { recordExternalBookingClick } from "@/entities/space/api";
 import type { HostStats } from "@/entities/matching";
 import type { MatchingCreateRequest } from "@/entities/matching";
 import { Modal } from "@/shared/ui/Modal";
@@ -98,6 +99,13 @@ export function BookingCard({
 
   const createMatching = useCreateMatchingMutation();
 
+  // 외부 예약 공간은 예약 요청 폼 대신 호스트 홈페이지로 보낸다. 예약 자체는 밖에서 일어나므로
+  // 나가는 클릭만이라도 기록한다 — 응답을 기다리지 않아 이동이 막히지 않는다.
+  const externalBookingUrl = getExternalBookingUrl(space);
+  const handleExternalBookingClick = () => {
+    void recordExternalBookingClick(spaceId).catch(() => undefined);
+  };
+
   const hours = selectedSlot ? slotDurationHours(selectedSlot) : 0;
   // DAILY 공간의 price_per_hour는 이름과 달리 "1일 요금"이다 — 시간을 곱하면 하루치 슬롯
   // 하나를 몇 배로 청구하게 된다. HOURLY만 시간에 비례해서 계산한다.
@@ -182,86 +190,105 @@ export function BookingCard({
         </button>
       </div>
 
-      <label
-        className={`mt-3 flex flex-col gap-1 border px-3 py-2.5 ${isDateBooked ? "border-coral" : "border-line"}`}
-      >
-        <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">날짜</span>
-        <input
-          type="date"
-          value={date}
-          min={minDate}
-          onChange={(event) => handleDateChange(event.target.value)}
-          className="w-full appearance-none bg-transparent text-sm font-bold text-ink outline-none"
-        />
-      </label>
-      {isDateBooked && <p className="mt-1 text-[0.79rem] text-coral">이미 예약이 찬 날짜예요. 다른 날짜를 선택해주세요.</p>}
-
-      <div className="mt-2">
-        <AvailabilityCalendar
-          availability={availability}
-          bookedDates={bookedDates}
-          selectedDate={date}
-          onSelectDate={handleDateChange}
-          minDate={minDate}
-        />
-      </div>
-
-      <label className="mt-2 flex flex-col gap-1 border border-line px-3 py-2.5">
-        <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">시간</span>
-        {isDateBooked ? (
-          <span className="text-sm text-soft">이 날짜는 이미 예약이 찼어요</span>
-        ) : openSlots.length === 0 ? (
-          <span className="text-sm text-soft">이 날짜엔 예약 가능한 시간이 없어요</span>
-        ) : (
-          <select
-            value={selectedSlot ? `${selectedSlot.start_time}-${selectedSlot.end_time}` : ""}
-            onChange={(event) => setSlotKey(event.target.value)}
-            className="w-full appearance-none bg-transparent text-sm font-bold text-ink outline-none"
-          >
-            {openSlots.map((slot) => {
-              const key = `${slot.start_time}-${slot.end_time}`;
-              return (
-                <option key={key} value={key}>
-                  {slot.start_time.slice(0, 5)} — {slot.end_time.slice(0, 5)}
-                </option>
-              );
-            })}
-          </select>
-        )}
-      </label>
-
-      <label className="mt-2 flex flex-col gap-1 border border-line px-3 py-2.5">
-        <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">인원</span>
-        <input
-          type="number"
-          min={1}
-          max={space.capacity ?? undefined}
-          value={guestCount}
-          onChange={(event) => {
-            const next = Math.max(1, Number(event.target.value) || 1);
-            setGuestCount(space.capacity != null ? Math.min(next, space.capacity) : next);
-          }}
-          className="w-full appearance-none bg-transparent text-sm font-bold text-ink outline-none"
-        />
-      </label>
-
-      <div className="mt-2.5 min-h-5 text-sm text-soft">
-        {selectedSlot && (
-          <p>
-            예상 금액 <b className="text-ink">{totalPrice.toLocaleString()}원</b> (
-            {space.usage_unit === "DAILY" ? "1일" : `${hours}시간`})
+      {externalBookingUrl ? (
+        <>
+          <p className="mt-3 border border-line bg-wash px-3 py-2.5 text-sm leading-relaxed text-ink">
+            이 공간은 호스트의 홈페이지에서 예약과 결제를 진행해요.
           </p>
-        )}
-      </div>
+          <a
+            href={externalBookingUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleExternalBookingClick}
+            className="button button--primary mt-2.5 w-full"
+          >
+            홈페이지에서 예약하기 <IconExternalLink size={16} stroke={2} aria-hidden />
+          </a>
+        </>
+      ) : (
+        <>
+        <label
+          className={`mt-3 flex flex-col gap-1 border px-3 py-2.5 ${isDateBooked ? "border-coral" : "border-line"}`}
+        >
+          <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">날짜</span>
+          <input
+            type="date"
+            value={date}
+            min={minDate}
+            onChange={(event) => handleDateChange(event.target.value)}
+            className="w-full appearance-none bg-transparent text-sm font-bold text-ink outline-none"
+          />
+        </label>
+        {isDateBooked && <p className="mt-1 text-[0.79rem] text-coral">이미 예약이 찬 날짜예요. 다른 날짜를 선택해주세요.</p>}
 
-      <button
-        type="button"
-        onClick={handleReserve}
-        disabled={createMatching.isPending || isDateBooked}
-        className="button button--primary w-full"
-      >
-        {createMatching.isPending ? "요청 보내는 중…" : "예약 요청 보내기"} <IconArrowRight size={16} stroke={2} aria-hidden />
-      </button>
+        <div className="mt-2">
+          <AvailabilityCalendar
+            availability={availability}
+            bookedDates={bookedDates}
+            selectedDate={date}
+            onSelectDate={handleDateChange}
+            minDate={minDate}
+          />
+        </div>
+
+        <label className="mt-2 flex flex-col gap-1 border border-line px-3 py-2.5">
+          <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">시간</span>
+          {isDateBooked ? (
+            <span className="text-sm text-soft">이 날짜는 이미 예약이 찼어요</span>
+          ) : openSlots.length === 0 ? (
+            <span className="text-sm text-soft">이 날짜엔 예약 가능한 시간이 없어요</span>
+          ) : (
+            <select
+              value={selectedSlot ? `${selectedSlot.start_time}-${selectedSlot.end_time}` : ""}
+              onChange={(event) => setSlotKey(event.target.value)}
+              className="w-full appearance-none bg-transparent text-sm font-bold text-ink outline-none"
+            >
+              {openSlots.map((slot) => {
+                const key = `${slot.start_time}-${slot.end_time}`;
+                return (
+                  <option key={key} value={key}>
+                    {slot.start_time.slice(0, 5)} — {slot.end_time.slice(0, 5)}
+                  </option>
+                );
+              })}
+            </select>
+          )}
+        </label>
+
+        <label className="mt-2 flex flex-col gap-1 border border-line px-3 py-2.5">
+          <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">인원</span>
+          <input
+            type="number"
+            min={1}
+            max={space.capacity ?? undefined}
+            value={guestCount}
+            onChange={(event) => {
+              const next = Math.max(1, Number(event.target.value) || 1);
+              setGuestCount(space.capacity != null ? Math.min(next, space.capacity) : next);
+            }}
+            className="w-full appearance-none bg-transparent text-sm font-bold text-ink outline-none"
+          />
+        </label>
+
+        <div className="mt-2.5 min-h-5 text-sm text-soft">
+          {selectedSlot && (
+            <p>
+              예상 금액 <b className="text-ink">{totalPrice.toLocaleString()}원</b> (
+              {space.usage_unit === "DAILY" ? "1일" : `${hours}시간`})
+            </p>
+          )}
+        </div>
+
+        <button
+          type="button"
+          onClick={handleReserve}
+          disabled={createMatching.isPending || isDateBooked}
+          className="button button--primary w-full"
+        >
+          {createMatching.isPending ? "요청 보내는 중…" : "예약 요청 보내기"} <IconArrowRight size={16} stroke={2} aria-hidden />
+        </button>
+        </>
+      )}
       <button
         type="button"
         onClick={() => {
@@ -284,7 +311,9 @@ export function BookingCard({
       )}
 
       <p className="mt-2.5 text-[0.76rem] leading-[1.7] text-soft">
-        요청을 보내면 호스트가 승인 여부를 정합니다. 결제는 모먼트릿에서 처리하지 않습니다.
+        {externalBookingUrl
+          ? "예약 링크는 새 탭에서 열려요. 결제는 모먼트릿에서 처리하지 않습니다."
+          : "요청을 보내면 호스트가 승인 여부를 정합니다. 결제는 모먼트릿에서 처리하지 않습니다."}
       </p>
 
       {pendingRequest && createPortal(

@@ -1,5 +1,11 @@
 import type { SpaceCategory } from "@/entities/space-category";
-import type { DayOfWeek, SpaceAvailabilitySlot, SpaceCreateRequest } from "@/entities/space";
+import {
+  isValidExternalBookingUrl,
+  type BookingType,
+  type DayOfWeek,
+  type SpaceAvailabilitySlot,
+  type SpaceCreateRequest,
+} from "@/entities/space";
 import type { PhotoItem } from "@/shared/ui/MultiPhotoUpload";
 
 /**
@@ -90,6 +96,9 @@ export interface RegistrationFormState {
   minUsageHours: string;
   floor: string;
   parkingInfo: string;
+  bookingType: BookingType;
+  /** EXTERNAL일 때만 전송. */
+  externalBookingUrl: string;
 
   // Step 4 — 일정 열기
   weeklySchedule: WeeklySchedule;
@@ -117,6 +126,8 @@ export function createInitialFormState(): RegistrationFormState {
     minUsageHours: "",
     floor: "",
     parkingInfo: "",
+    bookingType: "INTERNAL",
+    externalBookingUrl: "",
 
     weeklySchedule: createInitialSchedule(),
   };
@@ -164,6 +175,9 @@ export function validateStep(step: number, state: RegistrationFormState): string
   if (step === 3) {
     const price = toOptionalNumber(state.pricePerUnit);
     if (price === undefined || price <= 0) return "요금을 입력해 주세요.";
+    if (state.bookingType === "EXTERNAL" && !isValidExternalBookingUrl(state.externalBookingUrl)) {
+      return "예약 페이지 링크를 http:// 또는 https://로 시작하는 주소로 입력해 주세요.";
+    }
   }
   return null;
 }
@@ -186,6 +200,9 @@ export function validateRegistrationForm(state: RegistrationFormState): string |
   if (capacity !== undefined && capacity < 0) return "수용 인원은 0 이상이어야 합니다.";
   const price = toOptionalNumber(state.pricePerUnit);
   if (price === undefined || price <= 0) return "요금을 입력해 주세요.";
+  if (state.bookingType === "EXTERNAL" && !isValidExternalBookingUrl(state.externalBookingUrl)) {
+    return "예약 페이지 링크를 http:// 또는 https://로 시작하는 주소로 입력해 주세요.";
+  }
   for (const day of DAYS) {
     const daySchedule = state.weeklySchedule[day];
     if (daySchedule.isOpen && parseTimeToMinutes(daySchedule.endTime) <= parseTimeToMinutes(daySchedule.startTime)) {
@@ -228,6 +245,8 @@ export function toSpaceCreateRequest(
     parking_info: state.parkingInfo.trim() || undefined,
     usage_unit: state.usageUnit,
     is_draft: options.isDraft,
+    booking_type: state.bookingType,
+    external_booking_url: state.bookingType === "EXTERNAL" ? state.externalBookingUrl.trim() : undefined,
   };
 }
 

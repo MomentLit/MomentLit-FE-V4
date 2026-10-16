@@ -87,6 +87,11 @@ export async function updateSpace(spaceId: number, request: SpaceUpdateRequest):
 }
 
 /** Owner-only `DELETE /spaces/{space-id}`; success is 204 with no response body. */
+/** `POST /spaces/{id}/external-booking-clicks` — 외부 예약 링크 클릭 기록. 비로그인도 허용. */
+export async function recordExternalBookingClick(spaceId: number): Promise<void> {
+  await apiClient.post(`/spaces/${spaceId}/external-booking-clicks`);
+}
+
 export async function deleteSpace(spaceId: number): Promise<void> {
   await apiClient.delete(`/spaces/${spaceId}`);
 }

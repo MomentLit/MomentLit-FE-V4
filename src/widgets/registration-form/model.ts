@@ -133,6 +133,11 @@ export function createInitialFormState(): RegistrationFormState {
   };
 }
 
+/** 모먼트릿에서 예약을 받는 공간만 4단계 주간 일정이 필요하다 — 외부 예약 공간은 홈페이지에서 예약을 받는다. */
+export function usesWeeklySchedule(state: Pick<RegistrationFormState, "bookingType">): boolean {
+  return state.bookingType !== "EXTERNAL";
+}
+
 /** Parses a form text field into a number, or `undefined` when blank/invalid (for optional numeric API fields). */
 function toOptionalNumber(value: string): number | undefined {
   const trimmed = value.trim();
@@ -203,10 +208,13 @@ export function validateRegistrationForm(state: RegistrationFormState): string |
   if (state.bookingType === "EXTERNAL" && !isValidExternalBookingUrl(state.externalBookingUrl)) {
     return "예약 페이지 링크를 http:// 또는 https://로 시작하는 주소로 입력해 주세요.";
   }
-  for (const day of DAYS) {
-    const daySchedule = state.weeklySchedule[day];
-    if (daySchedule.isOpen && parseTimeToMinutes(daySchedule.endTime) <= parseTimeToMinutes(daySchedule.startTime)) {
-      return `${day}요일의 종료 시간은 시작 시간보다 늦어야 합니다.`;
+  // 외부 예약 공간은 주간 일정을 쓰지 않으므로(제출 때도 보내지 않음) 검증하지 않는다.
+  if (usesWeeklySchedule(state)) {
+    for (const day of DAYS) {
+      const daySchedule = state.weeklySchedule[day];
+      if (daySchedule.isOpen && parseTimeToMinutes(daySchedule.endTime) <= parseTimeToMinutes(daySchedule.startTime)) {
+        return `${day}요일의 종료 시간은 시작 시간보다 늦어야 합니다.`;
+      }
     }
   }
   return null;

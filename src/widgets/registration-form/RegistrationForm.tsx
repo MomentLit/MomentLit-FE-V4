@@ -21,6 +21,7 @@ import {
   createInitialFormState,
   toAvailabilitySlots,
   toSpaceCreateRequest,
+  usesWeeklySchedule,
   validateRegistrationForm,
   validateStep,
   type RegistrationFormState,
@@ -101,7 +102,9 @@ export function RegistrationForm() {
       const { space_id } = await createSpace(
         toSpaceCreateRequest(state, { imageUrls, isDraft }),
       );
-      await updateAvailability(space_id, toAvailabilitySlots(state.weeklySchedule));
+      if (usesWeeklySchedule(state)) {
+        await updateAvailability(space_id, toAvailabilitySlots(state.weeklySchedule));
+      }
 
       router.push(`/spaces/${space_id}`);
     } catch (error) {

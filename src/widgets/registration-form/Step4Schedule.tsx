@@ -1,6 +1,6 @@
 import { FormField } from "./FormField";
 import { DaySchedulePicker } from "./DaySchedulePicker";
-import type { Day, DaySchedule, RegistrationFormState } from "./model";
+import { usesWeeklySchedule, type Day, type DaySchedule, type RegistrationFormState } from "./model";
 
 export interface Step4ScheduleProps {
   state: RegistrationFormState;
@@ -17,6 +17,23 @@ export function Step4Schedule({ state, onFieldChange }: Step4ScheduleProps) {
       ...state.weeklySchedule,
       [day]: { ...state.weeklySchedule[day], ...patch },
     });
+  }
+
+  if (!usesWeeklySchedule(state)) {
+    return (
+      <div className="grid grid-cols-1 gap-4.5">
+        <div className="shadow-[inset_3px_0_0_var(--sky)] bg-wash px-4.5 py-4 text-[0.88rem] leading-[1.75] text-ink">
+          <b>일정은 설정하지 않아도 돼요.</b>
+          <br />
+          3단계에서 &lsquo;우리 홈페이지에서 예약 받기&rsquo;를 선택해서, 예약은 입력하신 홈페이지 링크에서 받아요.
+          공간 상세에는 예약 요청 대신 &lsquo;홈페이지에서 예약하기&rsquo; 버튼이 보여요.
+        </div>
+
+        <div className="shadow-[inset_3px_0_0_var(--sky)] bg-wash px-4.5 py-4 text-[0.88rem] leading-[1.75] text-soft">
+          등록해도 바로 공개되지 않습니다. 검토 후 목록에 올라갑니다. 모먼트릿은 결제를 처리하지 않습니다.
+        </div>
+      </div>
+    );
   }
 
   return (

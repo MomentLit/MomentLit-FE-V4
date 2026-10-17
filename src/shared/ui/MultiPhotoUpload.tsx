@@ -1,26 +1,37 @@
 "use client";
 
-import { useEffect, useRef } from "react";
-import { IconPhotoPlus, IconX } from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
+import { IconArrowsMove, IconPhotoPlus, IconX } from "@tabler/icons-react";
+import { cn, coverCrop, loadImageAspect, parsePhotoUrl, withPhotoCrop, type PhotoCrop } from "@/shared/lib";
+import { CroppedPhoto } from "./CroppedPhoto";
+import { PhotoCropModal } from "./PhotoCropModal";
 
 /** 업로더 한 칸. 이미 올라간 사진은 `url`만, 새로 고른 사진은 `file` + 미리보기용 blob `url`을 가진다. */
 export interface PhotoItem {
   id: string;
+  /** 원본 주소(blob 또는 S3) — `#crop=`은 떼고 `crop`에 따로 들고 있는다. */
   url: string;
   file?: File;
+  /** 위치 조절로 맞춘 영역 — 제출할 때 URL 끝에 붙는다 (shared/lib `withPhotoCrop`). */
+  crop?: PhotoCrop | null;
 }
 
 /** 서버에 이미 있는 사진 URL들을 업로더 항목으로 바꾼다 (수정 폼 프리필용). */
 export function toPhotoItems(urls: string[]): PhotoItem[] {
-  return urls.map((url) => ({ id: url, url }));
+  return urls.map((url) => {
+    const { src, crop } = parsePhotoUrl(url);
+    return { id: url, url: src, crop };
+  });
 }
 
-/** 새로 고른 파일만 업로드하고, 기존 사진은 URL을 그대로 써서 순서대로 최종 URL 목록을 만든다. */
+/** 새로 고른 파일만 업로드하고, 기존 사진은 URL을 그대로 써서 순서대로 최종 URL 목록을 만든다. 맞춘 영역이 있으면 붙인다. */
 export async function resolvePhotoUrls(
   items: PhotoItem[],
   upload: (file: File) => Promise<string>,
 ): Promise<string[]> {
-  return Promise.all(items.map((item) => (item.file ? upload(item.file) : Promise.resolve(item.url))));
+  return Promise.all(
+    items.map(async (item) => withPhotoCrop(item.file ? await upload(item.file) : item.url, item.crop)),
+  );
 }
 
 function revokeIfBlob(item: PhotoItem) {
@@ -48,6 +59,11 @@ export interface MultiPhotoUploadProps {
   onOverflow?: () => void;
   disabled?: boolean;
   label?: string;
+  /**
+   * 주면 사진마다 "위치 조절"이 생기고, 칸도 이 비율(가로/세로)로 보여준다 — 공간 상세 맨 위
+   * 사진 영역 비율. 새로 고른 사진은 가운데 기준으로 꽉 차게 맞춘 상태로 시작한다.
+   */
+  cropAspect?: number;
 }
 
 /**
@@ -55,20 +71,37 @@ export interface MultiPhotoUploadProps {
  * 실제 업로드는 제출 시점에 `resolvePhotoUrls`로 한 번에 한다 (고르기만 하고 취소하면 S3에 쓰레기가 안 남게).
  * 삭제한 사진의 미리보기 URL은 여기서 해제하고, 남은 것은 폼이 `useRevokePhotoItemsOnUnmount`로 해제한다.
  */
-export function MultiPhotoUpload({ items, onChange, max, onOverflow, disabled = false, label = "공간 사진" }: MultiPhotoUploadProps) {
-  function handleSelect(fileList: FileList | null) {
+export function MultiPhotoUpload({ items, onChange, max, onOverflow, disabled = false, label = "공간 사진", cropAspect }: MultiPhotoUploadProps) {
+  const [croppingIndex, setCroppingIndex] = useState<number | null>(null);
+  const croppingItem = croppingIndex !== null ? items[croppingIndex] : undefined;
+
+  async function handleSelect(fileList: FileList | null) {
     const files = Array.from(fileList ?? []);
     if (!files.length) return;
 
     const accepted = files.slice(0, Math.max(max - items.length, 0));
     if (accepted.length) {
-      onChange([
-        ...items,
-        ...accepted.map((file) => ({ id: crypto.randomUUID(), url: URL.createObjectURL(file), file })),
-      ]);
+      const added: PhotoItem[] = accepted.map((file) => ({ id: crypto.randomUUID(), url: URL.createObjectURL(file), file }));
+      if (cropAspect) {
+        // 미리보기 칸과 상세 페이지가 처음부터 같게 보이도록 가운데 기준 꽉 찬 영역을 기본값으로 둔다.
+        await Promise.all(added.map(async (item) => {
+          try {
+            item.crop = coverCrop(await loadImageAspect(item.url), cropAspect);
+          } catch {
+            item.crop = null;
+          }
+        }));
+      }
+      onChange([...items, ...added]);
     }
     // onChange 뒤에 불러야 부모가 onChange에서 경고를 지워도 이 경고가 남는다.
     if (accepted.length < files.length) onOverflow?.();
+  }
+
+  function handleApplyCrop(crop: PhotoCrop) {
+    if (croppingIndex === null) return;
+    onChange(items.map((item, index) => (index === croppingIndex ? { ...item, crop } : item)));
+    setCroppingIndex(null);
   }
 
   function handleRemove(index: number) {
@@ -82,11 +115,30 @@ export function MultiPhotoUpload({ items, onChange, max, onOverflow, disabled = 
 
   return (
     <div className="flex flex-col gap-2">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className={cn("grid gap-2", cropAspect ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-2 sm:grid-cols-3")}>
         {items.map((item, index) => (
-          <div key={item.id} className="relative aspect-[4/3] overflow-hidden bg-wash">
-            {/* eslint-disable-next-line @next/next/no-img-element -- blob 미리보기/외부 S3 URL */}
-            <img src={item.url} alt={`${label} ${index + 1}`} className="h-full w-full object-cover" />
+          <div
+            key={item.id}
+            className={cn("relative overflow-hidden", cropAspect ? "bg-ink" : "aspect-[4/3] bg-wash")}
+            style={cropAspect ? { aspectRatio: String(cropAspect) } : undefined}
+          >
+            {cropAspect && item.crop ? (
+              <CroppedPhoto src={item.url} crop={item.crop} alt={`${label} ${index + 1}`} />
+            ) : (
+              // eslint-disable-next-line @next/next/no-img-element -- blob 미리보기/외부 S3 URL
+              <img src={item.url} alt={`${label} ${index + 1}`} className={cn("h-full w-full", cropAspect ? "object-contain" : "object-cover")} />
+            )}
+            {cropAspect && (
+              <button
+                type="button"
+                onClick={() => setCroppingIndex(index)}
+                disabled={disabled}
+                className="absolute left-1.5 top-1.5 flex items-center gap-1 bg-ink/75 px-2 py-1 text-xs font-bold text-white hover:bg-ink"
+              >
+                <IconArrowsMove size={13} stroke={2.5} aria-hidden />
+                위치 조절
+              </button>
+            )}
             <button
               type="button"
               onClick={() => handleRemove(index)}
@@ -115,7 +167,9 @@ export function MultiPhotoUpload({ items, onChange, max, onOverflow, disabled = 
         ))}
 
         {items.length < max && (
-          <label className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-1.5 border-2 border-dashed border-line-2 bg-wash text-center text-soft transition-colors hover:border-ink focus-within:border-ink focus-within:outline-2 focus-within:outline-main-d">
+          <label
+            style={cropAspect ? { aspectRatio: String(cropAspect) } : undefined}
+            className="flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-1.5 border-2 border-dashed border-line-2 bg-wash text-center text-soft transition-colors hover:border-ink focus-within:border-ink focus-within:outline-2 focus-within:outline-main-d">
             <IconPhotoPlus size={26} stroke={1.5} aria-hidden />
             <span className="text-sm font-bold text-ink">{items.length ? "사진 추가" : "사진 선택하기"}</span>
             <span className="text-xs">여러 장 선택 가능</span>
@@ -126,7 +180,7 @@ export function MultiPhotoUpload({ items, onChange, max, onOverflow, disabled = 
               aria-label={label}
               disabled={disabled}
               onChange={(event) => {
-                handleSelect(event.target.files);
+                void handleSelect(event.target.files);
                 event.target.value = "";
               }}
               className="sr-only"
@@ -136,7 +190,18 @@ export function MultiPhotoUpload({ items, onChange, max, onOverflow, disabled = 
       </div>
       <p className="text-xs text-soft">
         JPG · PNG · WEBP · 최대 {max}장 ({items.length}/{max}) — 첫 번째 사진이 목록과 상세의 대표 사진이 돼요.
+        {cropAspect && " 칸에 보이는 모습 그대로 상세 페이지 맨 위에 보여요. '위치 조절'로 맞춰 보세요."}
       </p>
+      {croppingItem && cropAspect && (
+        <PhotoCropModal
+          key={croppingItem.id}
+          src={croppingItem.url}
+          aspect={cropAspect}
+          initialCrop={croppingItem.crop ?? null}
+          onApply={handleApplyCrop}
+          onClose={() => setCroppingIndex(null)}
+        />
+      )}
     </div>
   );
 }

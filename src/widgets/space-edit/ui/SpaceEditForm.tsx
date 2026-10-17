@@ -14,6 +14,7 @@ import { useRequireAuth } from "@/widgets/auth";
 import { fetchSpace, updateSpace } from "@/entities/space/api";
 import {
   MAX_SPACE_PHOTOS,
+  SPACE_HERO_ASPECT,
   getSpacePhotoUrls,
   isValidExternalBookingUrl,
   type BookingType,
@@ -217,6 +218,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           <MultiPhotoUpload
             items={photos}
             max={MAX_SPACE_PHOTOS}
+            cropAspect={SPACE_HERO_ASPECT}
             disabled={submitting}
             onChange={(next) => {
               setPhotoOverflow(false);

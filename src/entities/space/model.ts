@@ -136,6 +136,12 @@ export interface SpaceRegionCount {
   count: number;
 }
 
+/**
+ * 공간 상세 맨 위 사진 영역의 비율(가로/세로) — PC 기준. 사진 위치 조절 틀도 같은 값을 쓴다.
+ * 모바일은 아직 따로 맞추지 않고 같은 영역을 가운데 기준으로 보여준다.
+ */
+export const SPACE_HERO_ASPECT = 2;
+
 /** 공간 하나에 올릴 수 있는 사진 수 (대표 사진 포함). */
 export const MAX_SPACE_PHOTOS = 10;
 
@@ -158,4 +164,77 @@ export function isValidExternalBookingUrl(url: string): boolean {
 /** 외부 예약 공간이면 이동할 링크를, 아니면 null을 돌려준다. */
 export function getExternalBookingUrl(space: Pick<SpaceDetail, "booking_type" | "external_booking_url">): string | null {
   return space.booking_type === "EXTERNAL" && space.external_booking_url ? space.external_booking_url : null;
+}
+
+/**
+ * 한 공간 안의 구역(1층, 2층 세미나실…)은 백엔드에 따로 저장할 곳이 없어서 구역마다
+ * Space를 하나씩 만들고 이름을 `공간 이름 · 구역 이름`으로 맞춘다. 상세 페이지는
+ * 이름의 앞부분과 도로명 주소가 같은 공간들을 같은 공간의 구역으로 묶어 보여준다.
+ */
+export const SPACE_OPTION_SEPARATOR = " · ";
+
+export function joinSpaceOptionName(baseName: string, optionLabel: string): string {
+  return `${baseName}${SPACE_OPTION_SEPARATOR}${optionLabel}`;
+}
+
+/** 마지막 구분자 기준으로 나눈다 — 구분자가 없으면 구역이 없는 일반 공간(`optionLabel: null`). */
+export function splitSpaceOptionName(name: string): { baseName: string; optionLabel: string | null } {
+  const index = name.lastIndexOf(SPACE_OPTION_SEPARATOR);
+  if (index <= 0) return { baseName: name, optionLabel: null };
+  const optionLabel = name.slice(index + SPACE_OPTION_SEPARATOR.length).trim();
+  return optionLabel ? { baseName: name.slice(0, index).trim(), optionLabel } : { baseName: name, optionLabel: null };
+}
+
+/** 목록 카드 하나로 합쳐진 구역 묶음 정보 — 구역이 없는 공간은 `null`. */
+export interface SpaceOptionGroup {
+  /** 구역 수 (2 이상). */
+  count: number;
+  /** 가장 싼 구역의 요금 — 카드에 "~부터"로 보여준다. 그 구역의 이용 단위는 `usage_unit`. */
+  minPrice: number;
+}
+
+export type GroupedSpace<T> = T & { option_group: SpaceOptionGroup | null };
+
+/**
+ * 목록(검색·홈·지도)에서 같은 공간의 구역들을 대표 카드 하나로 합친다 — 이름 앞부분과
+ * 도로명 주소가 같은 공간끼리 묶고(`splitSpaceOptionName`), 카드는 가장 먼저 나온
+ * 구역 자리(서버 정렬 순서 유지)에 둔다. 대표 카드는 공통 이름, 최저 요금, 가장 큰
+ * 수용 인원, 첫 구역의 사진을 쓰고, 누르면 첫 구역 상세(구역 탭)로 간다.
+ * 같은 응답 안에서만 합칠 수 있어서, 구역이 다른 페이지로 갈리면 따로 보일 수 있다.
+ */
+export function groupSpaceOptions<T extends SpaceListItem>(items: T[]): GroupedSpace<T>[] {
+  const groups = new Map<string, T[]>();
+  const order: Array<string | T> = [];
+  for (const item of items) {
+    const { baseName, optionLabel } = splitSpaceOptionName(item.name);
+    if (!optionLabel) {
+      order.push(item);
+      continue;
+    }
+    const key = `${baseName}\u0000${item.address.road_address}`;
+    const group = groups.get(key);
+    if (group) group.push(item);
+    else {
+      groups.set(key, [item]);
+      order.push(key);
+    }
+  }
+  return order.map((entry) => {
+    if (typeof entry !== "string") return { ...entry, option_group: null };
+    const members = groups.get(entry) ?? [];
+    if (members.length < 2) return { ...members[0], option_group: null };
+    const byId = [...members].sort((a, b) => a.space_id - b.space_id);
+    const cheapest = members.reduce((min, item) => (item.price_per_hour < min.price_per_hour ? item : min));
+    const capacities = members.map((item) => item.capacity).filter((value): value is number => value != null);
+    return {
+      ...byId[0],
+      name: splitSpaceOptionName(byId[0].name).baseName,
+      thumbnail_url: byId.find((item) => item.thumbnail_url)?.thumbnail_url ?? null,
+      price_per_hour: cheapest.price_per_hour,
+      usage_unit: cheapest.usage_unit,
+      capacity: capacities.length > 0 ? Math.max(...capacities) : null,
+      like_count: members.reduce((sum, item) => sum + item.like_count, 0),
+      option_group: { count: members.length, minPrice: cheapest.price_per_hour },
+    };
+  });
 }

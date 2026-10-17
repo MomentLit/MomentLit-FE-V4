@@ -1,13 +1,14 @@
 import type { SpaceCategory } from "@/entities/space-category";
 import { useState } from "react";
-import { MAX_SPACE_PHOTOS } from "@/entities/space";
+import { MAX_SPACE_PHOTOS, SPACE_HERO_ASPECT } from "@/entities/space";
 import { MultiPhotoUpload } from "@/shared/ui/MultiPhotoUpload";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
 import { FormField, fieldInputClass } from "./FormField";
 import { CategoryPicker } from "./CategoryPicker";
+import { OptionTabs, type OptionStepProps } from "./OptionTabs";
 import type { RegistrationFormState } from "./model";
 
-export interface Step1BasicInfoProps {
+export interface Step1BasicInfoProps extends OptionStepProps {
   state: RegistrationFormState;
   onFieldChange: <K extends keyof RegistrationFormState>(
     key: K,
@@ -16,8 +17,10 @@ export interface Step1BasicInfoProps {
 }
 
 /** Step 1 — 기본 정보. Fields lifted 1:1 from design-reference.html `#p-new`. */
-export function Step1BasicInfo({ state, onFieldChange }: Step1BasicInfoProps) {
+export function Step1BasicInfo({ state, onFieldChange, optionTabs, onOptionChange }: Step1BasicInfoProps) {
   const [photoOverflow, setPhotoOverflow] = useState(false);
+  const option = optionTabs.options[optionTabs.activeIndex];
+  const multiple = optionTabs.options.length > 1;
 
   return (
     <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2">
@@ -39,28 +42,6 @@ export function Step1BasicInfo({ state, onFieldChange }: Step1BasicInfoProps) {
         />
       </FormField>
 
-      <FormField label="면적 (㎡)">
-        <input
-          type="number"
-          min={0}
-          value={state.area}
-          onChange={(e) => onFieldChange("area", e.target.value)}
-          aria-label="면적"
-          className={fieldInputClass}
-        />
-      </FormField>
-
-      <FormField label="최대 수용 인원">
-        <input
-          type="number"
-          min={0}
-          value={state.capacity}
-          onChange={(e) => onFieldChange("capacity", e.target.value)}
-          aria-label="수용 인원"
-          className={fieldInputClass}
-        />
-      </FormField>
-
       <FormField
         label="공간 소개"
         full
@@ -74,30 +55,57 @@ export function Step1BasicInfo({ state, onFieldChange }: Step1BasicInfoProps) {
         />
       </FormField>
 
-      <FormField
-        label="공간 사진 (선택)"
-        full
-        hint={
-          photoOverflow
-            ? `사진은 최대 ${MAX_SPACE_PHOTOS}장까지 올릴 수 있어요. 넘친 사진은 빠졌어요.`
-            : "사진 없이도 등록됩니다. 여러 장을 한 번에 선택할 수 있어요."
-        }
-      >
-        <MultiPhotoUpload
-          items={state.photos}
-          max={MAX_SPACE_PHOTOS}
-          onChange={(photos) => {
-            setPhotoOverflow(false);
-            onFieldChange("photos", photos);
-          }}
-          onOverflow={() => setPhotoOverflow(true)}
+      <OptionTabs {...optionTabs}>
+        <FormField label="면적 (㎡)">
+          <input
+            type="number"
+            min={0}
+            value={option.area}
+            onChange={(e) => onOptionChange("area", e.target.value)}
+            aria-label="면적"
+            className={fieldInputClass}
+          />
+        </FormField>
+
+        <FormField label="최대 수용 인원">
+          <input
+            type="number"
+            min={0}
+            value={option.capacity}
+            onChange={(e) => onOptionChange("capacity", e.target.value)}
+            aria-label="수용 인원"
+            className={fieldInputClass}
+          />
+        </FormField>
+
+        <FormField
+          label={multiple ? "구역 사진 (선택)" : "공간 사진 (선택)"}
+          full
+          hint={
+            photoOverflow
+              ? `사진은 최대 ${MAX_SPACE_PHOTOS}장까지 올릴 수 있어요. 넘친 사진은 빠졌어요.`
+              : "사진 없이도 등록됩니다. 여러 장을 한 번에 선택할 수 있어요."
+          }
+        >
+          <MultiPhotoUpload
+            key={option.id}
+            items={option.photos}
+            max={MAX_SPACE_PHOTOS}
+            cropAspect={SPACE_HERO_ASPECT}
+            onChange={(photos) => {
+              setPhotoOverflow(false);
+              onOptionChange("photos", photos);
+            }}
+            onOverflow={() => setPhotoOverflow(true)}
+          />
+        </FormField>
+        <PanoramaPhotoField
+          key={option.id}
+          value={option.panoramaUrl}
+          onChange={(url) => onOptionChange("panoramaUrl", url)}
+          title={[state.name.trim() || "새 공간", multiple ? option.label.trim() : ""].filter(Boolean).join(" · ")}
         />
-      </FormField>
-      <PanoramaPhotoField
-        value={state.panoramaUrl}
-        onChange={(url) => onFieldChange("panoramaUrl", url)}
-        title={state.name.trim() || "새 공간"}
-      />
+      </OptionTabs>
     </div>
   );
 }

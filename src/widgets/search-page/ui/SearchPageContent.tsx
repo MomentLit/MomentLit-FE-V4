@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { IconFilter, IconX } from "@tabler/icons-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchCategoryCounts, fetchRegionCounts } from "@/entities/space/api";
-import type { UsageUnit } from "@/entities/space";
+import { groupSpaceOptions, type UsageUnit } from "@/entities/space";
 import { REGIONS, type Region } from "@/entities/region";
 import { SPACE_CATEGORIES, type SpaceCategory } from "@/entities/space-category";
 import { collectPages, searchSelectedSpaces, toggleSelection } from "../lib/multi-search";
@@ -196,6 +196,10 @@ export function SearchPageContent() {
     placeholderData: keepPreviousData,
   });
 
+  // 같은 공간의 구역(1층, 2층…)은 대표 카드 하나로 합친다 — 합친 만큼 결과 수에서도 뺀다.
+  const spaceItems = data ? groupSpaceOptions(data.content) : [];
+  const spaceTotalElements = data ? data.totalElements - (data.content.length - spaceItems.length) : 0;
+
   // Popup filters run over all server pages so multi-selection never drops later matches.
   const popupKeyword = name.trim().toLowerCase();
   // 팝업 거리순은 서버가 지원하지 않아 전체를 받아 클라이언트에서 정렬한다 — 그래서 필터와 같은 "전체 조회" 경로를 탄다.
@@ -377,13 +381,13 @@ export function SearchPageContent() {
               <SortBar
                 categories={categories}
                 regions={regions}
-                totalElements={data?.totalElements ?? 0}
+                totalElements={spaceTotalElements}
                 sort={sort}
                 onSortChange={changeSort}
                 geoStatus={geoStatus}
               />
               <ResultList
-                items={data?.content ?? []}
+                items={spaceItems}
                 isLoading={isLoading}
                 isError={isError}
                 errorMessage={isError ? getErrorMessage(error) : undefined}

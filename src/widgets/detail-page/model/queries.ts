@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/entities/auth";
-import { fetchSpace, fetchAvailability, fetchBookedDates } from "@/entities/space/api";
-import type { DayOfWeek, SpaceAvailabilitySlot, SpaceDetail, UsageUnit } from "@/entities/space";
+import { fetchSpace, fetchAvailability, fetchBookedDates, fetchMySpaces, searchSpaces } from "@/entities/space/api";
+import { splitSpaceOptionName } from "@/entities/space";
+import type { DayOfWeek, SpaceAvailabilitySlot, SpaceDetail, SpaceListItem, UsageUnit } from "@/entities/space";
 import { fetchSpaceReviews, createSpaceReview } from "@/entities/review";
 import type { SpaceReview } from "@/entities/review";
 import {
@@ -65,6 +66,62 @@ export function useSpaceQuery(spaceId: number) {
     // failed summaries never keep polling in the background.
     refetchInterval: (query) => (query.state.data?.ai_summary_status === "PENDING" ? 3000 : false),
     refetchIntervalInBackground: false,
+  });
+}
+
+/** 상세 페이지 구역 탭 한 칸 — 같은 공간 안의 다른 구역(자기 자신 포함). */
+export interface SpaceOptionSummary {
+  spaceId: number;
+  label: string;
+  pricePerHour: number;
+  usageUnit: UsageUnit | null;
+  capacity: number | null;
+}
+
+function toOptionSummary(space: Pick<SpaceListItem, "space_id" | "name" | "price_per_hour" | "usage_unit" | "capacity">): SpaceOptionSummary | null {
+  const { optionLabel } = splitSpaceOptionName(space.name);
+  if (!optionLabel) return null;
+  return {
+    spaceId: space.space_id,
+    label: optionLabel,
+    pricePerHour: space.price_per_hour,
+    usageUnit: space.usage_unit,
+    capacity: space.capacity,
+  };
+}
+
+/**
+ * 같은 공간의 다른 구역 찾기 — 이름이 `공간 이름 · 구역 이름`이고 도로명 주소가 같은
+ * 공간들을 묶는다 (entities/space `splitSpaceOptionName` 참고). 공개 검색은 승인된
+ * 공간만 주므로, 호스트 본인이 보는 중이면 내 공간 목록(검토 중인 구역 포함)도 합친다.
+ * 구역이 2개 이상일 때만 결과를 돌려주고, 아니면 빈 배열 — 탭을 그리지 않는다.
+ */
+export function useSpaceOptionsQuery(space: SpaceDetail | undefined) {
+  const userId = useAuthStore((state) => state.user?.id);
+  const { baseName, optionLabel } = splitSpaceOptionName(space?.name ?? "");
+  const isOwner = Boolean(space && userId && space.host_id === userId);
+  return useQuery({
+    queryKey: ["space-options", baseName, space?.address.road_address, isOwner],
+    enabled: Boolean(space && optionLabel),
+    queryFn: async ({ signal }): Promise<SpaceOptionSummary[]> => {
+      if (!space) return [];
+      const [publicPage, myPage] = await Promise.all([
+        searchSpaces({ name: baseName, size: 50 }, signal),
+        isOwner ? fetchMySpaces({ name: baseName, size: 50 }) : Promise.resolve(null),
+      ]);
+      const candidates = [space, ...publicPage.content, ...(myPage?.content ?? [])];
+      const options = new Map<number, SpaceOptionSummary>();
+      for (const candidate of candidates) {
+        if (options.has(candidate.space_id)) continue;
+        if (splitSpaceOptionName(candidate.name).baseName !== baseName) continue;
+        if (candidate.address.road_address !== space.address.road_address) continue;
+        const summary = toOptionSummary(candidate);
+        if (summary) options.set(candidate.space_id, summary);
+      }
+      // 등록한 순서(= 등록 폼의 구역 순서)대로.
+      const sorted = [...options.values()].sort((a, b) => a.spaceId - b.spaceId);
+      return sorted.length > 1 ? sorted : [];
+    },
   });
 }
 

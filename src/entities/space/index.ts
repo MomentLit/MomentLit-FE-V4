@@ -4,6 +4,7 @@ export type {
   AddressRequest,
   AddressResponse,
   DayOfWeek,
+  GroupedSpace,
   MySpaceListItem,
   SpaceAdminStatus,
   SpaceAvailabilitySlot,
@@ -12,13 +13,19 @@ export type {
   SpaceCreateResponse,
   SpaceDetail,
   SpaceListItem,
+  SpaceOptionGroup,
   SpaceRegionCount,
   SpaceUpdateRequest,
   UsageUnit,
 } from "./model";
 export {
   MAX_SPACE_PHOTOS,
+  SPACE_HERO_ASPECT,
   getExternalBookingUrl,
   getSpacePhotoUrls,
+  groupSpaceOptions,
   isValidExternalBookingUrl,
+  joinSpaceOptionName,
+  splitSpaceOptionName,
+  SPACE_OPTION_SEPARATOR,
 } from "./model";

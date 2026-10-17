@@ -6,6 +6,7 @@ import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { REGIONS, REGION_LABELS, type Region } from "@/entities/region";
 import { searchSpaces } from "@/entities/space/api";
+import { groupSpaceOptions } from "@/entities/space";
 import { collectPages } from "@/widgets/search-page/lib/multi-search";
 import { getErrorMessage } from "@/shared/api/error";
 import { cn } from "@/shared/lib";
@@ -25,6 +26,8 @@ export function MapPageContent() {
   const spacesQuery = useQuery({
     queryKey: ["spaces", "map", region],
     queryFn: ({ signal }) => collectPages((page) => searchSpaces({ region: region ?? undefined, page, size: 100 }, signal)),
+    // 같은 공간의 구역들은 주소가 같아 핀이 겹치므로 대표 공간 하나로 합친다.
+    select: groupSpaceOptions,
   });
   const spaces = spacesQuery.data;
   const locationsQuery = useQuery({
@@ -80,7 +83,7 @@ export function MapPageContent() {
           {spaces?.map((space) => <article key={space.space_id} className={cn("border-b border-line p-4 last:border-0", selectedId === space.space_id && "bg-primary-100")}>
             <h3 className="font-bold">{space.name}</h3>
             <p className="mt-1 break-words text-xs leading-relaxed text-soft">{space.address.road_address}</p>
-            <p className="mt-2 text-sm">{space.price_per_hour.toLocaleString()}원</p>
+            <p className="mt-2 text-sm">{space.price_per_hour.toLocaleString()}원{space.option_group && <>~ <b className="text-main-d">· 구역 {space.option_group.count}곳</b></>}</p>
             <div className="mt-3 flex flex-wrap gap-2">
               {pinIds.has(space.space_id) && <button className="button button--outline" type="button" onClick={() => setSelectedId(space.space_id)}>위치 보기</button>}
               <Link href={`/spaces/${space.space_id}`} className="button button--primary">상세 보기</Link>

@@ -2,12 +2,13 @@ import Link from "next/link";
 import { IconHeartFilled } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
 import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-category";
-import type { SpaceListItem } from "@/entities/space";
+import type { SpaceListItem, SpaceOptionGroup } from "@/entities/space";
 import { formatAddress, formatCapacityText, formatPrice } from "../lib/format";
 import { TONE_ON_BG } from "./tone-dot";
 
 interface ResultListProps {
-  items: SpaceListItem[];
+  /** 검색 결과는 `groupSpaceOptions`로 구역을 합친 목록이 온다 — `option_group`이 있으면 대표 카드. */
+  items: Array<SpaceListItem & { option_group?: SpaceOptionGroup | null }>;
   isLoading: boolean;
   isError: boolean;
   errorMessage?: string;
@@ -88,6 +89,7 @@ export function ResultList({
               </span>
               <span className="whitespace-nowrap bg-ink px-2 py-0.5 text-[0.63rem] font-medium text-white">
                 {formatPrice(space.price_per_hour, space.usage_unit)}
+                {space.option_group && "~"}
               </span>
             </div>
             <span
@@ -103,6 +105,7 @@ export function ResultList({
             <span className="line-clamp-1 text-sm font-bold tracking-tight text-ink">{space.name}</span>
             <span className="text-[0.79rem] text-soft">{formatAddress(space.address)}</span>
             <span className="mt-0.5 inline-flex items-center gap-1 font-mono text-[0.67rem] text-soft">
+              {space.option_group && <b className="font-bold text-main-d">구역 {space.option_group.count}곳 ·</b>}
               {formatCapacityText(space.usage_unit, space.capacity)} ·
               <IconHeartFilled size={11} aria-hidden /> {space.like_count}
             </span>

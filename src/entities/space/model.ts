@@ -143,7 +143,7 @@ export interface SpaceRegionCount {
 export const SPACE_HERO_ASPECT = 2;
 
 /** 공간 하나에 올릴 수 있는 사진 수 (대표 사진 포함). */
-export const MAX_SPACE_PHOTOS = 10;
+export const MAX_SPACE_PHOTOS = 30;
 
 /** 대표 사진 + 추가 사진을 중복 없이 순서대로 — 대표 사진이 항상 첫 번째. */
 export function getSpacePhotoUrls(space: Pick<SpaceDetail, "thumbnail_url" | "image_urls">): string[] {

@@ -25,13 +25,43 @@ export function toPhotoItems(urls: string[]): PhotoItem[] {
 }
 
 /** 새로 고른 파일만 업로드하고, 기존 사진은 URL을 그대로 써서 순서대로 최종 URL 목록을 만든다. 맞춘 영역이 있으면 붙인다. */
+/** 한 번에 같이 올리는 사진 수 — 서버가 사진마다 얼굴·번호판 블라인드를 처리해서, 30장을 한꺼번에 보내면 부담이 크다. */
+export const PHOTO_UPLOAD_CONCURRENCY = 3;
+
+/** 새로 고른 사진(아직 업로드 안 된 파일) 수 — 진행률의 분모. */
+export function countPendingUploads(items: PhotoItem[]): number {
+  return items.filter((item) => item.file).length;
+}
+
+export interface ResolvePhotoUrlsOptions {
+  concurrency?: number;
+  /** 새 파일 하나가 올라갈 때마다 호출된다. */
+  onUploaded?: () => void;
+}
+
+/**
+ * 새로 고른 파일만 업로드하고, 기존 사진은 URL을 그대로 써서 순서대로 최종 URL 목록을 만든다.
+ * 업로드는 `concurrency`장씩만 동시에 보내고, 결과 순서는 입력 순서를 그대로 지킨다.
+ */
 export async function resolvePhotoUrls(
   items: PhotoItem[],
   upload: (file: File) => Promise<string>,
+  { concurrency = PHOTO_UPLOAD_CONCURRENCY, onUploaded }: ResolvePhotoUrlsOptions = {},
 ): Promise<string[]> {
-  return Promise.all(
-    items.map(async (item) => withPhotoCrop(item.file ? await upload(item.file) : item.url, item.crop)),
-  );
+  const urls = items.map((item) => (item.file ? "" : item.url));
+  const pending = items.flatMap((item, index) => (item.file ? [{ index, file: item.file }] : []));
+
+  let cursor = 0;
+  async function worker() {
+    while (cursor < pending.length) {
+      const { index, file } = pending[cursor++];
+      urls[index] = await upload(file);
+      onUploaded?.();
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, pending.length) }, worker));
+
+  return items.map((item, index) => withPhotoCrop(urls[index], item.crop));
 }
 
 function revokeIfBlob(item: PhotoItem) {

@@ -67,15 +67,31 @@ export function Step1BasicInfo({ state, onFieldChange, optionTabs, onOptionChang
           />
         </FormField>
 
-        <FormField label="최대 수용 인원">
-          <input
-            type="number"
-            min={0}
-            value={option.capacity}
-            onChange={(e) => onOptionChange("capacity", e.target.value)}
-            aria-label="수용 인원"
-            className={fieldInputClass}
-          />
+        <FormField label="인원" hint="최소 인원은 비워두면 제한이 없어요.">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              value={option.minCapacity}
+              onChange={(e) => onOptionChange("minCapacity", e.target.value)}
+              placeholder="최소"
+              aria-label="최소 인원"
+              className={`${fieldInputClass} min-w-0 flex-1`}
+            />
+            <span className="flex-none text-soft" aria-hidden>
+              ~
+            </span>
+            <input
+              type="number"
+              min={1}
+              value={option.capacity}
+              onChange={(e) => onOptionChange("capacity", e.target.value)}
+              placeholder="최대"
+              aria-label="최대 인원"
+              className={`${fieldInputClass} min-w-0 flex-1`}
+            />
+            <span className="flex-none text-sm text-soft">명</span>
+          </div>
         </FormField>
 
         <FormField

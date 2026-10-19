@@ -47,7 +47,10 @@ interface SpaceBase {
   category: SpaceCategory;
   area: number | null;
   capacity: number | null;
+  /** 최소 이용 인원 — 백엔드 배포 전 응답에는 없을 수 있다. */
+  min_capacity?: number | null;
   floor: string | null;
+  /** 더 이상 입력받지 않는다(이용 안내로 대체). 기존 데이터 보존용. */
   parking_info: string | null;
   usage_unit: UsageUnit | null;
 }
@@ -80,6 +83,10 @@ export interface SpaceDetail extends SpaceBase {
   /** 백엔드 배포 전 응답에는 없을 수 있다 — 없으면 INTERNAL로 본다. */
   booking_type?: BookingType;
   external_booking_url?: string | null;
+  /** 문의·주의·이용사항 (공간 공통). */
+  usage_notice?: string | null;
+  /** 호스트가 선택으로 입력한 연락처 — 입력하면 공개된다. */
+  phone?: string | null;
 }
 
 export interface SpaceCreateRequest {
@@ -92,9 +99,14 @@ export interface SpaceCreateRequest {
   panorama_url?: string;
   price_per_hour: number;
   category: SpaceCategory;
+  /** 선택. 입력하면 상세에 공개. 수정 시 빈 문자열이면 삭제. */
   phone?: string;
   area?: number;
   capacity?: number;
+  /** 수정 시 0이면 삭제. */
+  min_capacity?: number;
+  /** 수정 시 빈 문자열이면 삭제. */
+  usage_notice?: string;
   floor?: string;
   parking_info?: string;
   usage_unit?: UsageUnit;
@@ -261,4 +273,19 @@ export function countSpaceOptions(items: SpaceListItem[]): {
     byCategory: Array.from(categories, ([category, members]) => ({ category, count: groupSpaceOptions(members).length })),
     byRegion: Array.from(regions, ([region, members]) => ({ region, count: groupSpaceOptions(members).length })),
   };
+}
+
+/** 인원 표시 — "2~10인", "최대 10인", "최소 2인". 둘 다 없으면 null. */
+export function formatCapacityRange(minCapacity: number | null | undefined, capacity: number | null | undefined): string | null {
+  if (minCapacity != null && capacity != null) {
+    return minCapacity === capacity ? `${capacity}인` : `${minCapacity}~${capacity}인`;
+  }
+  if (capacity != null) return `최대 ${capacity}인`;
+  if (minCapacity != null) return `최소 ${minCapacity}인`;
+  return null;
+}
+
+/** 공간 연락처 형식 — 백엔드 `SpaceCreateRequest.phone`과 같은 기준(숫자, +, -, 괄호, 공백 7~20자). */
+export function isValidSpacePhone(phone: string): boolean {
+  return /^[0-9+()\-\s]{7,20}$/.test(phone.trim());
 }

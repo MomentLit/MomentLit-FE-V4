@@ -76,9 +76,12 @@ export interface SpaceOptionSummary {
   pricePerHour: number;
   usageUnit: UsageUnit | null;
   capacity: number | null;
+  minCapacity: number | null;
 }
 
-function toOptionSummary(space: Pick<SpaceListItem, "space_id" | "name" | "price_per_hour" | "usage_unit" | "capacity">): SpaceOptionSummary | null {
+function toOptionSummary(
+  space: Pick<SpaceListItem, "space_id" | "name" | "price_per_hour" | "usage_unit" | "capacity" | "min_capacity">,
+): SpaceOptionSummary | null {
   const { optionLabel } = splitSpaceOptionName(space.name);
   if (!optionLabel) return null;
   return {
@@ -87,6 +90,7 @@ function toOptionSummary(space: Pick<SpaceListItem, "space_id" | "name" | "price
     pricePerHour: space.price_per_hour,
     usageUnit: space.usage_unit,
     capacity: space.capacity,
+    minCapacity: space.min_capacity ?? null,
   };
 }
 

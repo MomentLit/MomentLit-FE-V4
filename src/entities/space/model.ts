@@ -200,7 +200,7 @@ export type GroupedSpace<T> = T & { option_group: SpaceOptionGroup | null };
  * 도로명 주소가 같은 공간끼리 묶고(`splitSpaceOptionName`), 카드는 가장 먼저 나온
  * 구역 자리(서버 정렬 순서 유지)에 둔다. 대표 카드는 공통 이름, 최저 요금, 가장 큰
  * 수용 인원, 첫 구역의 사진을 쓰고, 누르면 첫 구역 상세(구역 탭)로 간다.
- * 같은 응답 안에서만 합칠 수 있어서, 구역이 다른 페이지로 갈리면 따로 보일 수 있다.
+ * 전달받은 목록 안에서 합치므로 전체 개수와 페이지를 계산할 때는 모든 페이지를 먼저 모아야 한다.
  */
 export function groupSpaceOptions<T extends SpaceListItem>(items: T[]): GroupedSpace<T>[] {
   const groups = new Map<string, T[]>();
@@ -237,4 +237,28 @@ export function groupSpaceOptions<T extends SpaceListItem>(items: T[]): GroupedS
       option_group: { count: members.length, minPrice: cheapest.price_per_hour },
     };
   });
+}
+
+/** Count cards using the same grouping as each destination's filtered search. */
+export function countSpaceOptions(items: SpaceListItem[]): {
+  total: number;
+  byCategory: SpaceCategoryCount[];
+  byRegion: SpaceRegionCount[];
+} {
+  const categories = new Map<SpaceCategory, SpaceListItem[]>();
+  const regions = new Map<string, SpaceListItem[]>();
+  for (const item of items) {
+    const categoryItems = categories.get(item.category) ?? [];
+    categoryItems.push(item);
+    categories.set(item.category, categoryItems);
+    const region = item.address.region ?? "UNKNOWN";
+    const regionItems = regions.get(region) ?? [];
+    regionItems.push(item);
+    regions.set(region, regionItems);
+  }
+  return {
+    total: groupSpaceOptions(items).length,
+    byCategory: Array.from(categories, ([category, members]) => ({ category, count: groupSpaceOptions(members).length })),
+    byRegion: Array.from(regions, ([region, members]) => ({ region, count: groupSpaceOptions(members).length })),
+  };
 }

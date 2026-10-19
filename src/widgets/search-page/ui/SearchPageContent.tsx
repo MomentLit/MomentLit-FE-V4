@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { IconFilter, IconX } from "@tabler/icons-react";
 import { keepPreviousData, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchCategoryCounts, fetchRegionCounts } from "@/entities/space/api";
-import { groupSpaceOptions, type UsageUnit } from "@/entities/space";
+import { useSpaceDisplayCounts } from "@/entities/space/queries";
+import type { UsageUnit } from "@/entities/space";
 import { REGIONS, type Region } from "@/entities/region";
 import { SPACE_CATEGORIES, type SpaceCategory } from "@/entities/space-category";
 import { collectPages, searchSelectedSpaces, toggleSelection } from "../lib/multi-search";
@@ -38,8 +38,8 @@ const SORT_PARAM: Record<SortKey, string | undefined> = {
 
 /**
  * Search results screen — left filter panel + sort/results/pagination, all
- * wired to `searchSpaces`/`fetchCategoryCounts`/`fetchRegionCounts` against
- * the real backend. Filter/sort/page state lives here and is handed down to
+ * wired to grouped search results and counts from the real backend.
+ * Filter/sort/page state lives here and is handed down to
  * the (mostly presentational) child widgets.
  */
 export function SearchPageContent() {
@@ -162,8 +162,6 @@ export function SearchPageContent() {
   const useDistanceSort = sort === "distance" && coords !== null;
 
   const searchParams = {
-    page,
-    size: PAGE_SIZE,
     sort: useDistanceSort ? undefined : SORT_PARAM[sort],
     name: name || undefined,
     usageUnit,
@@ -173,15 +171,9 @@ export function SearchPageContent() {
     lng: useDistanceSort ? coords.lng : undefined,
   };
 
-  const { data: categoryCountsData } = useQuery({
-    queryKey: ["spaces", "counts", "by-category"],
-    queryFn: fetchCategoryCounts,
-  });
-
-  const { data: regionCountsData } = useQuery({
-    queryKey: ["spaces", "counts", "by-region"],
-    queryFn: fetchRegionCounts,
-  });
+  const { data: displayCounts } = useSpaceDisplayCounts();
+  const categoryCountsData = displayCounts?.byCategory;
+  const regionCountsData = displayCounts?.byRegion;
 
   const {
     data,
@@ -196,9 +188,11 @@ export function SearchPageContent() {
     placeholderData: keepPreviousData,
   });
 
-  // 같은 공간의 구역(1층, 2층…)은 대표 카드 하나로 합친다 — 합친 만큼 결과 수에서도 뺀다.
-  const spaceItems = data ? groupSpaceOptions(data.content) : [];
-  const spaceTotalElements = data ? data.totalElements - (data.content.length - spaceItems.length) : 0;
+  // The query groups every matching page once; page changes reuse that complete snapshot.
+  const spaceTotalElements = data?.length ?? 0;
+  const spaceTotalPages = Math.ceil(spaceTotalElements / PAGE_SIZE);
+  const spacePage = Math.min(page, Math.max(0, spaceTotalPages - 1));
+  const spaceItems = data?.slice(spacePage * PAGE_SIZE, (spacePage + 1) * PAGE_SIZE) ?? [];
 
   // Popup filters run over all server pages so multi-selection never drops later matches.
   const popupKeyword = name.trim().toLowerCase();
@@ -393,8 +387,8 @@ export function SearchPageContent() {
                 errorMessage={isError ? getErrorMessage(error) : undefined}
               />
               <Pagination
-                page={data?.page ?? page}
-                totalPages={data?.totalPages ?? 0}
+                page={spacePage}
+                totalPages={spaceTotalPages}
                 onPageChange={setPage}
                 disabled={isFetching}
               />

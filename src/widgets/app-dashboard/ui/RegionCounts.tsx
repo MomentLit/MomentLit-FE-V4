@@ -1,9 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
 import { REGIONS, REGION_LABELS, REGION_COLORS } from "@/entities/region";
-import { fetchRegionCounts } from "@/entities/space/api";
+import { useSpaceDisplayCounts } from "@/entities/space/queries";
 import { getErrorMessage } from "@/shared/api/error";
 import type { SpectrumTone } from "@/shared/ui";
 import { TONE_DOT_BG } from "./tone-dot";
@@ -19,11 +18,8 @@ const TONE_HOVER_BG: Record<SpectrumTone, string> = {
 
 /** All region categories stay visible, including those with no registered spaces. */
 export function RegionCounts() {
-  const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["spaces", "counts", "by-region"],
-    queryFn: fetchRegionCounts,
-  });
-  const counts = new Map((data ?? []).map(({ region, count }) => [region, count]));
+  const { data, isLoading, isError, error } = useSpaceDisplayCounts();
+  const counts = new Map((data?.byRegion ?? []).map(({ region, count }) => [region, count]));
 
   return (
     <section className="border-b border-line app-gutter py-8 sm:py-10">

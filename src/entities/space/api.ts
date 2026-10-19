@@ -1,4 +1,6 @@
 import { apiClient, publicApiClient } from "@/shared/api/client";
+import { collectPages } from "@/shared/api/pagination";
+import { countSpaceOptions } from "./model";
 import type { ApiResponse, PageResponse } from "@/shared/api/types";
 import type { SpaceCategory } from "@/entities/space-category";
 import type { Region } from "@/entities/region";
@@ -56,6 +58,12 @@ export async function searchSpaces(params: SpaceSearchParams = {}, signal?: Abor
     signal,
   });
   return data.data;
+}
+
+/** The server's count endpoints count individual sections; displayed counts count grouped cards. */
+export async function fetchSpaceDisplayCounts(signal?: AbortSignal) {
+  const spaces = await collectPages((page) => searchSpaces({ page, size: 100 }, signal));
+  return countSpaceOptions(spaces);
 }
 
 export async function fetchMySpaces(params: SpaceSearchParams = {}): Promise<PageResponse<MySpaceListItem>> {

@@ -58,6 +58,30 @@ export function createInitialSchedule(): WeeklySchedule {
   return schedule;
 }
 
+/** 일괄 설정의 요일 빠른 선택. */
+export const DAY_PRESETS: { label: string; days: readonly Day[] }[] = [
+  { label: "평일", days: ["월", "화", "수", "목", "금"] },
+  { label: "주말", days: ["토", "일"] },
+  { label: "매일", days: DAYS },
+];
+
+/**
+ * "모두 동일 시간으로 설정" — 고른 요일은 같은 시간·예약 단위로 열고, 나머지 요일은 휴무로 만든다.
+ * 고르지 않은 요일의 시간 값은 남겨둬서, 나중에 다시 켜면 이전 시간이 그대로 보인다.
+ */
+export function applyScheduleToDays(
+  schedule: WeeklySchedule,
+  days: readonly Day[],
+  template: Omit<DaySchedule, "isOpen">,
+): WeeklySchedule {
+  const selected = new Set(days);
+  const next = {} as WeeklySchedule;
+  for (const day of DAYS) {
+    next[day] = selected.has(day) ? { ...template, isOpen: true } : { ...schedule[day], isOpen: false };
+  }
+  return next;
+}
+
 function parseTimeToMinutes(hhmm: string): number {
   const [h, m] = hhmm.split(":").map(Number);
   return (h || 0) * 60 + (m || 0);

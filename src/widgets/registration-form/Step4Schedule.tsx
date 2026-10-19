@@ -1,5 +1,7 @@
+import { useState } from "react";
 import { FormField } from "./FormField";
 import { DaySchedulePicker } from "./DaySchedulePicker";
+import { BulkSchedulePanel } from "./BulkSchedulePanel";
 import { OptionTabs, type OptionStepProps } from "./OptionTabs";
 import { usesWeeklySchedule, type Day, type DaySchedule, type RegistrationFormState } from "./model";
 
@@ -12,10 +14,23 @@ export interface Step4ScheduleProps extends OptionStepProps {
 }
 
 /** Step 4 — 일정 열기. 요일별로 운영 시간대와 예약 단위(몇 시간씩 끊어 받을지)를 직접 정한다. */
-export function Step4Schedule({ state, optionTabs, onOptionChange }: Step4ScheduleProps) {
+export function Step4Schedule({ state, onFieldChange, optionTabs, onOptionChange }: Step4ScheduleProps) {
   const option = optionTabs.options[optionTabs.activeIndex];
+  const [copiedToOthers, setCopiedToOthers] = useState(false);
+
+  /** 지금 구역의 주간 일정을 다른 구역에도 그대로 복사한다. */
+  function applyToAllOptions() {
+    onFieldChange(
+      "options",
+      state.options.map((other) =>
+        other.id === option.id ? other : { ...other, weeklySchedule: structuredClone(option.weeklySchedule) },
+      ),
+    );
+    setCopiedToOthers(true);
+  }
 
   function updateDay(day: Day, patch: Partial<DaySchedule>) {
+    setCopiedToOthers(false);
     onOptionChange("weeklySchedule", {
       ...option.weeklySchedule,
       [day]: { ...option.weeklySchedule[day], ...patch },
@@ -45,10 +60,34 @@ export function Step4Schedule({ state, optionTabs, onOptionChange }: Step4Schedu
         <FormField
           label="요일별 운영 시간"
           full
-          hint="요일을 켜고 시작~종료 시간과 예약 단위를 정하세요. 예: 10:00~18:00를 2시간 단위로 열면 게스트가 10-12시/12-14시/14-16시/16-18시 중 원하는 시간대를 골라 예약합니다."
+          hint="요일과 시간을 한 번에 정하고, 다른 요일만 아래에서 고치세요. 예: 10:00~18:00를 2시간 단위로 열면 게스트가 10-12시/12-14시/14-16시/16-18시 중 원하는 시간대를 골라 예약합니다."
         >
-          <DaySchedulePicker schedule={option.weeklySchedule} onChange={updateDay} />
+          <div className="flex flex-col gap-3">
+            {/* 구역을 바꾸면 패널 입력값도 처음부터 — 다른 구역 설정이 섞여 보이지 않게 */}
+            <BulkSchedulePanel
+              key={option.id}
+              schedule={option.weeklySchedule}
+              onApply={(schedule) => {
+                onOptionChange("weeklySchedule", schedule);
+                setCopiedToOthers(false);
+              }}
+            />
+            <DaySchedulePicker schedule={option.weeklySchedule} onChange={updateDay} />
+          </div>
         </FormField>
+
+        {state.options.length > 1 && (
+          <div className="flex flex-wrap items-center gap-2.5">
+            <button type="button" onClick={applyToAllOptions} className="button button--outline">
+              이 일정을 다른 구역에도 적용
+            </button>
+            {copiedToOthers && (
+              <span role="status" className="text-[0.79rem] text-soft">
+                모든 구역에 같은 일정을 적용했어요.
+              </span>
+            )}
+          </div>
+        )}
       </OptionTabs>
 
       <div className="shadow-[inset_3px_0_0_var(--sky)] bg-wash px-4.5 py-4 text-[0.88rem] leading-[1.75] text-soft">

@@ -1,4 +1,4 @@
-import type { AddressResponse, UsageUnit } from "@/entities/space";
+import { formatCapacityRange, type AddressResponse, type UsageUnit } from "@/entities/space";
 
 /** `sido sigungu eup_myeon_dong`, matching the "서울 성동구 성수동" style the design uses. */
 export function formatAddress(address: AddressResponse): string {
@@ -11,10 +11,10 @@ export function usageUnitLabel(unit: UsageUnit | null): string {
   return "이용 단위 미정";
 }
 
-export function formatCapacityText(usageUnit: UsageUnit | null, capacity: number | null): string {
+export function formatCapacityText(usageUnit: UsageUnit | null, capacity: number | null, minCapacity?: number | null): string {
   const unit = usageUnitLabel(usageUnit);
-  if (capacity == null) return unit;
-  return `${unit} · 최대 ${capacity}인`;
+  const range = formatCapacityRange(minCapacity, capacity);
+  return range ? `${unit} · ${range}` : unit;
 }
 
 export function formatPrice(pricePerHour: number, usageUnit: UsageUnit | null): string {

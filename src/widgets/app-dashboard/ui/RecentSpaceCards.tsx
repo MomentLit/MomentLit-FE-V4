@@ -92,7 +92,7 @@ export function RecentSpaceCards() {
                 <span className="text-[0.79rem] text-soft">{formatAddress(space.address)}</span>
                 <span className="mt-0.5 font-mono text-[0.67rem] text-soft">
                   {space.option_group && <b className="font-bold text-main-d">구역 {space.option_group.count}곳 · </b>}
-                  {formatCapacityText(space.usage_unit, space.capacity)}
+                  {formatCapacityText(space.usage_unit, space.capacity, space.min_capacity)}
                 </span>
               </div>
             </Link>

@@ -1,6 +1,7 @@
 import type { SpaceCategory } from "@/entities/space-category";
 import {
   isValidExternalBookingUrl,
+  isValidSpacePhone,
   joinSpaceOptionName,
   type BookingType,
   type DayOfWeek,
@@ -80,6 +81,9 @@ export interface SpaceOptionState {
   id: string;
   label: string;
   area: string;
+  /** 최소 이용 인원 — 비워두면 제한 없음. */
+  minCapacity: string;
+  /** 최대 이용 인원. */
   capacity: string;
   /** Optional — 고르기만 해두고 제출할 때 `resolvePhotoUrls()`로 한 번에 업로드한다. 첫 번째가 대표 사진. */
   photos: PhotoItem[];
@@ -109,7 +113,10 @@ export interface RegistrationFormState {
   addressDetail: string;
 
   // Step 3 — 이용 조건 (구역 공통)
-  parkingInfo: string;
+  /** 선택. 입력하면 상세에 공개된다. */
+  phone: string;
+  /** 문의·주의·이용사항 — 주차 안내도 여기에 쓴다. */
+  usageNotice: string;
   bookingType: BookingType;
   /** EXTERNAL일 때만 전송. */
   externalBookingUrl: string;
@@ -126,6 +133,7 @@ export function createOptionState(base?: SpaceOptionState): SpaceOptionState {
     id: `option-${Date.now()}-${optionSeq}`,
     label: "",
     area: "",
+    minCapacity: "",
     capacity: "",
     photos: [],
     panoramaUrl: null,
@@ -151,7 +159,8 @@ export function createInitialFormState(): RegistrationFormState {
     postalCode: "",
     addressDetail: "",
 
-    parkingInfo: "",
+    phone: "",
+    usageNotice: "",
     bookingType: "INTERNAL",
     externalBookingUrl: "",
 
@@ -208,8 +217,17 @@ function validateBasicInfo(state: RegistrationFormState): ValidationError | null
   for (const [index, option] of state.options.entries()) {
     const area = toOptionalNumber(option.area);
     if (area !== undefined && area < 0) return optionError(state, index, "면적은 0 이상이어야 합니다.");
+    const minCapacity = toOptionalNumber(option.minCapacity);
     const capacity = toOptionalNumber(option.capacity);
-    if (capacity !== undefined && capacity < 0) return optionError(state, index, "수용 인원은 0 이상이어야 합니다.");
+    if (minCapacity !== undefined && (minCapacity < 1 || !Number.isInteger(minCapacity))) {
+      return optionError(state, index, "최소 인원은 1명 이상의 정수로 입력해 주세요.");
+    }
+    if (capacity !== undefined && (capacity < 1 || !Number.isInteger(capacity))) {
+      return optionError(state, index, "최대 인원은 1명 이상의 정수로 입력해 주세요.");
+    }
+    if (minCapacity !== undefined && capacity !== undefined && minCapacity > capacity) {
+      return optionError(state, index, "최소 인원은 최대 인원보다 많을 수 없어요.");
+    }
   }
   return null;
 }
@@ -234,6 +252,9 @@ function validateTerms(state: RegistrationFormState): ValidationError | null {
   }
   if (state.bookingType === "EXTERNAL" && !isValidExternalBookingUrl(state.externalBookingUrl)) {
     return { message: "예약 페이지 링크를 http:// 또는 https://로 시작하는 주소로 입력해 주세요." };
+  }
+  if (state.phone.trim() && !isValidSpacePhone(state.phone)) {
+    return { message: "연락처는 숫자와 -만 써서 입력해 주세요. 예: 02-123-4567" };
   }
   return null;
 }
@@ -305,8 +326,10 @@ export function toSpaceCreateRequest(
     category: state.category,
     area: toOptionalNumber(option.area),
     capacity: toOptionalNumber(option.capacity),
+    min_capacity: toOptionalNumber(option.minCapacity),
     floor: option.floor.trim() || undefined,
-    parking_info: state.parkingInfo.trim() || undefined,
+    phone: state.phone.trim() || undefined,
+    usage_notice: state.usageNotice.trim() || undefined,
     usage_unit: option.usageUnit,
     is_draft: options.isDraft,
     booking_type: state.bookingType,

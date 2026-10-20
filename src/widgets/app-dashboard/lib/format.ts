@@ -1,4 +1,4 @@
-import type { AddressResponse, UsageUnit } from "@/entities/space";
+import { formatCapacityRange, type AddressResponse, type UsageUnit } from "@/entities/space";
 import type { SpectrumTone } from "@/shared/ui";
 
 /** Deterministic color cycle for cards with no server-provided tone (e.g. popups have no category). */
@@ -19,10 +19,10 @@ export function usageUnitLabel(unit: UsageUnit | null): string {
   return "이용 단위 미정";
 }
 
-export function formatCapacityText(usageUnit: UsageUnit | null, capacity: number | null): string {
+export function formatCapacityText(usageUnit: UsageUnit | null, capacity: number | null, minCapacity?: number | null): string {
   const unit = usageUnitLabel(usageUnit);
-  if (capacity == null) return unit;
-  return `${unit} · 최대 ${capacity}인`;
+  const range = formatCapacityRange(minCapacity, capacity);
+  return range ? `${unit} · ${range}` : unit;
 }
 
 function pad2(n: number): string {

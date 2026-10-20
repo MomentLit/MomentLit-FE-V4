@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { IconArrowRight, IconExternalLink, IconHeart, IconHeartFilled } from "@tabler/icons-react";
+import { IconArrowRight, IconExternalLink, IconHeart, IconHeartFilled, IconPhone } from "@tabler/icons-react";
 import { Card } from "@/shared/ui";
 import { useAuthStore } from "@/entities/auth";
 import { getErrorMessage } from "@/shared/api/error";
@@ -75,7 +75,9 @@ export function BookingCard({
   const minDate = useMemo(() => todayIso(), []);
   const [date, setDate] = useState(minDate);
   const [slotKey, setSlotKey] = useState<string | null>(null);
-  const [guestCount, setGuestCount] = useState(1);
+  // 최소 인원이 있으면 그 인원부터 시작한다.
+  const minGuests = Math.max(1, space.min_capacity ?? 1);
+  const [guestCount, setGuestCount] = useState(minGuests);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [pendingRequest, setPendingRequest] = useState<MatchingCreateRequest | null>(null);
   const [confirmationError, setConfirmationError] = useState<string | null>(null);
@@ -137,6 +139,10 @@ export function BookingCard({
     }
     if (!selectedSlot) {
       setFeedback({ type: "error", message: "선택한 날짜에는 예약 가능한 시간이 없어요." });
+      return;
+    }
+    if (guestCount < minGuests) {
+      setFeedback({ type: "error", message: `이 공간의 최소 이용 인원은 ${minGuests}명이에요.` });
       return;
     }
     if (space.capacity != null && guestCount > space.capacity) {
@@ -259,7 +265,7 @@ export function BookingCard({
           <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">인원</span>
           <input
             type="number"
-            min={1}
+            min={minGuests}
             max={space.capacity ?? undefined}
             value={guestCount}
             onChange={(event) => {
@@ -373,6 +379,15 @@ export function BookingCard({
           </span>
         </div>
       </div>
+      {space.phone && (
+        <a
+          href={`tel:${space.phone.replace(/[^0-9+]/g, "")}`}
+          className="mt-2.5 flex items-center gap-1.5 text-sm font-bold text-ink underline-offset-2 hover:underline"
+        >
+          <IconPhone size={15} stroke={2} aria-hidden />
+          {space.phone}
+        </a>
+      )}
     </Card>
   );
 }

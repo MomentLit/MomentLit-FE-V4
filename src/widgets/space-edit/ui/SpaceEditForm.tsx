@@ -18,6 +18,7 @@ import {
   SPACE_HERO_ASPECT,
   getSpacePhotoUrls,
   isValidExternalBookingUrl,
+  isValidSpacePhone,
   type BookingType,
 } from "@/entities/space";
 import type { SpaceCategory } from "@/entities/space-category";
@@ -44,10 +45,12 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const [category, setCategory] = useState<SpaceCategory>("POPUP_STORE");
   const [description, setDescription] = useState("");
   const [area, setArea] = useState("");
+  const [minCapacity, setMinCapacity] = useState("");
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
   const [floor, setFloor] = useState("");
-  const [parkingInfo, setParkingInfo] = useState("");
+  const [usageNotice, setUsageNotice] = useState("");
+  const [phone, setPhone] = useState("");
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
   const [photoOverflow, setPhotoOverflow] = useState(false);
   useRevokePhotoItemsOnUnmount(photos);
@@ -70,10 +73,12 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setCategory(space.category);
       setDescription(space.description);
       setArea(space.area != null ? String(space.area) : "");
+      setMinCapacity(space.min_capacity != null ? String(space.min_capacity) : "");
       setCapacity(space.capacity != null ? String(space.capacity) : "");
       setPrice(String(space.price_per_hour));
       setFloor(space.floor ?? "");
-      setParkingInfo(space.parking_info ?? "");
+      setUsageNotice(space.usage_notice ?? "");
+      setPhone(space.phone ?? "");
       setPanoramaUrl(space.panorama_url ?? null);
       setPhotos(toPhotoItems(getSpacePhotoUrls(space)));
       setBookingType(space.booking_type ?? "INTERNAL");
@@ -94,6 +99,23 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
     // 전부 지우고 저장하면 성공처럼 보이지만 대표 사진이 그대로 남으므로 막는다.
     if (photos.length === 0 && spaceQuery.data && getSpacePhotoUrls(spaceQuery.data).length > 0) {
       setError("등록된 사진을 모두 지울 수는 없어요. 대표 사진으로 쓸 사진을 한 장 이상 남겨 주세요.");
+      return;
+    }
+
+    const minValue = minCapacity.trim() ? Number(minCapacity) : undefined;
+    const maxValue = capacity.trim() ? Number(capacity) : undefined;
+    if ((minValue !== undefined && (minValue < 1 || !Number.isInteger(minValue))) ||
+        (maxValue !== undefined && (maxValue < 1 || !Number.isInteger(maxValue)))) {
+      setError("인원은 1명 이상의 정수로 입력해 주세요.");
+      return;
+    }
+    if (minValue !== undefined && maxValue !== undefined && minValue > maxValue) {
+      setError("최소 인원은 최대 인원보다 많을 수 없어요.");
+      return;
+    }
+
+    if (phone.trim() && !isValidSpacePhone(phone)) {
+      setError("연락처는 숫자와 -만 써서 입력해 주세요. 예: 02-123-4567");
       return;
     }
 
@@ -121,10 +143,14 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         description: description.trim(),
         category,
         area: area.trim() ? Number(area) : undefined,
-        capacity: capacity.trim() ? Number(capacity) : undefined,
+        capacity: maxValue,
+        // 비우면 0을 보내 최소 인원을 지운다 (백엔드 규칙: 0 = 삭제).
+        min_capacity: minValue ?? 0,
+        // 빈 문자열은 삭제 — 백엔드 규칙.
+        usage_notice: usageNotice.trim(),
+        phone: phone.trim(),
         price_per_hour: price.trim() ? Number(price) : undefined,
         floor: floor.trim() || undefined,
-        parking_info: parkingInfo.trim() || undefined,
         // 백엔드는 image_urls가 오면 기존 사진 목록을 통째로 교체한다.
         thumbnail_url: imageUrls[0],
         image_urls: imageUrls,
@@ -181,14 +207,31 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           <input type="number" min={0} value={area} onChange={(e) => setArea(e.target.value)} className={fieldInputClass} />
         </FormField>
 
-        <FormField label="최대 수용 인원">
-          <input
-            type="number"
-            min={0}
-            value={capacity}
-            onChange={(e) => setCapacity(e.target.value)}
-            className={fieldInputClass}
-          />
+        <FormField label="인원" hint="최소 인원은 비워두면 제한이 없어요.">
+          <div className="flex items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              value={minCapacity}
+              onChange={(e) => setMinCapacity(e.target.value)}
+              placeholder="최소"
+              aria-label="최소 인원"
+              className={`${fieldInputClass} min-w-0 flex-1`}
+            />
+            <span className="flex-none text-soft" aria-hidden>
+              ~
+            </span>
+            <input
+              type="number"
+              min={1}
+              value={capacity}
+              onChange={(e) => setCapacity(e.target.value)}
+              placeholder="최대"
+              aria-label="최대 인원"
+              className={`${fieldInputClass} min-w-0 flex-1`}
+            />
+            <span className="flex-none text-sm text-soft">명</span>
+          </div>
         </FormField>
 
         <FormField label="시간당 요금 (원)">
@@ -199,8 +242,16 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           <input value={floor} onChange={(e) => setFloor(e.target.value)} className={fieldInputClass} />
         </FormField>
 
-        <FormField label="주차 정보" full>
-          <input value={parkingInfo} onChange={(e) => setParkingInfo(e.target.value)} className={fieldInputClass} />
+        <FormField label="연락처 (선택)" full hint="입력하면 공간 상세에 공개돼요. 비우면 공개하지 않아요.">
+          <input
+            type="tel"
+            inputMode="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="예: 02-123-4567"
+            aria-label="연락처"
+            className={fieldInputClass}
+          />
         </FormField>
 
         <BookingTypeField
@@ -215,6 +266,17 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
+            className={`${fieldInputClass} resize-y leading-[1.7]`}
+          />
+        </FormField>
+
+        <FormField label="이용 안내 (선택)" full hint="문의 방법, 주의사항, 이용 규칙, 주차 안내 등 — 공간 상세에 그대로 보여요.">
+          <textarea
+            value={usageNotice}
+            onChange={(e) => setUsageNotice(e.target.value)}
+            rows={6}
+            maxLength={5000}
+            aria-label="이용 안내"
             className={`${fieldInputClass} resize-y leading-[1.7]`}
           />
         </FormField>

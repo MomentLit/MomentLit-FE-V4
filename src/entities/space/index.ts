@@ -20,6 +20,8 @@ export type {
 } from "./model";
 export {
   MAX_SPACE_PHOTOS,
+  formatCapacityRange,
+  isValidSpacePhone,
   SPACE_HERO_ASPECT,
   getExternalBookingUrl,
   getSpacePhotoUrls,

@@ -8,7 +8,7 @@ import { cn } from "@/shared/lib";
 // directly from the api module instead (entities files are read-only in this scope).
 import { createSpace, updateAvailability } from "@/entities/space/api";
 import { uploadImage } from "@/shared/api/upload";
-import { resolvePhotoUrls, useRevokePhotoItemsOnUnmount } from "@/shared/ui/MultiPhotoUpload";
+import { countPendingUploads, resolvePhotoUrls, useRevokePhotoItemsOnUnmount } from "@/shared/ui/MultiPhotoUpload";
 import { getErrorMessage } from "@/shared/api/error";
 import { useRequireAuth } from "@/widgets/auth";
 import { Stepper } from "./Stepper";
@@ -50,6 +50,7 @@ export function RegistrationForm() {
   useRevokePhotoItemsOnUnmount(state.options.flatMap((option) => option.photos));
   const [activeOptionIndex, setActiveOptionIndex] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [submitError, setSubmitError] = useState<string | null>(null);
   /**
    * 구역마다 Space를 하나씩 만들기 때문에 중간 구역에서 실패할 수 있다 — 이미 만든
@@ -156,13 +157,22 @@ export function RegistrationForm() {
     setSubmitting(true);
     const created = createdSpaceIdsRef.current;
     const savedSchedule = savedScheduleRef.current;
+    // 아직 등록 안 된 구역의 새 사진만 센다 — 실패 후 다시 누르면 남은 구역 것만 올린다.
+    const total = state.options
+      .filter((option) => !created.has(option.id))
+      .reduce((sum, option) => sum + countPendingUploads(option.photos), 0);
+    let uploaded = 0;
+    setUploadProgress(total > 0 ? { done: 0, total } : null);
     let currentIndex = 0;
     try {
       for (const [index, option] of state.options.entries()) {
         currentIndex = index;
         let spaceId = created.get(option.id);
         if (spaceId === undefined) {
-          const imageUrls = await resolvePhotoUrls(option.photos, (file) => uploadImage(file));
+          const imageUrls = await resolvePhotoUrls(option.photos, (file) => uploadImage(file), {
+            onUploaded: () => setUploadProgress({ done: ++uploaded, total }),
+          });
+          setUploadProgress(null);
           ({ space_id: spaceId } = await createSpace(toSpaceCreateRequest(state, option, { imageUrls, isDraft })));
           created.set(option.id, spaceId);
         }
@@ -182,6 +192,7 @@ export function RegistrationForm() {
       } else {
         setSubmitError(message);
       }
+      setUploadProgress(null);
       setSubmitting(false);
     }
   }
@@ -195,6 +206,9 @@ export function RegistrationForm() {
   }
 
   const isLastStep = step === TOTAL_STEPS;
+  const submittingLabel = uploadProgress
+    ? `사진 올리는 중 ${uploadProgress.done}/${uploadProgress.total}`
+    : "등록 중…";
 
   if (!ready) {
     return <div className="flex-1 p-10 text-sm text-soft">로그인이 필요한 서비스입니다.</div>;
@@ -243,7 +257,7 @@ export function RegistrationForm() {
           disabled={submitting}
           className={cn(primaryButtonClass, "disabled:opacity-60")}
         >
-          {isLastStep ? (submitting ? "등록 중…" : "등록하기") : "다음 단계"}
+          {isLastStep ? (submitting ? submittingLabel : "등록하기") : "다음 단계"}
           <IconArrowRight size={16} stroke={2} aria-hidden />
         </button>
         <button
@@ -252,7 +266,7 @@ export function RegistrationForm() {
           disabled={submitting}
           className={cn(outlineButtonClass, "disabled:opacity-60")}
         >
-          {submitting ? "저장 중…" : "임시 저장"}
+          {submitting ? (uploadProgress ? submittingLabel : "저장 중…") : "임시 저장"}
         </button>
       </div>
     </div>

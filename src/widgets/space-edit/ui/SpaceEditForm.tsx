@@ -2,6 +2,7 @@
 
 import {
   MultiPhotoUpload,
+  countPendingUploads,
   resolvePhotoUrls,
   toPhotoItems,
   useRevokePhotoItemsOnUnmount,
@@ -57,6 +58,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const [bookingType, setBookingType] = useState<BookingType>("INTERNAL");
   const [externalBookingUrl, setExternalBookingUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -102,7 +104,13 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
 
     setSubmitting(true);
     try {
-      const imageUrls = await resolvePhotoUrls(photos, (file) => uploadImage(file));
+      const total = countPendingUploads(photos);
+      let uploaded = 0;
+      setUploadProgress(total > 0 ? { done: 0, total } : null);
+      const imageUrls = await resolvePhotoUrls(photos, (file) => uploadImage(file), {
+        onUploaded: () => setUploadProgress({ done: ++uploaded, total }),
+      });
+      setUploadProgress(null);
 
       // 바뀌지 않았으면 보내지 않고(undefined), 삭제했으면 빈 문자열을 보낸다 — 백엔드 `Space.updatePanoramaUrl` 규칙.
       const originalPanoramaUrl = spaceQuery.data?.panorama_url ?? null;
@@ -130,6 +138,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       router.push(`/spaces/${spaceId}`);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
+      setUploadProgress(null);
       setSubmitting(false);
     }
   }
@@ -247,7 +256,11 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           disabled={submitting}
           className="button button--primary self-start sm:col-span-2"
         >
-          {submitting ? "저장 중…" : "저장하기"}
+          {submitting
+            ? uploadProgress
+              ? `사진 올리는 중 ${uploadProgress.done}/${uploadProgress.total}`
+              : "저장 중…"
+            : "저장하기"}
         </button>
       </form>
 

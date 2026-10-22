@@ -9,10 +9,8 @@ import type { SpaceOptionSummary } from "../model/queries";
 export function SpaceOptionTabs({ options, currentSpaceId }: { options: SpaceOptionSummary[]; currentSpaceId: number }) {
   return (
     <nav aria-label="구역 선택" className="border-x border-b border-line bg-white p-4 sm:px-8 sm:py-5">
-      <p className="mb-3 font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em] text-soft">
-        구역 {options.length}곳 · 구역마다 요금과 예약 가능한 시간이 달라요
-      </p>
-      <div className="grid grid-cols-2 gap-px bg-line shadow-[0_0_0_1px_var(--line)] sm:flex sm:flex-wrap">
+      {/* 모바일은 2칸씩 — 마지막 줄에 남는 자리는 그 줄 탭이 나눠 채워 빈 회색 칸이 생기지 않게 한다. */}
+      <div className="flex flex-wrap gap-px bg-line shadow-[0_0_0_1px_var(--line)]">
         {options.map((option) => {
           const active = option.spaceId === currentSpaceId;
           return (
@@ -23,7 +21,7 @@ export function SpaceOptionTabs({ options, currentSpaceId }: { options: SpaceOpt
               scroll={false}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex min-w-36 flex-1 flex-col gap-1 px-4 py-3 transition-colors",
+                "flex flex-1 basis-[calc(50%-1px)] flex-col gap-1 px-4 py-3 transition-colors sm:min-w-36 sm:basis-auto",
                 active ? "bg-primary-100 text-ink" : "bg-white text-ink hover:bg-wash",
               )}
             >

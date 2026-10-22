@@ -1,3 +1,6 @@
+import type { VirtualTourNode } from "@photo-sphere-viewer/virtual-tour-plugin";
+import type { PanoramaScene, PanoramaSceneRequest } from "@/entities/space/model";
+
 /**
  * 360도 사진 촬영 가이드.
  *
@@ -200,4 +203,161 @@ export function reviewCapturePhotos(
 
     return warnings;
   });
+}
+
+/** 장면 사이 이동 화살표 — 도착 장면은 장면 목록 안의 위치, `yaw`는 출발 장면의 수평 방향(라디안, 0 이상 2π 미만). */
+export interface PanoramaTourLink {
+  targetIndex: number;
+  yaw: number;
+}
+
+/** 뷰어·편집기가 다루는 360도 장면 한 장 — 목록의 첫 장면이 시작 장면이다. */
+export type PanoramaTourScene = Pick<PanoramaScene, "image_url"> & {
+  name?: string | null;
+  links?: PanoramaTourLink[];
+};
+
+const FULL_TURN = Math.PI * 2;
+
+/** 각도를 0 이상 2π 미만으로 맞춘다 — 서버도 이 범위만 받는다. */
+export function normalizeYaw(yaw: number): number {
+  return ((yaw % FULL_TURN) + FULL_TURN) % FULL_TURN;
+}
+
+/** 편집기에 보여줄 화살표 방향 — 정면(촬영 가이드 01번 방향, 360° 사진의 가운데)에서 오른쪽으로 돈 각도. */
+export function formatPanoramaYaw(yaw: number): string {
+  const degree = Math.round((normalizeYaw(yaw) * 180) / Math.PI) % 360;
+  return degree === 0 ? "정면" : `정면에서 오른쪽 ${degree}°`;
+}
+
+export function getPanoramaSceneName(scene: PanoramaTourScene, index: number): string {
+  return scene.name?.trim() || `장면 ${index + 1}`;
+}
+
+/**
+ * `from` 장면에 `to` 장면으로 가는 화살표를 `yaw` 방향에 둔다(이미 있으면 방향만 바꾼다).
+ * 도착 장면에 돌아오는 화살표가 없으면 반대 방향(yaw + π)으로 자동으로 만든다 — 이미 있으면 그대로 둔다.
+ */
+export function setPanoramaSceneLink(
+  scenes: readonly PanoramaTourScene[],
+  from: number,
+  to: number,
+  yaw: number,
+): PanoramaTourScene[] {
+  const hasReverse = (scenes[to].links ?? []).some((link) => link.targetIndex === from);
+
+  return scenes.map((scene, index) => {
+    if (index === from) {
+      const others = (scene.links ?? []).filter((link) => link.targetIndex !== to);
+      return { ...scene, links: [...others, { targetIndex: to, yaw: normalizeYaw(yaw) }] };
+    }
+    if (index === to && !hasReverse) {
+      return { ...scene, links: [...(scene.links ?? []), { targetIndex: from, yaw: normalizeYaw(yaw + Math.PI) }] };
+    }
+    return scene;
+  });
+}
+
+/** `from` 장면에서 `to` 장면으로 가는 화살표 하나만 지운다. */
+export function removePanoramaSceneLink(
+  scenes: readonly PanoramaTourScene[],
+  from: number,
+  to: number,
+): PanoramaTourScene[] {
+  return scenes.map((scene, index) =>
+    index === from ? { ...scene, links: (scene.links ?? []).filter((link) => link.targetIndex !== to) } : scene,
+  );
+}
+
+/** 장면 순서를 바꾼 뒤, 화살표가 계속 같은 장면을 가리키도록 위치를 다시 맞춘다. */
+export function movePanoramaScene(
+  scenes: readonly PanoramaTourScene[],
+  index: number,
+  offset: -1 | 1,
+): PanoramaTourScene[] {
+  const other = index + offset;
+  const remap = (targetIndex: number) => (targetIndex === index ? other : targetIndex === other ? index : targetIndex);
+
+  const next = scenes.map((scene) => ({
+    ...scene,
+    links: scene.links?.map((link) => ({ ...link, targetIndex: remap(link.targetIndex) })),
+  }));
+  [next[index], next[other]] = [next[other], next[index]];
+  return next;
+}
+
+/** 장면을 지우고, 그 장면으로 가던 화살표도 함께 지운다. */
+export function removePanoramaScene(scenes: readonly PanoramaTourScene[], index: number): PanoramaTourScene[] {
+  return scenes
+    .filter((_, i) => i !== index)
+    .map((scene) => ({
+      ...scene,
+      links: scene.links
+        ?.filter((link) => link.targetIndex !== index)
+        .map((link) => ({ ...link, targetIndex: link.targetIndex > index ? link.targetIndex - 1 : link.targetIndex })),
+    }));
+}
+
+/** 장면 목록을 VirtualTourPlugin 노드로 바꾼다 — 노드 id는 장면 순서(문자열). 화살표는 바닥(수평 방향)에 둔다. */
+export function toVirtualTourNodes(scenes: readonly PanoramaTourScene[]): VirtualTourNode[] {
+  return scenes.map((scene, index) => ({
+    id: String(index),
+    panorama: scene.image_url,
+    name: getPanoramaSceneName(scene, index),
+    links: (scene.links ?? [])
+      .filter((link) => link.targetIndex !== index && link.targetIndex >= 0 && link.targetIndex < scenes.length)
+      .map((link) => ({ nodeId: String(link.targetIndex), position: { yaw: link.yaw, pitch: 0 } })),
+  }));
+}
+
+/**
+ * 장면이 없으면(장면 기능 이전에 저장된 공간) `panorama_url` 한 장을 장면 하나로 본다.
+ * 응답의 화살표는 장면 id로 도착 장면을 가리키므로 목록 안 위치로 바꾼다 — 찾을 수 없는 장면은 건너뛴다.
+ */
+export function resolvePanoramaScenes(
+  scenes: readonly PanoramaScene[] | undefined,
+  legacyPanoramaUrl: string | null,
+): PanoramaTourScene[] {
+  if (scenes && scenes.length > 0) {
+    const sorted = [...scenes].sort((a, b) => a.sort_order - b.sort_order);
+    const indexById = new Map(sorted.map((scene, index) => [scene.scene_id, index]));
+    return sorted.map((scene) => ({
+      image_url: scene.image_url,
+      name: scene.name,
+      links: (scene.links ?? []).flatMap((link) => {
+        const targetIndex = indexById.get(link.target_scene_id);
+        return targetIndex === undefined ? [] : [{ targetIndex, yaw: link.yaw }];
+      }),
+    }));
+  }
+  return legacyPanoramaUrl ? [{ image_url: legacyPanoramaUrl, name: null }] : [];
+}
+
+/** 편집기의 장면 목록 → 등록/수정 요청 형태. 이름을 비워 두면 보내지 않는다. */
+export function toPanoramaSceneRequests(scenes: readonly PanoramaTourScene[]): PanoramaSceneRequest[] {
+  return scenes.map((scene) => ({
+    image_url: scene.image_url,
+    name: scene.name?.trim() || undefined,
+    links: (scene.links ?? []).map((link) => ({ target_index: link.targetIndex, yaw: link.yaw })),
+  }));
+}
+
+function isSamePanoramaLinks(a: readonly PanoramaTourLink[] = [], b: readonly PanoramaTourLink[] = []): boolean {
+  return (
+    a.length === b.length &&
+    a.every((link) => b.some((other) => other.targetIndex === link.targetIndex && other.yaw === link.yaw))
+  );
+}
+
+/** 수정 화면에서 장면 목록이 바뀌었는지 — 순서·사진·이름·화살표 중 하나라도 다르면 바뀐 것. */
+export function isSamePanoramaScenes(a: readonly PanoramaTourScene[], b: readonly PanoramaTourScene[]): boolean {
+  return (
+    a.length === b.length &&
+    a.every(
+      (scene, index) =>
+        scene.image_url === b[index].image_url &&
+        (scene.name?.trim() || "") === (b[index].name?.trim() || "") &&
+        isSamePanoramaLinks(scene.links, b[index].links),
+    )
+  );
 }

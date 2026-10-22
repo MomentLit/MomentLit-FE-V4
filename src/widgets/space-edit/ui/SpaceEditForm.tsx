@@ -12,6 +12,12 @@ import { getErrorMessage } from "@/shared/api/error";
 import { FormField, fieldInputClass } from "@/widgets/registration-form/FormField";
 import { CategoryPicker } from "@/widgets/registration-form/CategoryPicker";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
+import {
+  isSamePanoramaScenes,
+  resolvePanoramaScenes,
+  toPanoramaSceneRequests,
+  type PanoramaTourScene,
+} from "@/widgets/panorama/model";
 
 /**
  * 공간 정보 수정 — 등록 마법사와 달리 한 페이지짜리 단순 폼이다. 주소/주간 일정은 여기서 안 건드린다
@@ -34,7 +40,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const [floor, setFloor] = useState("");
   const [parkingInfo, setParkingInfo] = useState("");
   const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
-  const [panoramaUrl, setPanoramaUrl] = useState<string | null>(null);
+  const [panoramaScenes, setPanoramaScenes] = useState<PanoramaTourScene[]>([]);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -50,7 +56,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setPrice(String(space.price_per_hour));
       setFloor(space.floor ?? "");
       setParkingInfo(space.parking_info ?? "");
-      setPanoramaUrl(space.panorama_url ?? null);
+      setPanoramaScenes(resolvePanoramaScenes(space.panorama_scenes, space.panorama_url));
     });
   }, [spaceQuery.data]);
 
@@ -70,9 +76,14 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         thumbnailUrl = await uploadImage(thumbnailFile);
       }
 
-      // 바뀌지 않았으면 보내지 않고(undefined), 삭제했으면 빈 문자열을 보낸다 — 백엔드 `Space.updatePanoramaUrl` 규칙.
-      const originalPanoramaUrl = spaceQuery.data?.panorama_url ?? null;
-      const panoramaUrlChange = panoramaUrl === originalPanoramaUrl ? undefined : (panoramaUrl ?? "");
+      // 바뀌지 않았으면 보내지 않고(undefined), 모두 지웠으면 빈 배열을 보낸다 — 백엔드 `SpaceService.updateSpace` 규칙.
+      // 서버가 하위 호환용 `panorama_url`도 첫 장면으로 맞춘다.
+      const originalPanoramaScenes = spaceQuery.data
+        ? resolvePanoramaScenes(spaceQuery.data.panorama_scenes, spaceQuery.data.panorama_url)
+        : [];
+      const panoramaScenesChange = isSamePanoramaScenes(panoramaScenes, originalPanoramaScenes)
+        ? undefined
+        : toPanoramaSceneRequests(panoramaScenes);
 
       await updateSpace(spaceId, {
         name: name.trim(),
@@ -84,7 +95,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         floor: floor.trim() || undefined,
         parking_info: parkingInfo.trim() || undefined,
         thumbnail_url: thumbnailUrl,
-        panorama_url: panoramaUrlChange,
+        panorama_scenes: panoramaScenesChange,
       });
 
       await queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
@@ -170,8 +181,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         </FormField>
 
         <PanoramaPhotoField
-          value={panoramaUrl}
-          onChange={setPanoramaUrl}
+          value={panoramaScenes}
+          onChange={setPanoramaScenes}
           title={name.trim() || "공간"}
           disabled={submitting}
           saveHint

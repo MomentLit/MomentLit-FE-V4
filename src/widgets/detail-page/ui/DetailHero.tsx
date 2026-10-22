@@ -8,7 +8,7 @@ import { cn } from "@/shared/lib";
 import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-category";
 import { REGION_LABELS } from "@/entities/region";
 import type { SpaceDetail } from "@/entities/space";
-import { PanoramaViewerModal } from "@/widgets/panorama";
+import { PanoramaViewerModal, resolvePanoramaScenes } from "@/widgets/panorama";
 
 /**
  * Hero band — host가 올린 대표 사진이 있으면 그 사진을, 없으면 카테고리 색상 필드를 보여준다.
@@ -21,6 +21,9 @@ export function DetailHero({ space }: { space: SpaceDetail }) {
   const fullLocation = `${address.sido} ${address.sigungu} ${address.eup_myeon_dong}`;
   const hasPhoto = Boolean(space.thumbnail_url);
   const [panoramaOpen, setPanoramaOpen] = useState(false);
+  // 장면 기능 이전에 저장된 공간은 장면 목록이 비어 있어서 `panorama_url` 한 장으로 보여준다.
+  const panoramaScenes = resolvePanoramaScenes(space.panorama_scenes, space.panorama_url);
+  const hasPanorama = panoramaScenes.length > 0;
 
   return (
     <>
@@ -35,7 +38,7 @@ export function DetailHero({ space }: { space: SpaceDetail }) {
             <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-black/40" />
           </>
         )}
-        {space.panorama_url && (
+        {hasPanorama && (
           <button type="button" onClick={() => setPanoramaOpen(true)} className="button button--outline absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
             <IconView360 size={18} stroke={2} aria-hidden />
             360° 보기
@@ -44,7 +47,7 @@ export function DetailHero({ space }: { space: SpaceDetail }) {
         <span
           className={cn(
             "relative font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em]",
-            space.panorama_url && "pr-32",
+            hasPanorama && "pr-32",
             hasPhoto && "text-white",
           )}
         >
@@ -57,8 +60,8 @@ export function DetailHero({ space }: { space: SpaceDetail }) {
           <p className={cn("mt-2 text-sm opacity-90 sm:text-base", hasPhoto && "text-white")}>{fullLocation}</p>
         </div>
       </Card>
-      {panoramaOpen && space.panorama_url && (
-        <PanoramaViewerModal src={space.panorama_url} title={space.name} onClose={() => setPanoramaOpen(false)} />
+      {panoramaOpen && hasPanorama && (
+        <PanoramaViewerModal scenes={panoramaScenes} title={space.name} onClose={() => setPanoramaOpen(false)} />
       )}
     </>
   );

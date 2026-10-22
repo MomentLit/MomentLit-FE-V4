@@ -78,8 +78,8 @@ export function Step1BasicInfo({ state, onFieldChange }: Step1BasicInfoProps) {
         <PhotoUpload file={state.thumbnailFile} onChange={(file) => onFieldChange("thumbnailFile", file)} />
       </FormField>
       <PanoramaPhotoField
-        value={state.panoramaUrl}
-        onChange={(url) => onFieldChange("panoramaUrl", url)}
+        value={state.panoramaScenes}
+        onChange={(scenes) => onFieldChange("panoramaScenes", scenes)}
         title={state.name.trim() || "새 공간"}
       />
     </div>

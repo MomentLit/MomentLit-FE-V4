@@ -1,5 +1,6 @@
 import type { SpaceCategory } from "@/entities/space-category";
 import type { DayOfWeek, SpaceAvailabilitySlot, SpaceCreateRequest } from "@/entities/space";
+import { toPanoramaSceneRequests, type PanoramaTourScene } from "@/widgets/panorama/model";
 
 /**
  * 4-step space registration wizard state.
@@ -70,8 +71,11 @@ export interface RegistrationFormState {
   description: string;
   /** Optional — selected via a plain file input, uploaded on submit via `uploadImage()`. */
   thumbnailFile: File | null;
-  /** Optional — already uploaded (or AI-stitched) by `PanoramaUploadModal`, so this is the final S3 URL. */
-  panoramaUrl: string | null;
+  /**
+   * Optional — 360° scenes in move order. Each photo is already uploaded (or AI-stitched) by
+   * `PanoramaUploadModal`, so `image_url` is the final S3 URL.
+   */
+  panoramaScenes: PanoramaTourScene[];
 
   // Step 2 — 위치. Mirrors `AddressRequest` (see entities/space/model.ts) minus
   // `jibun_address`, which this prototype doesn't collect.
@@ -102,7 +106,7 @@ export function createInitialFormState(): RegistrationFormState {
     capacity: "",
     description: "",
     thumbnailFile: null,
-    panoramaUrl: null,
+    panoramaScenes: [],
 
     sido: "",
     sigungu: "",
@@ -216,7 +220,8 @@ export function toSpaceCreateRequest(
       postal_code: state.postalCode.trim(),
     },
     thumbnail_url: options.thumbnailUrl,
-    panorama_url: state.panoramaUrl ?? undefined,
+    // 서버가 하위 호환용 `panorama_url`을 첫 장면으로 맞춘다.
+    panorama_scenes: state.panoramaScenes.length > 0 ? toPanoramaSceneRequests(state.panoramaScenes) : undefined,
     price_per_hour: toOptionalNumber(state.pricePerUnit) ?? 0,
     category: state.category,
     area: toOptionalNumber(state.area),

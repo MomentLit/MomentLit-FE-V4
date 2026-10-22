@@ -1,4 +1,6 @@
 import { apiClient, publicApiClient } from "@/shared/api/client";
+import { collectPages } from "@/shared/api/pagination";
+import { countSpaceOptions, joinSpaceDescription, splitSpaceDescription, splitSpaceOptionName } from "./model";
 import type { ApiResponse, PageResponse } from "@/shared/api/types";
 import type { SpaceCategory } from "@/entities/space-category";
 import type { Region } from "@/entities/region";
@@ -58,6 +60,12 @@ export async function searchSpaces(params: SpaceSearchParams = {}, signal?: Abor
   return data.data;
 }
 
+/** The server's count endpoints count individual sections; displayed counts count grouped cards. */
+export async function fetchSpaceDisplayCounts(signal?: AbortSignal) {
+  const spaces = await collectPages((page) => searchSpaces({ page, size: 100 }, signal));
+  return countSpaceOptions(spaces);
+}
+
 export async function fetchMySpaces(params: SpaceSearchParams = {}): Promise<PageResponse<MySpaceListItem>> {
   const { data } = await apiClient.get<ApiResponse<PageResponse<MySpaceListItem>>>("/spaces/me", {
     params: toSearchQuery(params),
@@ -86,7 +94,46 @@ export async function updateSpace(spaceId: number, request: SpaceUpdateRequest):
   await apiClient.patch(`/spaces/${spaceId}`, request);
 }
 
+/**
+ * 내 공간 중 같은 공간의 다른 구역들 — 이름 앞부분과 도로명 주소가 같은 공간(`splitSpaceOptionName`).
+ * 구역이 없는 공간이면 빈 배열.
+ */
+export async function fetchMySpaceSiblings(
+  space: Pick<SpaceDetail, "space_id" | "name" | "address">,
+): Promise<MySpaceListItem[]> {
+  const { baseName, optionLabel } = splitSpaceOptionName(space.name);
+  if (!optionLabel) return [];
+  const page = await fetchMySpaces({ name: baseName, size: 50 });
+  return page.content.filter(
+    (candidate) =>
+      candidate.space_id !== space.space_id &&
+      splitSpaceOptionName(candidate.name).baseName === baseName &&
+      candidate.address.road_address === space.address.road_address,
+  );
+}
+
+/**
+ * 기타사항은 공간 전체에 적용되는 내용이라 구역마다 똑같이 맞춘다 — 각 구역의 공간 소개는
+ * 그대로 두고 기타사항만 바꿔 저장한다. 이미 같으면 보내지 않는다(불필요한 AI 소개 재생성 방지).
+ * 같은 값으로 덮어쓰기만 하므로 실패 후 다시 시도해도 안전하다.
+ */
+export async function syncSpaceNoticeToSiblings(siblingIds: number[], notice: string): Promise<void> {
+  await Promise.all(
+    siblingIds.map(async (siblingId) => {
+      const sibling = await fetchSpace(siblingId);
+      const current = splitSpaceDescription(sibling.description);
+      if (current.notice === notice.trim()) return;
+      await updateSpace(siblingId, { description: joinSpaceDescription(current.description, notice) });
+    }),
+  );
+}
+
 /** Owner-only `DELETE /spaces/{space-id}`; success is 204 with no response body. */
+/** `POST /spaces/{id}/external-booking-clicks` — 외부 예약 링크 클릭 기록. 비로그인도 허용. */
+export async function recordExternalBookingClick(spaceId: number): Promise<void> {
+  await apiClient.post(`/spaces/${spaceId}/external-booking-clicks`);
+}
+
 export async function deleteSpace(spaceId: number): Promise<void> {
   await apiClient.delete(`/spaces/${spaceId}`);
 }

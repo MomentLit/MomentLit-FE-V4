@@ -1,16 +1,33 @@
 "use client";
 
-import { PhotoUpload } from "@/shared/ui/PhotoUpload";
-import { useEffect, useState, type FormEvent } from "react";
+import {
+  MultiPhotoUpload,
+  countPendingUploads,
+  resolvePhotoUrls,
+  toPhotoItems,
+  useRevokePhotoItemsOnUnmount,
+  type PhotoItem,
+} from "@/shared/ui/MultiPhotoUpload";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/widgets/auth";
-import { fetchSpace, updateSpace } from "@/entities/space/api";
+import { fetchMySpaceSiblings, fetchSpace, syncSpaceNoticeToSiblings, updateSpace } from "@/entities/space/api";
+import {
+  MAX_SPACE_PHOTOS,
+  SPACE_HERO_ASPECT,
+  getSpacePhotoUrls,
+  isValidExternalBookingUrl,
+  joinSpaceDescription,
+  splitSpaceDescription,
+  type BookingType,
+} from "@/entities/space";
 import type { SpaceCategory } from "@/entities/space-category";
 import { uploadImage } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
 import { FormField, fieldInputClass } from "@/widgets/registration-form/FormField";
 import { CategoryPicker } from "@/widgets/registration-form/CategoryPicker";
+import { BookingTypeField } from "@/widgets/registration-form/BookingTypeField";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
 import {
   isSamePanoramaScenes,
@@ -30,35 +47,57 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const queryClient = useQueryClient();
 
   const spaceQuery = useQuery({ queryKey: ["space", spaceId], queryFn: () => fetchSpace(spaceId), enabled: ready });
+  // 같은 공간의 다른 구역 — 기타사항은 공간 전체 내용이라 저장할 때 같이 맞춘다.
+  const siblingsQuery = useQuery({
+    queryKey: ["space-edit-siblings", spaceId],
+    queryFn: () => fetchMySpaceSiblings(spaceQuery.data!),
+    enabled: Boolean(spaceQuery.data),
+  });
+  const siblingIds = (siblingsQuery.data ?? []).map((sibling) => sibling.space_id);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<SpaceCategory>("POPUP_STORE");
   const [description, setDescription] = useState("");
+  const [notice, setNotice] = useState("");
   const [area, setArea] = useState("");
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
   const [floor, setFloor] = useState("");
   const [parkingInfo, setParkingInfo] = useState("");
-  const [thumbnailFile, setThumbnailFile] = useState<File | null>(null);
+  const [photos, setPhotos] = useState<PhotoItem[]>([]);
+  const [photoOverflow, setPhotoOverflow] = useState(false);
+  useRevokePhotoItemsOnUnmount(photos);
+  // 폼은 처음 불러왔을 때(또는 다른 공간으로 바뀌었을 때) 한 번만 채운다 — 창 복귀 등으로
+  // 재조회될 때마다 다시 채우면 저장하지 않은 수정 내용이 서버 값으로 덮어써진다.
+  const initializedSpaceIdRef = useRef<number | null>(null);
   const [panoramaScenes, setPanoramaScenes] = useState<PanoramaTourScene[]>([]);
+  const [bookingType, setBookingType] = useState<BookingType>("INTERNAL");
+  const [externalBookingUrl, setExternalBookingUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!spaceQuery.data) return;
+    if (!spaceQuery.data || initializedSpaceIdRef.current === spaceId) return;
+    initializedSpaceIdRef.current = spaceId;
     const space = spaceQuery.data;
     queueMicrotask(() => {
       setName(space.name);
       setCategory(space.category);
-      setDescription(space.description);
+      const intro = splitSpaceDescription(space.description);
+      setDescription(intro.description);
+      setNotice(intro.notice);
       setArea(space.area != null ? String(space.area) : "");
       setCapacity(space.capacity != null ? String(space.capacity) : "");
       setPrice(String(space.price_per_hour));
       setFloor(space.floor ?? "");
       setParkingInfo(space.parking_info ?? "");
       setPanoramaScenes(resolvePanoramaScenes(space.panorama_scenes, space.panorama_url));
+      setPhotos(toPhotoItems(getSpacePhotoUrls(space)));
+      setBookingType(space.booking_type ?? "INTERNAL");
+      setExternalBookingUrl(space.external_booking_url ?? "");
     });
-  }, [spaceQuery.data]);
+  }, [spaceQuery.data, spaceId]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -69,12 +108,27 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       return;
     }
 
+    // 백엔드는 thumbnail_url이 비어 있으면 "변경 없음"으로 처리해 대표 사진을 지울 수 없다.
+    // 전부 지우고 저장하면 성공처럼 보이지만 대표 사진이 그대로 남으므로 막는다.
+    if (photos.length === 0 && spaceQuery.data && getSpacePhotoUrls(spaceQuery.data).length > 0) {
+      setError("등록된 사진을 모두 지울 수는 없어요. 대표 사진으로 쓸 사진을 한 장 이상 남겨 주세요.");
+      return;
+    }
+
+    if (bookingType === "EXTERNAL" && !isValidExternalBookingUrl(externalBookingUrl)) {
+      setError("예약 페이지 링크를 http:// 또는 https://로 시작하는 주소로 입력해 주세요.");
+      return;
+    }
+
     setSubmitting(true);
     try {
-      let thumbnailUrl: string | undefined;
-      if (thumbnailFile) {
-        thumbnailUrl = await uploadImage(thumbnailFile);
-      }
+      const total = countPendingUploads(photos);
+      let uploaded = 0;
+      setUploadProgress(total > 0 ? { done: 0, total } : null);
+      const imageUrls = await resolvePhotoUrls(photos, (file) => uploadImage(file), {
+        onUploaded: () => setUploadProgress({ done: ++uploaded, total }),
+      });
+      setUploadProgress(null);
 
       // 바뀌지 않았으면 보내지 않고(undefined), 모두 지웠으면 빈 배열을 보낸다 — 백엔드 `SpaceService.updateSpace` 규칙.
       // 서버가 하위 호환용 `panorama_url`도 첫 장면으로 맞춘다.
@@ -85,24 +139,36 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         ? undefined
         : toPanoramaSceneRequests(panoramaScenes);
 
+      // 다른 구역 먼저 — 같은 값으로 덮어쓰기만 해서 실패 후 다시 눌러도 안전하다.
+      // 목록을 아직 못 불러왔으면 여기서 불러와서, 동기화를 건너뛰고 저장되는 일이 없게 한다.
+      const siblings = siblingsQuery.data ?? (spaceQuery.data ? await fetchMySpaceSiblings(spaceQuery.data) : []);
+      const targetIds = siblings.map((sibling) => sibling.space_id);
+      if (targetIds.length > 0) await syncSpaceNoticeToSiblings(targetIds, notice);
+
       await updateSpace(spaceId, {
         name: name.trim(),
-        description: description.trim(),
+        description: joinSpaceDescription(description, notice),
         category,
         area: area.trim() ? Number(area) : undefined,
         capacity: capacity.trim() ? Number(capacity) : undefined,
         price_per_hour: price.trim() ? Number(price) : undefined,
         floor: floor.trim() || undefined,
         parking_info: parkingInfo.trim() || undefined,
-        thumbnail_url: thumbnailUrl,
+        // 백엔드는 image_urls가 오면 기존 사진 목록을 통째로 교체한다.
+        thumbnail_url: imageUrls[0],
+        image_urls: imageUrls,
         panorama_scenes: panoramaScenesChange,
+        booking_type: bookingType,
+        external_booking_url: bookingType === "EXTERNAL" ? externalBookingUrl.trim() : undefined,
       });
 
       await queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
+      await Promise.all(targetIds.map((id) => queryClient.invalidateQueries({ queryKey: ["space", id] })));
       await queryClient.invalidateQueries({ queryKey: ["spaces", "me"] });
       router.push(`/spaces/${spaceId}`);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
+      setUploadProgress(null);
       setSubmitting(false);
     }
   }
@@ -167,6 +233,13 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           <input value={parkingInfo} onChange={(e) => setParkingInfo(e.target.value)} className={fieldInputClass} />
         </FormField>
 
+        <BookingTypeField
+          bookingType={bookingType}
+          externalBookingUrl={externalBookingUrl}
+          onBookingTypeChange={setBookingType}
+          onExternalBookingUrlChange={setExternalBookingUrl}
+        />
+
         <FormField label="공간 소개" full>
           <textarea
             value={description}
@@ -176,8 +249,40 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           />
         </FormField>
 
-        <FormField label="대표 사진 (선택 — 새로 올리면 기존 사진을 대체해요)" full>
-          <PhotoUpload file={thumbnailFile} onChange={setThumbnailFile} />
+        <FormField
+          label="기타사항 (선택)"
+          full
+          hint={
+            siblingIds.length > 0
+              ? `이용 수칙, 주의사항, 추가 비용(청소비·보증금 등)처럼 예약 전에 꼭 알아야 할 내용을 적어 주세요. 같은 공간의 다른 구역 ${siblingIds.length}곳에도 똑같이 저장돼요.`
+              : "이용 수칙, 주의사항, 추가 비용(청소비·보증금 등)처럼 예약 전에 꼭 알아야 할 내용을 적어 주세요."
+          }
+        >
+          <textarea
+            value={notice}
+            onChange={(e) => setNotice(e.target.value)}
+            rows={4}
+            aria-label="기타사항"
+            className={`${fieldInputClass} resize-y leading-[1.7]`}
+          />
+        </FormField>
+
+        <FormField
+          label="공간 사진"
+          full
+          hint={photoOverflow ? `사진은 최대 ${MAX_SPACE_PHOTOS}장까지 올릴 수 있어요. 넘친 사진은 빠졌어요.` : undefined}
+        >
+          <MultiPhotoUpload
+            items={photos}
+            max={MAX_SPACE_PHOTOS}
+            cropAspect={SPACE_HERO_ASPECT}
+            disabled={submitting}
+            onChange={(next) => {
+              setPhotoOverflow(false);
+              setPhotos(next);
+            }}
+            onOverflow={() => setPhotoOverflow(true)}
+          />
         </FormField>
 
         <PanoramaPhotoField
@@ -199,7 +304,11 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           disabled={submitting}
           className="button button--primary self-start sm:col-span-2"
         >
-          {submitting ? "저장 중…" : "저장하기"}
+          {submitting
+            ? uploadProgress
+              ? `사진 올리는 중 ${uploadProgress.done}/${uploadProgress.total}`
+              : "저장 중…"
+            : "저장하기"}
         </button>
       </form>
 

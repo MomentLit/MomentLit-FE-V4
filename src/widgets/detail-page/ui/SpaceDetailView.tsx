@@ -6,12 +6,14 @@ import {
   useBookedDatesQuery,
   useHostStatsQuery,
   useSpaceQuery,
+  useSpaceOptionsQuery,
   useSpaceReviewsQuery,
 } from "../model/queries";
 import { DetailHero } from "./DetailHero";
 import { SpaceInfoSection } from "./SpaceInfoSection";
 import { ReviewSection } from "./ReviewSection";
 import { BookingCard } from "./BookingCard";
+import { SpaceOptionTabs } from "./SpaceOptionTabs";
 
 /**
  * Space detail widget — composes hero + info/reviews + booking card against
@@ -24,6 +26,7 @@ export function SpaceDetailView({ spaceId }: { spaceId: number }) {
   const bookedDatesQuery = useBookedDatesQuery(spaceId, spaceQuery.isSuccess);
   const reviewsQuery = useSpaceReviewsQuery(spaceId, spaceQuery.isSuccess);
   const hostStatsQuery = useHostStatsQuery(spaceQuery.data?.host_id);
+  const options = useSpaceOptionsQuery(spaceQuery.data).data ?? [];
 
   if (spaceQuery.isPending) {
     return (
@@ -60,7 +63,8 @@ export function SpaceDetailView({ spaceId }: { spaceId: number }) {
           {bannerMessage}
         </p>
       )}
-      <DetailHero space={space} />
+      <DetailHero key={space.space_id} space={space} hasOptions={options.length > 0} />
+      {options.length > 0 && <SpaceOptionTabs options={options} currentSpaceId={spaceId} />}
       <div className="grid grid-cols-1 gap-px overflow-hidden rounded-b-3xl bg-line lg:grid-cols-[1fr_330px]">
         <div className="flex flex-col gap-9 bg-white p-5 sm:p-8">
           <SpaceInfoSection space={space} />

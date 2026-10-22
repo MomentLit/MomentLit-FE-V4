@@ -4,21 +4,24 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { cn } from "@/shared/lib";
 import { searchSpaces } from "@/entities/space/api";
+import { groupSpaceOptions } from "@/entities/space";
 import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-category";
 import { getErrorMessage } from "@/shared/api/error";
 import { formatAddress, formatCapacityText } from "../lib/format";
 import { TONE_ON_BG } from "./tone-dot";
 
 const PAGE_SIZE = 4;
+/** 구역(1층, 2층…)을 대표 카드 하나로 합치면 4장이 안 채워질 수 있어서 넉넉히 받아 앞에서 4장만 쓴다. */
+const FETCH_SIZE = 12;
 
 /** "최근에 등록된 공간" — real `GET /spaces` (createdAt desc), 4 most recent. */
 export function RecentSpaceCards() {
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["spaces", "recent", PAGE_SIZE],
-    queryFn: () => searchSpaces({ page: 0, size: PAGE_SIZE }),
+    queryKey: ["spaces", "recent", FETCH_SIZE],
+    queryFn: () => searchSpaces({ page: 0, size: FETCH_SIZE }),
   });
 
-  const spaces = data?.content ?? [];
+  const spaces = groupSpaceOptions(data?.content ?? []).slice(0, PAGE_SIZE);
 
   return (
     <section className="border-b border-line app-gutter py-8 sm:py-10">
@@ -88,6 +91,7 @@ export function RecentSpaceCards() {
                 <span className="line-clamp-1 text-sm font-bold tracking-tight text-ink">{space.name}</span>
                 <span className="text-[0.79rem] text-soft">{formatAddress(space.address)}</span>
                 <span className="mt-0.5 font-mono text-[0.67rem] text-soft">
+                  {space.option_group && <b className="font-bold text-main-d">구역 {space.option_group.count}곳 · </b>}
                   {formatCapacityText(space.usage_unit, space.capacity)}
                 </span>
               </div>

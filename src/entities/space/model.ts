@@ -168,10 +168,11 @@ export function getExternalBookingUrl(space: Pick<SpaceDetail, "booking_type" | 
 
 /**
  * 기타사항(이용 수칙·주의사항·추가 비용 등)은 백엔드에 따로 저장할 곳이 없어서 공간 소개
- * 뒤에 이 표시를 붙여 `description` 하나로 저장한다. 화면에서는 다시 나눠 소개 아래에
- * 따로 보여준다. 같이 저장되므로 AI 소개를 만들 때도 함께 읽힌다.
+ * 뒤에 이 제목 줄을 붙여 `description` 하나로 저장한다. 화면에서는 다시 나눠 소개 아래에
+ * 따로 보여준다. 관리자 화면·DB·챗봇처럼 원문을 그대로 읽는 곳에서도 자연스러운 글로
+ * 보이게 평범한 제목 형태로 둔다. 같이 저장되므로 AI 소개를 만들 때도 함께 읽힌다.
  */
-export const SPACE_NOTICE_MARKER = "\n\n[[기타사항]]\n";
+export const SPACE_NOTICE_MARKER = "\n\n[기타사항]\n";
 
 /** 기타사항이 비어 있으면 표시 없이 소개만 저장한다. */
 export function joinSpaceDescription(description: string, notice: string): string {

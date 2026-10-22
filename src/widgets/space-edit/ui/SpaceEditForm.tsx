@@ -18,6 +18,8 @@ import {
   SPACE_HERO_ASPECT,
   getSpacePhotoUrls,
   isValidExternalBookingUrl,
+  joinSpaceDescription,
+  splitSpaceDescription,
   type BookingType,
 } from "@/entities/space";
 import type { SpaceCategory } from "@/entities/space-category";
@@ -43,6 +45,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const [name, setName] = useState("");
   const [category, setCategory] = useState<SpaceCategory>("POPUP_STORE");
   const [description, setDescription] = useState("");
+  const [notice, setNotice] = useState("");
   const [area, setArea] = useState("");
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
@@ -68,7 +71,9 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
     queueMicrotask(() => {
       setName(space.name);
       setCategory(space.category);
-      setDescription(space.description);
+      const intro = splitSpaceDescription(space.description);
+      setDescription(intro.description);
+      setNotice(intro.notice);
       setArea(space.area != null ? String(space.area) : "");
       setCapacity(space.capacity != null ? String(space.capacity) : "");
       setPrice(String(space.price_per_hour));
@@ -118,7 +123,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
 
       await updateSpace(spaceId, {
         name: name.trim(),
-        description: description.trim(),
+        description: joinSpaceDescription(description, notice),
         category,
         area: area.trim() ? Number(area) : undefined,
         capacity: capacity.trim() ? Number(capacity) : undefined,
@@ -215,6 +220,20 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
+            className={`${fieldInputClass} resize-y leading-[1.7]`}
+          />
+        </FormField>
+
+        <FormField
+          label="기타사항 (선택)"
+          full
+          hint="이용 수칙, 주의사항, 추가 비용(청소비·보증금 등)처럼 예약 전에 꼭 알아야 할 내용을 적어 주세요."
+        >
+          <textarea
+            value={notice}
+            onChange={(e) => setNotice(e.target.value)}
+            rows={4}
+            aria-label="기타사항"
             className={`${fieldInputClass} resize-y leading-[1.7]`}
           />
         </FormField>

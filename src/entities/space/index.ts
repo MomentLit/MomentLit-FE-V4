@@ -27,5 +27,8 @@ export {
   isValidExternalBookingUrl,
   joinSpaceOptionName,
   splitSpaceOptionName,
+  SPACE_NOTICE_MARKER,
+  joinSpaceDescription,
+  splitSpaceDescription,
   SPACE_OPTION_SEPARATOR,
 } from "./model";

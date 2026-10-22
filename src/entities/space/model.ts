@@ -167,6 +167,31 @@ export function getExternalBookingUrl(space: Pick<SpaceDetail, "booking_type" | 
 }
 
 /**
+ * 기타사항(이용 수칙·주의사항·추가 비용 등)은 백엔드에 따로 저장할 곳이 없어서 공간 소개
+ * 뒤에 이 제목 줄을 붙여 `description` 하나로 저장한다. 화면에서는 다시 나눠 소개 아래에
+ * 따로 보여준다. 관리자 화면·DB·챗봇처럼 원문을 그대로 읽는 곳에서도 자연스러운 글로
+ * 보이게 평범한 제목 형태로 둔다. 같이 저장되므로 AI 소개를 만들 때도 함께 읽힌다.
+ */
+export const SPACE_NOTICE_MARKER = "\n\n[기타사항]\n";
+
+/** 기타사항이 비어 있으면 표시 없이 소개만 저장한다. */
+export function joinSpaceDescription(description: string, notice: string): string {
+  const intro = description.trim();
+  const extra = notice.trim();
+  return extra ? `${intro}${SPACE_NOTICE_MARKER}${extra}` : intro;
+}
+
+/** 저장된 `description` → 공간 소개와 기타사항. 표시가 없으면 전부 소개로 본다. */
+export function splitSpaceDescription(stored: string): { description: string; notice: string } {
+  const index = stored.indexOf(SPACE_NOTICE_MARKER);
+  if (index < 0) return { description: stored, notice: "" };
+  return {
+    description: stored.slice(0, index).trim(),
+    notice: stored.slice(index + SPACE_NOTICE_MARKER.length).trim(),
+  };
+}
+
+/**
  * 한 공간 안의 구역(1층, 2층 세미나실…)은 백엔드에 따로 저장할 곳이 없어서 구역마다
  * Space를 하나씩 만들고 이름을 `공간 이름 · 구역 이름`으로 맞춘다. 상세 페이지는
  * 이름의 앞부분과 도로명 주소가 같은 공간들을 같은 공간의 구역으로 묶어 보여준다.

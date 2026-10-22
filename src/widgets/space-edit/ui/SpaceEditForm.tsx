@@ -12,12 +12,14 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/widgets/auth";
-import { fetchSpace, updateSpace } from "@/entities/space/api";
+import { fetchMySpaceSiblings, fetchSpace, syncSpaceNoticeToSiblings, updateSpace } from "@/entities/space/api";
 import {
   MAX_SPACE_PHOTOS,
   SPACE_HERO_ASPECT,
   getSpacePhotoUrls,
   isValidExternalBookingUrl,
+  joinSpaceDescription,
+  splitSpaceDescription,
   type BookingType,
 } from "@/entities/space";
 import type { SpaceCategory } from "@/entities/space-category";
@@ -39,10 +41,18 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const queryClient = useQueryClient();
 
   const spaceQuery = useQuery({ queryKey: ["space", spaceId], queryFn: () => fetchSpace(spaceId), enabled: ready });
+  // 같은 공간의 다른 구역 — 기타사항은 공간 전체 내용이라 저장할 때 같이 맞춘다.
+  const siblingsQuery = useQuery({
+    queryKey: ["space-edit-siblings", spaceId],
+    queryFn: () => fetchMySpaceSiblings(spaceQuery.data!),
+    enabled: Boolean(spaceQuery.data),
+  });
+  const siblingIds = (siblingsQuery.data ?? []).map((sibling) => sibling.space_id);
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<SpaceCategory>("POPUP_STORE");
   const [description, setDescription] = useState("");
+  const [notice, setNotice] = useState("");
   const [area, setArea] = useState("");
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
@@ -68,7 +78,9 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
     queueMicrotask(() => {
       setName(space.name);
       setCategory(space.category);
-      setDescription(space.description);
+      const intro = splitSpaceDescription(space.description);
+      setDescription(intro.description);
+      setNotice(intro.notice);
       setArea(space.area != null ? String(space.area) : "");
       setCapacity(space.capacity != null ? String(space.capacity) : "");
       setPrice(String(space.price_per_hour));
@@ -116,9 +128,15 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       const originalPanoramaUrl = spaceQuery.data?.panorama_url ?? null;
       const panoramaUrlChange = panoramaUrl === originalPanoramaUrl ? undefined : (panoramaUrl ?? "");
 
+      // 다른 구역 먼저 — 같은 값으로 덮어쓰기만 해서 실패 후 다시 눌러도 안전하다.
+      // 목록을 아직 못 불러왔으면 여기서 불러와서, 동기화를 건너뛰고 저장되는 일이 없게 한다.
+      const siblings = siblingsQuery.data ?? (spaceQuery.data ? await fetchMySpaceSiblings(spaceQuery.data) : []);
+      const targetIds = siblings.map((sibling) => sibling.space_id);
+      if (targetIds.length > 0) await syncSpaceNoticeToSiblings(targetIds, notice);
+
       await updateSpace(spaceId, {
         name: name.trim(),
-        description: description.trim(),
+        description: joinSpaceDescription(description, notice),
         category,
         area: area.trim() ? Number(area) : undefined,
         capacity: capacity.trim() ? Number(capacity) : undefined,
@@ -134,6 +152,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       });
 
       await queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
+      await Promise.all(targetIds.map((id) => queryClient.invalidateQueries({ queryKey: ["space", id] })));
       await queryClient.invalidateQueries({ queryKey: ["spaces", "me"] });
       router.push(`/spaces/${spaceId}`);
     } catch (submitError) {
@@ -215,6 +234,24 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
             value={description}
             onChange={(e) => setDescription(e.target.value)}
             rows={4}
+            className={`${fieldInputClass} resize-y leading-[1.7]`}
+          />
+        </FormField>
+
+        <FormField
+          label="기타사항 (선택)"
+          full
+          hint={
+            siblingIds.length > 0
+              ? `이용 수칙, 주의사항, 추가 비용(청소비·보증금 등)처럼 예약 전에 꼭 알아야 할 내용을 적어 주세요. 같은 공간의 다른 구역 ${siblingIds.length}곳에도 똑같이 저장돼요.`
+              : "이용 수칙, 주의사항, 추가 비용(청소비·보증금 등)처럼 예약 전에 꼭 알아야 할 내용을 적어 주세요."
+          }
+        >
+          <textarea
+            value={notice}
+            onChange={(e) => setNotice(e.target.value)}
+            rows={4}
+            aria-label="기타사항"
             className={`${fieldInputClass} resize-y leading-[1.7]`}
           />
         </FormField>

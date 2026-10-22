@@ -1,6 +1,7 @@
 import type { SpaceCategory } from "@/entities/space-category";
 import {
   isValidExternalBookingUrl,
+  joinSpaceDescription,
   joinSpaceOptionName,
   type BookingType,
   type DayOfWeek,
@@ -122,6 +123,8 @@ export interface RegistrationFormState {
   name: string;
   category: SpaceCategory;
   description: string;
+  /** 기타사항(이용 수칙·주의사항·추가 비용) — 선택. 저장할 때 소개 뒤에 붙인다(`joinSpaceDescription`). */
+  notice: string;
 
   // Step 2 — 위치. Mirrors `AddressRequest` (see entities/space/model.ts) minus
   // `jibun_address`, which this prototype doesn't collect.
@@ -167,6 +170,7 @@ export function createInitialFormState(): RegistrationFormState {
     name: "",
     category: "POPUP_STORE",
     description: "",
+    notice: "",
 
     sido: "",
     sigungu: "",
@@ -313,7 +317,7 @@ export function toSpaceCreateRequest(
   const name = state.name.trim();
   return {
     name: state.options.length > 1 ? joinSpaceOptionName(name, option.label.trim()) : name,
-    description: state.description.trim(),
+    description: joinSpaceDescription(state.description, state.notice),
     address: {
       sido: state.sido.trim(),
       sigungu: state.sigungu.trim(),

@@ -55,6 +55,20 @@ export function Step1BasicInfo({ state, onFieldChange, optionTabs, onOptionChang
         />
       </FormField>
 
+      <FormField
+        label="기타사항 (선택)"
+        full
+        hint="이용 수칙, 주의사항, 추가 비용(청소비·보증금 등)처럼 예약 전에 꼭 알아야 할 내용을 적어 주세요. 공간 상세에서 소개 바로 아래에 보여요."
+      >
+        <textarea
+          value={state.notice}
+          onChange={(e) => onFieldChange("notice", e.target.value)}
+          aria-label="기타사항"
+          placeholder={"예:\n- 음식물 반입 금지\n- 퇴실 시 원상복구 (미복구 시 청소비 3만 원)"}
+          className={`${fieldInputClass} min-h-[104px] resize-y leading-[1.7]`}
+        />
+      </FormField>
+
       <OptionTabs {...optionTabs}>
         <FormField label="면적 (㎡)">
           <input

@@ -1,11 +1,11 @@
-import { LandingExploreNav } from "@/widgets/landing/LandingExploreNav";
 import { Marquee } from "@/widgets/landing/Marquee";
+import { SpaceSpotlight } from "@/widgets/landing/spotlight/SpaceSpotlight";
 import {
   LandingHeader,
   LandingHero,
   OpenPopups,
   CategoryMosaic,
-  RegionGrid,
+  NightMap,
   DuoSection,
   StepsSection,
   ClosingCta,
@@ -23,12 +23,12 @@ export default function LandingPage() {
     <main className="landing-page flex-1 bg-white">
       <LandingHeader />
       <div>
-        <LandingExploreNav />
         <LandingHero />
       </div>
+      <SpaceSpotlight />
       <OpenPopups />
       <CategoryMosaic />
-      <RegionGrid />
+      <NightMap />
       <DuoSection />
       <StepsSection />
       <ClosingCta />

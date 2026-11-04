@@ -8,8 +8,8 @@ import { usePointerTrail } from "@/shared/hooks/usePointerTrail";
  * closing CTA). Sits absolutely behind its section's content; `pointer-events:
  * none` keeps it from ever intercepting clicks meant for that content.
  */
-export function TrailLayer({ dark = false }: { dark?: boolean }) {
-  const ref = usePointerTrail<HTMLDivElement>(true);
+export function TrailLayer({ dark = false, visible = false }: { dark?: boolean; visible?: boolean }) {
+  const ref = usePointerTrail<HTMLDivElement>(true, visible);
 
   return (
     <>

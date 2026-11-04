@@ -17,7 +17,7 @@ const HOST_STEPS = [
 /** "양쪽 모두의 자리" — ports `.duo` from design-reference.html (ANALYSIS.md §2.1). */
 export function DuoSection() {
   return (
-    <section id="host-guide" className="scroll-mt-24 border-b border-line px-4 py-11 sm:px-6 sm:py-16 lg:py-20">
+    <section id="host-guide" className="scroll-mt-20 border-b border-line px-4 py-11 sm:px-6 sm:py-16 lg:py-20">
       <Reveal className="mb-6 flex flex-col items-start gap-3 sm:mb-8">
         <h2
           className="text-[clamp(1.5rem,3.2vw,2.4rem)] leading-[1.2] tracking-tight text-ink"

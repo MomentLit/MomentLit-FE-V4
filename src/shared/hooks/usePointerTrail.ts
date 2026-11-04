@@ -27,8 +27,14 @@ const TRAIL_COLORS: Array<[number, number, number]> = [
 const FALLBACK_CELL_PX = 76;
 const MAX_CELLS = 900;
 const FADE_MS = 150;
+/** visible 모드에서 색을 유지하는 시간 — 이후 CSS transition(.8s)으로 천천히 빠진다. */
+const VISIBLE_HOLD_MS = 120;
 
-export function usePointerTrail<T extends HTMLElement>(fit = false) {
+/**
+ * `visible`: 색이 서서히 차오르지 않고 바로 켜졌다가 천천히 빠진다(가운데 .45 · 주변 .12).
+ * 기본 모드는 0.8s 페이드인 도중 FADE_MS 뒤 지워져 실제로는 아주 연하게만 보인다.
+ */
+export function usePointerTrail<T extends HTMLElement>(fit = false, visible = false) {
   // A callback ref rather than a plain useRef: callers like OpeningIntro
   // render `null` on their very first pass (before deciding whether to
   // play at all), so the element doesn't exist yet when a plain ref's
@@ -85,11 +91,13 @@ export function usePointerTrail<T extends HTMLElement>(fit = false) {
       const cell = layer.children[idx] as (HTMLElement & { _fadeTimer?: number }) | undefined;
       if (!cell) return;
       const [r, g, b] = TRAIL_COLORS[((colorIdx % TRAIL_COLORS.length) + TRAIL_COLORS.length) % TRAIL_COLORS.length];
+      if (visible) cell.style.transition = "none";
       cell.style.background = `rgba(${r},${g},${b},${alpha})`;
       window.clearTimeout(cell._fadeTimer);
       cell._fadeTimer = window.setTimeout(() => {
+        if (visible) cell.style.transition = "";
         cell.style.background = "";
-      }, FADE_MS);
+      }, visible ? VISIBLE_HOLD_MS : FADE_MS);
     }
 
     let pending: { x: number; y: number } | null = null;
@@ -119,11 +127,13 @@ export function usePointerTrail<T extends HTMLElement>(fit = false) {
         if (col < 0 || col >= cols) return;
         const idx = row * cols + col;
         const colorIdx = (col + row) % TRAIL_COLORS.length;
-        paint(idx, 0.9, colorIdx);
-        if (col > 0) paint(idx - 1, 0.24, colorIdx + 1);
-        if (col < cols - 1) paint(idx + 1, 0.24, colorIdx + 1);
-        paint(idx - cols, 0.24, colorIdx + 2);
-        paint(idx + cols, 0.24, colorIdx + 2);
+        const center = visible ? 0.45 : 0.9;
+        const side = visible ? 0.12 : 0.24;
+        paint(idx, center, colorIdx);
+        if (col > 0) paint(idx - 1, side, colorIdx + 1);
+        if (col < cols - 1) paint(idx + 1, side, colorIdx + 1);
+        paint(idx - cols, side, colorIdx + 2);
+        paint(idx + cols, side, colorIdx + 2);
       });
     }
 
@@ -140,7 +150,7 @@ export function usePointerTrail<T extends HTMLElement>(fit = false) {
       ro.disconnect();
       window.removeEventListener("pointermove", onPointerMove);
     };
-  }, [mountTick, fit]);
+  }, [mountTick, fit, visible]);
 
   return ref;
 }

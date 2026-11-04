@@ -259,6 +259,7 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 .button--danger { background: var(--coral); color: var(--ink); }
 .button--danger:hover { border-color: var(--ink); }
 .button:disabled { cursor: not-allowed; opacity: .5; }
+.landing-top .button { min-height: 46px; padding: 11px 20px; font-size: .95rem; }
 .landing-page > section, .landing-page > footer, .landing-top, .landing-explore, .landing-page > div > section { padding-inline: max(20px, calc((100% - 1280px) / 2)); }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
@@ -267,7 +268,7 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 }
 
 @media (max-width: 639px) {
-  .landing-top .button { padding: 8px 10px; font-size: .75rem; }
+  .landing-top .button { padding: 8px 12px; font-size: .82rem; }
   .landing-explore { gap: 16px; }
 }
 
@@ -338,3 +339,17 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
   animation: ai-card-sheen 6s ease-in-out infinite;
 }
 .search-hero--dashboard .search-hero-form { margin-top: 88px; margin-bottom: 32px; }
+
+/* 랜딩 밤 지도 — 공간이 있는 권역 중심에서 퍼지는 불빛 */
+@keyframes night-map-ping {
+  0% { transform: scale(.5); opacity: .9; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+.night-map-ping {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: night-map-ping 2.6s cubic-bezier(.2, .8, .2, 1) infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .night-map-ping { animation: none; opacity: .5; }
+}

@@ -126,7 +126,7 @@ export function NightMap() {
             공간
           </h2>
           <p className="max-w-[34em] text-[0.95rem] leading-[1.75]" style={{ color: NIGHT.fg2 }}>
-            불이 켜진 곳이 지금 빌릴 수 있는 공간이에요. 권역을 누르면 지도에서 바로 위치를 볼 수 있어요.
+            하늘색 점이 찍힌 곳에 지금 빌릴 수 있는 공간이 있어요. 권역을 누르면 지도에서 바로 위치를 볼 수 있어요.
           </p>
         </Reveal>
 

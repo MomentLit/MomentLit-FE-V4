@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { useAuthStore } from "@/entities/auth";
 import { Logo } from "@/shared/ui";
 import { cn } from "@/shared/lib";
@@ -17,12 +17,18 @@ export function LandingHeader() {
   const scrolled = useScrolled();
   const router = useRouter();
 
-  // 랜딩에서 로그인(회원가입 후 자동 로그인 포함)에 성공하면 바로 홈으로 보낸다.
-  // 페이지를 열 때 저장된 토큰으로 복원되는 경우(hydrate)는 hydrated가 같이 바뀌므로 제외된다.
+  // 헤더의 로그인 버튼으로 연 로그인(회원가입 후 자동 로그인 포함)에 성공했을 때만 홈으로 보낸다.
+  // 관심(하트) 버튼 등 다른 곳에서 연 로그인은 랜딩에 그대로 남는다. 로그인 없이 창을 닫으면 표시를 지운다.
+  const fromHeaderLogin = useRef(false);
   useEffect(
     () =>
       useAuthStore.subscribe((state, prev) => {
-        if (prev.hydrated && !prev.isAuthenticated && state.isAuthenticated) router.push("/home");
+        if (prev.hydrated && !prev.isAuthenticated && state.isAuthenticated && fromHeaderLogin.current) {
+          fromHeaderLogin.current = false;
+          router.push("/home");
+        } else if (prev.isAuthModalOpen && !state.isAuthModalOpen && !state.isAuthenticated) {
+          fromHeaderLogin.current = false;
+        }
       }),
     [router],
   );
@@ -43,7 +49,7 @@ export function LandingHeader() {
           <Link href="/home" className="hidden whitespace-nowrap text-sm font-bold text-soft hover:text-ink md:block">
             메인으로 →
           </Link>
-          <LandingAuthButtons />
+          <LandingAuthButtons onLoginClick={() => (fromHeaderLogin.current = true)} />
         </div>
       </div>
       {!scrolled && <LandingLinks className="-mt-2 pb-1 sm:hidden" />}

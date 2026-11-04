@@ -26,7 +26,7 @@ export function LandingLinks({ className }: { className?: string }) {
 }
 
 /** 로그인(로그아웃) · 공간 등록 버튼. 히어로 상단과 스크롤 헤더가 같이 쓴다. */
-export function LandingAuthButtons({ className }: { className?: string }) {
+export function LandingAuthButtons({ className, onLoginClick }: { className?: string; onLoginClick?: () => void }) {
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const userName = useAuthStore((state) => state.user?.name);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
@@ -44,7 +44,14 @@ export function LandingAuthButtons({ className }: { className?: string }) {
           </button>
         </>
       ) : (
-        <button type="button" onClick={openAuthModal} className="button button--outline">
+        <button
+          type="button"
+          onClick={() => {
+            onLoginClick?.();
+            openAuthModal();
+          }}
+          className="button button--outline"
+        >
           로그인
         </button>
       )}

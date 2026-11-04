@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { REGIONS, REGION_LABELS, type Region } from "@/entities/region";
@@ -19,7 +20,11 @@ const MapCanvas = dynamic(() => import("./MapCanvas"), {
 const EMPTY_PINS: SpacePin[] = [];
 
 export function MapPageContent() {
-  const [region, setRegion] = useState<Region | null>(null);
+  // 랜딩 지도에서 권역을 눌러 들어오면 ?region=SEOUL 처럼 그 권역이 선택된 채로 연다.
+  const regionParam = useSearchParams().get("region");
+  const [region, setRegion] = useState<Region | null>(
+    REGIONS.includes(regionParam as Region) ? (regionParam as Region) : null,
+  );
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const queryClient = useQueryClient();
   const configured = Boolean(process.env.NEXT_PUBLIC_KAKAO_MAP_KEY);

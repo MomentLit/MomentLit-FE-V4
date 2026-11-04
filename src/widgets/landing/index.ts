@@ -2,7 +2,7 @@ export { LandingHeader } from "./LandingHeader";
 export { LandingHero } from "./LandingHero";
 export { OpenPopups } from "./OpenPopups";
 export { CategoryMosaic } from "./CategoryMosaic";
-export { RegionGrid } from "./RegionGrid";
+export { NightMap } from "./NightMap";
 export { DuoSection } from "./DuoSection";
 export { StepsSection } from "./StepsSection";
 export { ClosingCta } from "./ClosingCta";

@@ -73,7 +73,8 @@ export function useSpaceQuery(spaceId: number) {
 export interface SpaceOptionSummary {
   spaceId: number;
   label: string;
-  pricePerHour: number;
+  /** 가격 문의 구역이면 `null`. */
+  pricePerHour: number | null;
   usageUnit: UsageUnit | null;
   capacity: number | null;
 }

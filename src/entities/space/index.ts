@@ -20,10 +20,13 @@ export type {
 } from "./model";
 export {
   MAX_SPACE_PHOTOS,
+  PRICE_INQUIRY_LABEL,
   SPACE_HERO_ASPECT,
+  formatPriceAmount,
   getExternalBookingUrl,
   getSpacePhotoUrls,
   groupSpaceOptions,
+  isPriceInquiry,
   isValidExternalBookingUrl,
   joinSpaceOptionName,
   splitSpaceOptionName,

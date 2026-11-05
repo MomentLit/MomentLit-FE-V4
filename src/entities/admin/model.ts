@@ -27,7 +27,9 @@ export interface AdminSpaceListItem {
   aiSummary: string | null;
   address: AdminAddress;
   thumbnailUrl: string | null;
-  pricePerHour: number;
+  /** 가격 문의 공간이면 `null`. */
+  pricePerHour: number | null;
+  priceInquiry?: boolean;
   adminStatus: SpaceAdminStatus;
   isActive: boolean;
   category: SpaceCategory;

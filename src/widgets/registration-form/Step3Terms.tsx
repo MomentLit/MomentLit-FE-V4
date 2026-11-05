@@ -1,5 +1,6 @@
 import { cn } from "@/shared/lib";
 import { FormField, fieldInputClass } from "./FormField";
+import { PriceField } from "./PriceField";
 import { BookingTypeField } from "./BookingTypeField";
 import { OptionTabs, type OptionStepProps } from "./OptionTabs";
 import { USAGE_UNIT_LABELS, type RegistrationFormState, type UsageUnit } from "./model";
@@ -72,16 +73,13 @@ export function Step3Terms({ state, onFieldChange, optionTabs, onOptionChange }:
           </div>
         </FormField>
 
-        <FormField label={rateLabel}>
-          <input
-            type="number"
-            min={0}
-            value={option.pricePerUnit}
-            onChange={(e) => onOptionChange("pricePerUnit", e.target.value)}
-            aria-label={rateLabel}
-            className={fieldInputClass}
-          />
-        </FormField>
+        <PriceField
+          label={rateLabel}
+          price={option.pricePerUnit}
+          priceInquiry={option.priceInquiry}
+          onPriceChange={(price) => onOptionChange("pricePerUnit", price)}
+          onPriceInquiryChange={(priceInquiry) => onOptionChange("priceInquiry", priceInquiry)}
+        />
 
         <FormField label="최소 이용 시간">
           <input

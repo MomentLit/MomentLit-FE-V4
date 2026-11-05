@@ -9,7 +9,9 @@ export interface ChatbotSpaceCard {
   id: number;
   name: string;
   thumbnail_url: string | null;
-  price_per_hour: number;
+  /** 가격 문의 공간이면 `null`. */
+  price_per_hour: number | null;
+  price_inquiry?: boolean;
   category: string;
   address: string;
 }

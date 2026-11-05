@@ -42,7 +42,10 @@ interface SpaceBase {
   name: string;
   address: AddressResponse;
   thumbnail_url: string | null;
-  price_per_hour: number;
+  /** 가격 문의 공간이면 `null` — 화면에는 `PRICE_INQUIRY_LABEL`로 보여준다. */
+  price_per_hour: number | null;
+  /** 백엔드 배포 전 응답에는 없을 수 있다 — 없으면 `price_per_hour`가 null인지로 판단한다. */
+  price_inquiry?: boolean;
   like_count: number;
   category: SpaceCategory;
   area: number | null;
@@ -122,7 +125,10 @@ export interface SpaceCreateRequest {
   panorama_url?: string;
   /** 생략하면 변경 없음, 빈 배열이면 360도 장면 전체 삭제. 보내면 서버가 `panorama_url`을 첫 장면으로 맞춘다. */
   panorama_scenes?: PanoramaSceneRequest[];
-  price_per_hour: number;
+  /** `price_inquiry`가 true면 보내지 않는다(서버가 무시하고 비운다). 아니면 필수·양수. */
+  price_per_hour?: number;
+  /** 가격 대신 "가격 문의"로 노출. 수정 시 false로 되돌릴 때는 `price_per_hour`도 함께 보내야 한다. */
+  price_inquiry?: boolean;
   category: SpaceCategory;
   phone?: string;
   area?: number;
@@ -198,6 +204,19 @@ export function getExternalBookingUrl(space: Pick<SpaceDetail, "booking_type" | 
   return space.booking_type === "EXTERNAL" && space.external_booking_url ? space.external_booking_url : null;
 }
 
+/** 가격 문의 공간(`price_per_hour`가 null)에 요금 대신 보여주는 문구. */
+export const PRICE_INQUIRY_LABEL = "가격 문의";
+
+/** 가격 문의 공간인지 — 백엔드 배포 전 응답에는 `price_inquiry`가 없을 수 있어 가격이 비었는지도 본다. */
+export function isPriceInquiry(space: Pick<SpaceListItem, "price_per_hour" | "price_inquiry">): boolean {
+  return space.price_inquiry === true || space.price_per_hour == null;
+}
+
+/** `12,000원`, 가격 문의 공간이면 `가격 문의`. 이용 단위(/시간, /일)는 붙이지 않는다. */
+export function formatPriceAmount(price: number | null): string {
+  return price == null ? PRICE_INQUIRY_LABEL : `${price.toLocaleString()}원`;
+}
+
 /**
  * 기타사항(이용 수칙·주의사항·추가 비용 등)은 백엔드에 따로 저장할 곳이 없어서 공간 소개
  * 뒤에 이 제목 줄을 붙여 `description` 하나로 저장한다. 화면에서는 다시 나눠 소개 아래에
@@ -246,8 +265,11 @@ export function splitSpaceOptionName(name: string): { baseName: string; optionLa
 export interface SpaceOptionGroup {
   /** 구역 수 (2 이상). */
   count: number;
-  /** 가장 싼 구역의 요금 — 카드에 "~부터"로 보여준다. 그 구역의 이용 단위는 `usage_unit`. */
-  minPrice: number;
+  /**
+   * 가장 싼 구역의 요금 — 카드에 "~부터"로 보여준다. 그 구역의 이용 단위는 `usage_unit`.
+   * 가격 문의 구역은 최저가 계산에서 빼고, 모든 구역이 가격 문의면 `null`.
+   */
+  minPrice: number | null;
 }
 
 export type GroupedSpace<T> = T & { option_group: SpaceOptionGroup | null };
@@ -281,17 +303,21 @@ export function groupSpaceOptions<T extends SpaceListItem>(items: T[]): GroupedS
     const members = groups.get(entry) ?? [];
     if (members.length < 2) return { ...members[0], option_group: null };
     const byId = [...members].sort((a, b) => a.space_id - b.space_id);
-    const cheapest = members.reduce((min, item) => (item.price_per_hour < min.price_per_hour ? item : min));
+    const priced = members.filter((item): item is T & { price_per_hour: number } => item.price_per_hour != null);
+    const cheapest = priced.length > 0
+      ? priced.reduce((min, item) => (item.price_per_hour < min.price_per_hour ? item : min))
+      : null;
     const capacities = members.map((item) => item.capacity).filter((value): value is number => value != null);
     return {
       ...byId[0],
       name: splitSpaceOptionName(byId[0].name).baseName,
       thumbnail_url: byId.find((item) => item.thumbnail_url)?.thumbnail_url ?? null,
-      price_per_hour: cheapest.price_per_hour,
-      usage_unit: cheapest.usage_unit,
+      price_per_hour: cheapest?.price_per_hour ?? null,
+      price_inquiry: cheapest == null,
+      usage_unit: (cheapest ?? byId[0]).usage_unit,
       capacity: capacities.length > 0 ? Math.max(...capacities) : null,
       like_count: members.reduce((sum, item) => sum + item.like_count, 0),
-      option_group: { count: members.length, minPrice: cheapest.price_per_hour },
+      option_group: { count: members.length, minPrice: cheapest?.price_per_hour ?? null },
     };
   });
 }

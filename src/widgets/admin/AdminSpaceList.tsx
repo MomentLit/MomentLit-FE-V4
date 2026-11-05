@@ -7,7 +7,7 @@ import { useRequireAuth } from "@/widgets/auth";
 import { useAuthStore } from "@/entities/auth";
 import { approveAdminSpace, fetchAdminSpaces, rejectAdminSpace, type AdminSpaceListItem } from "@/entities/admin";
 import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-category";
-import type { SpaceAdminStatus } from "@/entities/space";
+import { formatPriceAmount, type SpaceAdminStatus } from "@/entities/space";
 import { Badge, Card } from "@/shared/ui";
 import { getErrorMessage } from "@/shared/api/error";
 import { TONE_ON_BG } from "./tone-on-bg";
@@ -142,7 +142,7 @@ export function AdminSpaceList() {
               </div>
               <p className="mt-0.5 text-sm text-soft">{formatAddress(space.address)}</p>
               <p className="mt-0.5 font-mono text-xs text-soft">
-                {space.pricePerHour.toLocaleString()}원 · 등록 {new Date(space.createdAt).toLocaleDateString("ko-KR")}
+                {formatPriceAmount(space.pricePerHour)} · 등록 {new Date(space.createdAt).toLocaleDateString("ko-KR")}
               </p>
             </div>
 

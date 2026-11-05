@@ -4,7 +4,7 @@ import Link from "next/link";
 import type { CSSProperties } from "react";
 import { IconEye, IconHeart, IconHeartFilled } from "@tabler/icons-react";
 import { useAuthStore } from "@/entities/auth";
-import type { GroupedSpace, SpaceListItem } from "@/entities/space";
+import { formatPriceAmount, type GroupedSpace, type SpaceListItem } from "@/entities/space";
 import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-category";
 import { REGION_LABELS } from "@/entities/region";
 import { cn } from "@/shared/lib";
@@ -33,7 +33,9 @@ export function placeText(space: SpaceListItem) {
 
 export function priceText(space: SpotlightSpace) {
   const price = space.option_group ? space.option_group.minPrice : space.price_per_hour;
-  return { amount: `${price.toLocaleString()}원${space.option_group ? "~" : ""}`, unit: space.usage_unit === "DAILY" ? "/ 일" : "/ 시간" };
+  // 가격 문의 공간(구역이 모두 가격 문의인 묶음 포함)은 이용 단위 없이 "가격 문의"만.
+  if (price == null) return { amount: formatPriceAmount(null), unit: "" };
+  return { amount: `${formatPriceAmount(price)}${space.option_group ? "~" : ""}`, unit: space.usage_unit === "DAILY" ? "/ 일" : "/ 시간" };
 }
 
 /** 사진이 없으면 카테고리 색 면에 카테고리 이름을 크게 깐다. */

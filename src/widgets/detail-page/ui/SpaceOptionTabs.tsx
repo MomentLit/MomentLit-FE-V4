@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { cn } from "@/shared/lib";
+import { formatPriceAmount } from "@/entities/space";
 import type { SpaceOptionSummary } from "../model/queries";
 
 /**
@@ -27,7 +28,8 @@ export function SpaceOptionTabs({ options, currentSpaceId }: { options: SpaceOpt
             >
               <b className="break-keep text-[0.95rem] font-bold">{option.label}</b>
               <span className="text-xs text-soft">
-                {option.pricePerHour.toLocaleString()}원{option.usageUnit === "DAILY" ? " / 일" : " / 시간"}
+                {formatPriceAmount(option.pricePerHour)}
+                {option.pricePerHour != null && (option.usageUnit === "DAILY" ? " / 일" : " / 시간")}
                 {option.capacity != null && ` · 최대 ${option.capacity}인`}
               </span>
             </Link>

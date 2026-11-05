@@ -10,7 +10,7 @@ import { fetchMyPopups } from "@/entities/popup";
 import { uploadImage } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
 import { Badge, type BadgeProps } from "@/shared/ui";
-import type { MySpaceListItem, SpaceAdminStatus } from "@/entities/space";
+import { formatPriceAmount, type MySpaceListItem, type SpaceAdminStatus } from "@/entities/space";
 
 const fieldInputClass =
   "w-full border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-soft focus:border-sky";
@@ -225,7 +225,7 @@ export function ProfileView() {
                         <Badge variant={meta.variant}>{meta.label}</Badge>
                         {!space.is_active && <Badge variant="neutral">비활성</Badge>}
                       </div>
-                      <p className="mt-0.5 text-sm text-soft">{space.price_per_hour.toLocaleString()}원</p>
+                      <p className="mt-0.5 text-sm text-soft">{formatPriceAmount(space.price_per_hour)}</p>
                     </div>
                     <div className="mt-auto flex flex-wrap gap-2">
                       <Link

@@ -116,6 +116,8 @@ export interface SpaceOptionState {
   panoramaScenes: PanoramaTourScene[];
   usageUnit: UsageUnit;
   pricePerUnit: string;
+  /** "문의 바람" — 켜면 요금 대신 "가격 문의"로 노출하고 `pricePerUnit`은 보내지 않는다. */
+  priceInquiry: boolean;
   /** UI-only — `SpaceCreateRequest` has no matching field, so this isn't sent on submit. */
   minUsageHours: string;
   floor: string;
@@ -163,6 +165,7 @@ export function createOptionState(base?: SpaceOptionState): SpaceOptionState {
     // 새 구역은 보통 요금 체계·운영 시간이 비슷해서 지금 구역 값을 이어받는다 — 사진·이름은 구역마다 다르니 비운다.
     usageUnit: base?.usageUnit ?? "HOURLY",
     pricePerUnit: base?.pricePerUnit ?? "",
+    priceInquiry: base?.priceInquiry ?? false,
     minUsageHours: base?.minUsageHours ?? "",
     floor: "",
     weeklySchedule: base ? structuredClone(base.weeklySchedule) : createInitialSchedule(),
@@ -261,6 +264,7 @@ function validateLocation(state: RegistrationFormState): ValidationError | null 
 
 function validateTerms(state: RegistrationFormState): ValidationError | null {
   for (const [index, option] of state.options.entries()) {
+    if (option.priceInquiry) continue;
     const price = toOptionalNumber(option.pricePerUnit);
     if (price === undefined || price <= 0) return optionError(state, index, "요금을 입력해 주세요.");
   }
@@ -334,7 +338,8 @@ export function toSpaceCreateRequest(
     image_urls: options.imageUrls?.length ? options.imageUrls : undefined,
     // 서버가 하위 호환용 `panorama_url`을 첫 장면으로 맞춘다.
     panorama_scenes: option.panoramaScenes.length > 0 ? toPanoramaSceneRequests(option.panoramaScenes) : undefined,
-    price_per_hour: toOptionalNumber(option.pricePerUnit) ?? 0,
+    price_per_hour: option.priceInquiry ? undefined : toOptionalNumber(option.pricePerUnit) ?? 0,
+    price_inquiry: option.priceInquiry,
     category: state.category,
     area: toOptionalNumber(option.area),
     capacity: toOptionalNumber(option.capacity),

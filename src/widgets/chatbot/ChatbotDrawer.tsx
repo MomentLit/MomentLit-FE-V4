@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Bot, ChevronDown, Send, Sparkles, X } from "lucide-react";
 import { streamChatbotReply, type ChatbotSpaceCard } from "@/entities/chatbot";
 import { useAuthStore } from "@/entities/auth";
+import { PRICE_INQUIRY_LABEL } from "@/entities/space";
 import { cn } from "@/shared/lib";
 
 type Corner = "tl" | "tr" | "bl" | "br";
@@ -68,7 +69,8 @@ function isStoredMessage(value: unknown): value is ChatMessage {
   );
 }
 
-function formatPrice(price: number): string {
+function formatPrice(price: number | null): string {
+  if (price == null) return PRICE_INQUIRY_LABEL;
   return `${new Intl.NumberFormat("ko-KR").format(price)}원 / 시간`;
 }
 

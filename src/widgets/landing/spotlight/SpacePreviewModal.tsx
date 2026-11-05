@@ -44,7 +44,7 @@ export function SpacePreviewModal({
     : null;
 
   const facts = [
-    { label: "요금", value: `${price.amount} ${price.unit}` },
+    { label: "요금", value: [price.amount, price.unit].filter(Boolean).join(" ") },
     { label: "수용 인원", value: space.capacity != null ? `최대 ${space.capacity}인` : "정보 없음" },
     { label: "면적", value: space.area != null ? `${space.area}㎡` : "정보 없음" },
   ];

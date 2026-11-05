@@ -89,7 +89,7 @@ export function ResultList({
               </span>
               <span className="whitespace-nowrap bg-ink px-2 py-0.5 text-[0.63rem] font-medium text-white">
                 {formatPrice(space.price_per_hour, space.usage_unit)}
-                {space.option_group && "~"}
+                {space.option_group?.minPrice != null && "~"}
               </span>
             </div>
             <span

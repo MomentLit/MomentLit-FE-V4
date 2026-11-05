@@ -17,6 +17,7 @@ import {
   MAX_SPACE_PHOTOS,
   SPACE_HERO_ASPECT,
   getSpacePhotoUrls,
+  isPriceInquiry,
   isValidExternalBookingUrl,
   joinSpaceDescription,
   splitSpaceDescription,
@@ -28,6 +29,7 @@ import { getErrorMessage } from "@/shared/api/error";
 import { FormField, fieldInputClass } from "@/widgets/registration-form/FormField";
 import { CategoryPicker } from "@/widgets/registration-form/CategoryPicker";
 import { BookingTypeField } from "@/widgets/registration-form/BookingTypeField";
+import { PriceField } from "@/widgets/registration-form/PriceField";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
 import {
   isSamePanoramaScenes,
@@ -62,6 +64,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const [area, setArea] = useState("");
   const [capacity, setCapacity] = useState("");
   const [price, setPrice] = useState("");
+  const [priceInquiry, setPriceInquiry] = useState(false);
   const [floor, setFloor] = useState("");
   const [parkingInfo, setParkingInfo] = useState("");
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
@@ -89,7 +92,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setNotice(intro.notice);
       setArea(space.area != null ? String(space.area) : "");
       setCapacity(space.capacity != null ? String(space.capacity) : "");
-      setPrice(String(space.price_per_hour));
+      setPrice(space.price_per_hour != null ? String(space.price_per_hour) : "");
+      setPriceInquiry(isPriceInquiry(space));
       setFloor(space.floor ?? "");
       setParkingInfo(space.parking_info ?? "");
       setPanoramaScenes(resolvePanoramaScenes(space.panorama_scenes, space.panorama_url));
@@ -112,6 +116,12 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
     // 전부 지우고 저장하면 성공처럼 보이지만 대표 사진이 그대로 남으므로 막는다.
     if (photos.length === 0 && spaceQuery.data && getSpacePhotoUrls(spaceQuery.data).length > 0) {
       setError("등록된 사진을 모두 지울 수는 없어요. 대표 사진으로 쓸 사진을 한 장 이상 남겨 주세요.");
+      return;
+    }
+
+    // 가격 문의를 끄면 서버가 요금을 함께 요구한다 — 비워 두면 400이 나므로 먼저 막는다.
+    if (!priceInquiry && !(Number(price) > 0)) {
+      setError("요금을 입력하거나 '문의 바람'을 선택해 주세요.");
       return;
     }
 
@@ -151,7 +161,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         category,
         area: area.trim() ? Number(area) : undefined,
         capacity: capacity.trim() ? Number(capacity) : undefined,
-        price_per_hour: price.trim() ? Number(price) : undefined,
+        price_per_hour: priceInquiry ? undefined : Number(price),
+        price_inquiry: priceInquiry,
         floor: floor.trim() || undefined,
         parking_info: parkingInfo.trim() || undefined,
         // 백엔드는 image_urls가 오면 기존 사진 목록을 통째로 교체한다.
@@ -221,9 +232,13 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           />
         </FormField>
 
-        <FormField label="시간당 요금 (원)">
-          <input type="number" min={0} value={price} onChange={(e) => setPrice(e.target.value)} className={fieldInputClass} />
-        </FormField>
+        <PriceField
+          label="시간당 요금 (원)"
+          price={price}
+          priceInquiry={priceInquiry}
+          onPriceChange={setPrice}
+          onPriceInquiryChange={setPriceInquiry}
+        />
 
         <FormField label="층수">
           <input value={floor} onChange={(e) => setFloor(e.target.value)} className={fieldInputClass} />

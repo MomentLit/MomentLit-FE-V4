@@ -9,7 +9,7 @@ import { Card } from "@/shared/ui";
 import { useAuthStore } from "@/entities/auth";
 import { getErrorMessage } from "@/shared/api/error";
 import { createChatRoom } from "@/entities/message";
-import { getExternalBookingUrl, type SpaceAvailabilitySlot, type SpaceDetail } from "@/entities/space";
+import { formatPriceAmount, getExternalBookingUrl, type SpaceAvailabilitySlot, type SpaceDetail } from "@/entities/space";
 import { recordExternalBookingClick } from "@/entities/space/api";
 import type { HostStats } from "@/entities/matching";
 import type { MatchingCreateRequest } from "@/entities/matching";
@@ -107,10 +107,13 @@ export function BookingCard({
   };
 
   const hours = selectedSlot ? slotDurationHours(selectedSlot) : 0;
+  const pricePerHour = space.price_per_hour;
   // DAILY 공간의 price_per_hour는 이름과 달리 "1일 요금"이다 — 시간을 곱하면 하루치 슬롯
   // 하나를 몇 배로 청구하게 된다. HOURLY만 시간에 비례해서 계산한다.
+  // 가격 문의 공간은 금액 없이 요청하고(total_price "0"), 화면에는 "가격 문의"로 보여준다.
   const totalPrice =
-    space.usage_unit === "DAILY" ? space.price_per_hour : Math.round(space.price_per_hour * hours);
+    pricePerHour == null ? 0 : space.usage_unit === "DAILY" ? pricePerHour : Math.round(pricePerHour * hours);
+  const totalPriceText = formatPriceAmount(pricePerHour == null ? null : totalPrice);
 
   const handleDateChange = (value: string) => {
     setDate(value);
@@ -171,10 +174,15 @@ export function BookingCard({
     <Card className="sticky top-4 rounded-2xl p-5 shadow-[inset_0_0_0_1px_var(--color-ink)]">
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="whitespace-nowrap text-2xl font-semibold tracking-tight text-ink">
-          {space.price_per_hour.toLocaleString()}원{" "}
-          <small className="text-sm font-normal text-soft">
-            / {space.usage_unit ? USAGE_UNIT_LABELS[space.usage_unit] : "이용 단위 미정"}
-          </small>
+          {formatPriceAmount(pricePerHour)}
+          {pricePerHour != null && (
+            <>
+              {" "}
+              <small className="text-sm font-normal text-soft">
+                / {space.usage_unit ? USAGE_UNIT_LABELS[space.usage_unit] : "이용 단위 미정"}
+              </small>
+            </>
+          )}
         </div>
         <button
           type="button"
@@ -273,7 +281,7 @@ export function BookingCard({
         <div className="mt-2.5 min-h-5 text-sm text-soft">
           {selectedSlot && (
             <p>
-              예상 금액 <b className="text-ink">{totalPrice.toLocaleString()}원</b> (
+              예상 금액 <b className="text-ink">{totalPriceText}</b> (
               {space.usage_unit === "DAILY" ? "1일" : `${hours}시간`})
             </p>
           )}
@@ -332,7 +340,7 @@ export function BookingCard({
             <dt className="text-soft">날짜</dt><dd className="font-bold text-ink">{pendingRequest.start_time.slice(0, 10)}</dd>
             <dt className="text-soft">시간</dt><dd className="font-bold text-ink">{pendingRequest.start_time.slice(11, 16)} — {pendingRequest.end_time.slice(11, 16)}</dd>
             <dt className="text-soft">인원</dt><dd className="font-bold text-ink">{pendingRequest.guest_count}명</dd>
-            <dt className="text-soft">예상 금액</dt><dd className="font-bold text-ink">{Number(pendingRequest.total_price).toLocaleString()}원</dd>
+            <dt className="text-soft">예상 금액</dt><dd className="font-bold text-ink">{formatPriceAmount(pricePerHour == null ? null : Number(pendingRequest.total_price))}</dd>
           </dl>
           <p className="text-sm leading-relaxed text-soft">호스트가 승인하면 예약이 확정됩니다. 결제는 모먼트릿에서 처리하지 않습니다.</p>
           {confirmationError && <p role="alert" className="text-sm text-coral">{confirmationError}</p>}

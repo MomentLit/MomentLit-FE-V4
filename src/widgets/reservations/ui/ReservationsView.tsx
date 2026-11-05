@@ -13,6 +13,7 @@ import {
   type MatchingSearchItem,
   type MatchingStatus,
 } from "@/entities/matching";
+import { PRICE_INQUIRY_LABEL } from "@/entities/space";
 import { fetchSpace } from "@/entities/space/api";
 import { Badge, type BadgeProps } from "@/shared/ui";
 import { getErrorMessage } from "@/shared/api/error";
@@ -151,7 +152,8 @@ export function ReservationsView() {
                 <p className="mt-0.5 text-sm text-soft">{space?.location ?? " "}</p>
                 <p className="mt-0.5 font-mono text-xs text-soft">
                   {formatReservationDateTime(row.start_time, row.end_time)} · {row.guest_count ?? "-"}인 ·{" "}
-                  {row.total_price.toLocaleString()}원
+                  {/* 가격 문의 공간은 예약 요청에 total_price 0을 보낸다 — 실제 요금은 0보다 크다. */}
+                  {row.total_price === 0 ? PRICE_INQUIRY_LABEL : `${row.total_price.toLocaleString()}원`}
                 </p>
               </div>
 

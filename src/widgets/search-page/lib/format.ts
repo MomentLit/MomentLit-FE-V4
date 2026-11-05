@@ -1,4 +1,4 @@
-import type { AddressResponse, UsageUnit } from "@/entities/space";
+import { formatPriceAmount, type AddressResponse, type UsageUnit } from "@/entities/space";
 
 /** `sido sigungu eup_myeon_dong`, matching the "서울 성동구 성수동" style the design uses. */
 export function formatAddress(address: AddressResponse): string {
@@ -17,7 +17,9 @@ export function formatCapacityText(usageUnit: UsageUnit | null, capacity: number
   return `${unit} · 최대 ${capacity}인`;
 }
 
-export function formatPrice(pricePerHour: number, usageUnit: UsageUnit | null): string {
+/** 가격 문의 공간(`null`)은 이용 단위 없이 "가격 문의"만 보여준다. */
+export function formatPrice(pricePerHour: number | null, usageUnit: UsageUnit | null): string {
+  if (pricePerHour == null) return formatPriceAmount(null);
   const suffix = usageUnit === "DAILY" ? "/일" : "/시간";
-  return `${pricePerHour.toLocaleString()}원${suffix}`;
+  return `${formatPriceAmount(pricePerHour)}${suffix}`;
 }

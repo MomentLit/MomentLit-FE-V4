@@ -134,6 +134,7 @@ export function Sidebar() {
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
   const [mobileOpen, setMobileOpen] = useState(false);
   // PC(md 이상)에서만 쓰는 접힘 — 접으면 아이콘만 남는 64px 레일이 된다. 모바일은 기존 햄버거 그대로.
+  // 폭은 애니메이션하지 않는다: width 전환은 매 프레임 본문 전체를 다시 배치·그려서 사진이 많은 화면에서 끊긴다.
   const collapsed = useSyncExternalStore(subscribeCollapsed, readCollapsed, () => false);
   const hasUnreadDm = useUnreadDmStore((state) => state.unreadRoomIds.size > 0);
   useUnreadDmWatcher();
@@ -143,7 +144,7 @@ export function Sidebar() {
   return (
     <aside
       className={cn(
-        "sticky top-0 z-30 flex flex-none flex-col border-b border-line bg-white transition-[width] duration-200 md:z-auto md:h-dvh md:gap-4 md:overflow-y-auto md:overflow-x-hidden md:border-b-0 md:border-r md:py-4",
+        "sticky top-0 z-30 flex flex-none flex-col border-b border-line bg-white md:z-auto md:h-dvh md:gap-4 md:overflow-y-auto md:overflow-x-hidden md:border-b-0 md:border-r md:py-4",
         collapsed ? "md:w-16" : "md:w-[220px]",
       )}
     >

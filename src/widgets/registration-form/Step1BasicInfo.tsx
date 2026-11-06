@@ -5,8 +5,9 @@ import { MultiPhotoUpload } from "@/shared/ui/MultiPhotoUpload";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
 import { FormField, fieldInputClass } from "./FormField";
 import { CategoryPicker } from "./CategoryPicker";
+import { ToggleSwitch } from "./ToggleSwitch";
 import { OptionTabs, type OptionStepProps } from "./OptionTabs";
-import type { RegistrationFormState } from "./model";
+import { optionDisplayLabel, usesSeparateDescriptions, type RegistrationFormState } from "./model";
 
 export interface Step1BasicInfoProps extends OptionStepProps {
   state: RegistrationFormState;
@@ -14,13 +15,23 @@ export interface Step1BasicInfoProps extends OptionStepProps {
     key: K,
     value: RegistrationFormState[K],
   ) => void;
+  onSeparateDescriptionsChange: (separate: boolean) => void;
 }
 
-/** Step 1 — 기본 정보. Fields lifted 1:1 from design-reference.html `#p-new`. */
-export function Step1BasicInfo({ state, onFieldChange, optionTabs, onOptionChange }: Step1BasicInfoProps) {
+const DESCRIPTION_HINT = "사진이 없을수록 설명이 중요합니다. 크기·채광·층수·접근성을 적어 주세요.";
+const descriptionInputClass = `${fieldInputClass} min-h-[104px] resize-y leading-[1.7]`;
+
+export function Step1BasicInfo({
+  state,
+  onFieldChange,
+  onSeparateDescriptionsChange,
+  optionTabs,
+  onOptionChange,
+}: Step1BasicInfoProps) {
   const [photoOverflow, setPhotoOverflow] = useState(false);
   const option = optionTabs.options[optionTabs.activeIndex];
   const multiple = optionTabs.options.length > 1;
+  const separate = usesSeparateDescriptions(state);
 
   return (
     <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2">
@@ -42,18 +53,31 @@ export function Step1BasicInfo({ state, onFieldChange, optionTabs, onOptionChang
         />
       </FormField>
 
-      <FormField
-        label="공간 소개"
-        full
-        hint="사진이 없을수록 설명이 중요합니다. 크기·채광·층수·접근성을 적어 주세요."
-      >
-        <textarea
-          value={state.description}
-          onChange={(e) => onFieldChange("description", e.target.value)}
-          aria-label="공간 소개"
-          className={`${fieldInputClass} min-h-[104px] resize-y leading-[1.7]`}
-        />
-      </FormField>
+      <div className="flex flex-col gap-1.5 sm:col-span-2">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-lg font-bold tracking-tight text-ink">공간 소개</span>
+          {multiple && <ToggleSwitch checked={separate} onChange={onSeparateDescriptionsChange} label="구역별로 따로 쓰기" />}
+        </div>
+        {separate ? (
+          <p className="bg-wash px-3.5 py-3 text-sm text-soft">
+            구역마다 소개를 따로 써요. 아래 <b className="text-ink">구역별 정보</b>의 각 구역 탭에서 채워 주세요.
+          </p>
+        ) : (
+          <textarea
+            value={state.description}
+            onChange={(e) => onFieldChange("description", e.target.value)}
+            aria-label="공간 소개"
+            className={descriptionInputClass}
+          />
+        )}
+        <span className="text-[0.79rem] text-soft">
+          {separate
+            ? "기타사항은 모든 구역에 똑같이 붙어요."
+            : multiple
+              ? `${DESCRIPTION_HINT} 구역마다 다르게 소개하려면 '구역별로 따로 쓰기'를 켜 주세요.`
+              : DESCRIPTION_HINT}
+        </span>
+      </div>
 
       <FormField
         label="기타사항 (선택)"
@@ -65,11 +89,22 @@ export function Step1BasicInfo({ state, onFieldChange, optionTabs, onOptionChang
           onChange={(e) => onFieldChange("notice", e.target.value)}
           aria-label="기타사항"
           placeholder={"예:\n- 음식물 반입 금지\n- 퇴실 시 원상복구 (미복구 시 청소비 3만 원)"}
-          className={`${fieldInputClass} min-h-[104px] resize-y leading-[1.7]`}
+          className={descriptionInputClass}
         />
       </FormField>
 
       <OptionTabs {...optionTabs}>
+        {separate && (
+          <FormField label="구역 소개" full hint={DESCRIPTION_HINT}>
+            <textarea
+              value={option.description}
+              onChange={(e) => onOptionChange("description", e.target.value)}
+              aria-label={`${optionDisplayLabel(option, optionTabs.activeIndex)} 소개`}
+              placeholder={`${optionDisplayLabel(option, optionTabs.activeIndex)}만의 크기·채광·시설을 적어 주세요.`}
+              className={descriptionInputClass}
+            />
+          </FormField>
+        )}
         <FormField label="면적 (㎡)">
           <input
             type="number"

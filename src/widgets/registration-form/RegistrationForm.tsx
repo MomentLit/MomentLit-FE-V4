@@ -94,8 +94,34 @@ export function RegistrationForm() {
     removed.photos.forEach((photo) => {
       if (photo.file && photo.url.startsWith("blob:")) URL.revokeObjectURL(photo.url);
     });
-    setState((prev) => ({ ...prev, options: prev.options.filter((_, i) => i !== index) }));
+    setState((prev) => {
+      const options = prev.options.filter((_, i) => i !== index);
+      // 구역이 하나만 남으면 구역별 소개를 끄고, 남은 구역의 소개를 공통 소개로 옮겨 써 둔 글이 사라지지 않게 한다.
+      if (prev.separateDescriptions && options.length < 2) {
+        return { ...prev, options, separateDescriptions: false, description: options[0].description || prev.description };
+      }
+      return { ...prev, options };
+    });
     setActiveOptionIndex((prev) => Math.max(0, prev >= index ? prev - 1 : prev));
+    setSubmitError(null);
+  }
+
+  /**
+   * 구역별 소개 켜기/끄기. 켤 때는 비어 있는 구역에 공통 소개를 채워 고쳐 쓰기만 하면 되게 하고,
+   * 끌 때는 공통 소개가 비어 있으면 지금 보고 있는 구역의 소개를 가져온다.
+   */
+  function setSeparateDescriptions(separate: boolean) {
+    setState((prev) => {
+      if (separate) {
+        return {
+          ...prev,
+          separateDescriptions: true,
+          options: prev.options.map((option) => (option.description.trim() ? option : { ...option, description: prev.description })),
+        };
+      }
+      const fallback = prev.options[activeIndex]?.description ?? "";
+      return { ...prev, separateDescriptions: false, description: prev.description.trim() ? prev.description : fallback };
+    });
     setSubmitError(null);
   }
 
@@ -228,7 +254,15 @@ export function RegistrationForm() {
       <Stepper current={step} onSelect={goToStep} />
 
       <div className="max-w-[900px]">
-        {step === 1 && <Step1BasicInfo state={state} onFieldChange={onFieldChange} optionTabs={optionTabs} onOptionChange={onOptionChange} />}
+        {step === 1 && (
+          <Step1BasicInfo
+            state={state}
+            onFieldChange={onFieldChange}
+            onSeparateDescriptionsChange={setSeparateDescriptions}
+            optionTabs={optionTabs}
+            onOptionChange={onOptionChange}
+          />
+        )}
         {step === 2 && <Step2Location state={state} onFieldChange={onFieldChange} onAddressSelect={onAddressSelect} />}
         {step === 3 && <Step3Terms state={state} onFieldChange={onFieldChange} optionTabs={optionTabs} onOptionChange={onOptionChange} />}
         {step === 4 && <Step4Schedule state={state} onFieldChange={onFieldChange} optionTabs={optionTabs} onOptionChange={onOptionChange} />}

@@ -48,7 +48,7 @@ export function OptionTabs({ options, activeIndex, onSelect, onAdd, onRemove, on
         </div>
         {!multiple && (
           <span className="text-[0.79rem] text-soft">
-            1층·2층처럼 따로 빌려주는 구역이 있으면 구역을 추가해 주세요. 구역마다 사진·인원·요금·운영 시간을 따로 정할 수 있어요.
+            1층·2층처럼 따로 빌려주는 구역이 있으면 구역을 추가해 주세요. 구역마다 소개·사진·인원·요금·운영 시간을 따로 정할 수 있어요.
           </span>
         )}
         {multiple && (

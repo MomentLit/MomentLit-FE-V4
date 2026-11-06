@@ -105,6 +105,8 @@ export interface SpaceOptionState {
   /** 화면 key 전용 — 서버로 보내지 않는다. */
   id: string;
   label: string;
+  /** 구역별 소개 — `separateDescriptions`가 켜져 있을 때만 쓴다(꺼져 있으면 공통 소개를 보낸다). */
+  description: string;
   area: string;
   capacity: string;
   /** Optional — 고르기만 해두고 제출할 때 `resolvePhotoUrls()`로 한 번에 업로드한다. 첫 번째가 대표 사진. */
@@ -129,6 +131,8 @@ export interface RegistrationFormState {
   name: string;
   category: SpaceCategory;
   description: string;
+  /** 구역마다 소개를 따로 쓸지 — 구역이 2개 이상일 때만 의미가 있다(`usesSeparateDescriptions`). */
+  separateDescriptions: boolean;
   /** 기타사항(이용 수칙·주의사항·추가 비용) — 선택. 저장할 때 소개 뒤에 붙인다(`joinSpaceDescription`). */
   notice: string;
 
@@ -158,6 +162,7 @@ export function createOptionState(base?: SpaceOptionState): SpaceOptionState {
   return {
     id: `option-${Date.now()}-${optionSeq}`,
     label: "",
+    description: "",
     area: "",
     capacity: "",
     photos: [],
@@ -177,6 +182,7 @@ export function createInitialFormState(): RegistrationFormState {
     name: "",
     category: "POPUP_STORE",
     description: "",
+    separateDescriptions: false,
     notice: "",
 
     sido: "",
@@ -197,6 +203,16 @@ export function createInitialFormState(): RegistrationFormState {
 /** 화면에 보일 구역 이름 — 비어 있으면 순번으로 대신한다. */
 export function optionDisplayLabel(option: SpaceOptionState, index: number): string {
   return option.label.trim() || `구역 ${index + 1}`;
+}
+
+/** 구역별 소개를 실제로 쓰는지 — 켜 두었어도 구역이 하나만 남으면 공통 소개를 쓴다. */
+export function usesSeparateDescriptions(state: Pick<RegistrationFormState, "separateDescriptions" | "options">): boolean {
+  return state.separateDescriptions && state.options.length > 1;
+}
+
+/** 이 구역으로 보낼 소개 — 구역별 소개를 쓰면 구역 것, 아니면 공통 소개. */
+export function optionDescription(state: RegistrationFormState, option: SpaceOptionState): string {
+  return usesSeparateDescriptions(state) ? option.description : state.description;
 }
 
 /** 모먼트릿에서 예약을 받는 공간만 4단계 주간 일정이 필요하다 — 외부 예약 공간은 홈페이지에서 예약을 받는다. */
@@ -237,10 +253,12 @@ function validateOptionLabels(state: RegistrationFormState): ValidationError | n
 
 function validateBasicInfo(state: RegistrationFormState): ValidationError | null {
   if (!state.name.trim()) return { message: "공간 이름을 입력해 주세요." };
-  if (!state.description.trim()) return { message: "공간 소개를 입력해 주세요." };
+  const separate = usesSeparateDescriptions(state);
+  if (!separate && !state.description.trim()) return { message: "공간 소개를 입력해 주세요." };
   const labelError = validateOptionLabels(state);
   if (labelError) return labelError;
   for (const [index, option] of state.options.entries()) {
+    if (separate && !option.description.trim()) return optionError(state, index, "구역 소개를 입력해 주세요.");
     const area = toOptionalNumber(option.area);
     if (area !== undefined && area < 0) return optionError(state, index, "면적은 0 이상이어야 합니다.");
     const capacity = toOptionalNumber(option.capacity);
@@ -325,7 +343,7 @@ export function toSpaceCreateRequest(
   const name = state.name.trim();
   return {
     name: state.options.length > 1 ? joinSpaceOptionName(name, option.label.trim()) : name,
-    description: joinSpaceDescription(state.description, state.notice),
+    description: joinSpaceDescription(optionDescription(state, option), state.notice),
     address: {
       sido: state.sido.trim(),
       sigungu: state.sigungu.trim(),

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, ViewTransition } from "react";
 import { IconChevronLeft, IconChevronRight, IconMaximize, IconView360, IconX } from "@tabler/icons-react";
 
 import { Card } from "@/shared/ui";
@@ -11,6 +11,7 @@ import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-c
 import { REGION_LABELS } from "@/entities/region";
 import { getSpacePhotoUrls, splitSpaceOptionName, type SpaceDetail } from "@/entities/space";
 import { PanoramaViewerModal, resolvePanoramaScenes } from "@/widgets/panorama";
+import { spaceMorphName, useMorphArrival } from "@/shared/hooks/useMorphLink";
 
 /** 사진이 여러 장일 때 다음 사진으로 넘어가는 간격. */
 const AUTOPLAY_MS = 4500;
@@ -107,6 +108,7 @@ function PhotoViewer({ photos, index, onIndexChange, onClose }: { photos: string
  * 모습 그대로 보인다. Ported from design-reference `.dt-hero`.
  */
 export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; hasOptions?: boolean }) {
+  useMorphArrival();
   const tone = SPACE_CATEGORY_COLORS[space.category];
   const { address } = space;
   const shortLocation = address.region ? REGION_LABELS[address.region] : address.sido;
@@ -138,6 +140,8 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
 
   return (
     <>
+      {/* 랜딩 카드와 같은 이름 — 카드를 누르면 카드 사진이 이 히어로로 커지며 이어진다. */}
+      <ViewTransition name={spaceMorphName(space.space_id)} share="morph" default="none">
       <Card
         tone={hasPhoto ? undefined : tone}
         className={cn(
@@ -246,6 +250,7 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
           <p className={cn("mt-2 text-sm opacity-90 sm:text-base", hasPhoto && "text-white")}>{fullLocation}</p>
         </div>
       </Card>
+      </ViewTransition>
       {viewerIndex !== null && photos[viewerIndex] && (
         <PhotoViewer photos={photos} index={viewerIndex} onIndexChange={setViewerIndex} onClose={() => setViewerIndex(null)} />
       )}

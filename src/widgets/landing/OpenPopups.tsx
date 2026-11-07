@@ -1,10 +1,12 @@
 "use client";
 
+import { ViewTransition } from "react";
 import { MediaPhoto } from "@/shared/ui/MediaPhoto";
 import { getErrorMessage } from "@/shared/api/error";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { fetchPopups } from "@/entities/popup";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { fetchPopup, fetchPopups, type PopupListItem } from "@/entities/popup";
+import { popupMorphName, useMorphLink } from "@/shared/hooks/useMorphLink";
 import { toneForIndex, formatAddress, formatDateRangeShort, popupBadge } from "@/widgets/app-dashboard/lib/format";
 import { Reveal } from "./Reveal";
 
@@ -49,58 +51,71 @@ export function OpenPopups() {
         <p className="py-6 text-sm text-soft">아직 등록된 팝업이 없어요.</p>
       ) : (
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {popups.map((popup, i) => {
-            const tone = toneForIndex(popup.popup_id + i);
-            return (
-              <Reveal key={popup.popup_id} delayMs={i * 80}>
-                <Link
-                  href={`/popups/${popup.popup_id}`}
-                  className="group flex h-full flex-col interactive-card border border-line bg-white"
-                >
-                  <div
-                    className={`relative flex aspect-[3/2] flex-col justify-between overflow-hidden p-3.5 text-ink ${TONE_BG[tone]}`}
-                  >
-                    {popup.thumbnail_url && (
-                      <>
-                        <MediaPhoto src={popup.thumbnail_url} alt={`${popup.title} 대표 사진`} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40" />
-                      </>
-                    )}
-                    <div className={`relative flex items-start justify-between gap-2 ${popup.thumbnail_url ? "text-white" : "text-ink"}`}>
-                      <span
-                        className="text-[0.61rem] font-medium uppercase tracking-[0.13em] opacity-70"
-                        style={{ fontFamily: "var(--font-label)" }}
-                      >
-                        Popup store
-                      </span>
-                      <span
-                        className="whitespace-nowrap bg-ink px-2 py-[3px] text-[0.63rem] font-medium text-white"
-                        style={{ fontFamily: "var(--font-label)" }}
-                      >
-                        {popupBadge(popup.start_time, popup.end_time)}
-                      </span>
-                    </div>
-                    <span
-                      className={`relative line-clamp-3 text-[clamp(1.1rem,1.85vw,1.4rem)] leading-[1.26] tracking-tight ${popup.thumbnail_url ? "text-white" : "text-ink"}`}
-                      style={{ fontFamily: "var(--font-display)" }}
-                    >
-                      {popup.title}
-                    </span>
-                    <i className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-0 bg-ink transition-transform duration-300 group-hover:scale-x-100" />
-                  </div>
-                  <div className="flex flex-col gap-0.5 px-3.5 py-3 shadow-[inset_0_1px_0_var(--line)]">
-                    <span className="line-clamp-1 text-sm font-bold tracking-tight text-ink">{popup.title}</span>
-                    <span className="text-[0.79rem] text-soft">{formatAddress(popup.address)}</span>
-                    <span className="mt-0.5 text-[0.67rem] text-soft" style={{ fontFamily: "var(--font-label)" }}>
-                      {formatDateRangeShort(popup.start_time, popup.end_time)}
-                    </span>
-                  </div>
-                </Link>
-              </Reveal>
-            );
-          })}
+          {popups.map((popup, i) => (
+            <Reveal key={popup.popup_id} delayMs={i * 80}>
+              <PopupCard popup={popup} tone={toneForIndex(popup.popup_id + i)} />
+            </Reveal>
+          ))}
         </div>
       )}
     </section>
+  );
+}
+
+/** 팝업 카드 — 누르면 사진 칸이 상세 히어로로 커지며 이어진다(`useMorphLink`). */
+function PopupCard({ popup, tone }: { popup: PopupListItem; tone: string }) {
+  const queryClient = useQueryClient();
+  // 상세와 같은 캐시 키 — 미리 받아 두면 상세 히어로가 이동하는 순간 바로 그려진다.
+  const morph = useMorphLink(`/popups/${popup.popup_id}`, () =>
+    queryClient.ensureQueryData({ queryKey: ["popup", popup.popup_id], queryFn: () => fetchPopup(popup.popup_id) }),
+  );
+
+  return (
+    <Link
+      href={`/popups/${popup.popup_id}`}
+      {...morph}
+      className="group flex h-full flex-col interactive-card border border-line bg-white"
+    >
+      <ViewTransition name={popupMorphName(popup.popup_id)} share="morph" default="none">
+        <div
+          className={`relative flex aspect-[3/2] flex-col justify-between overflow-hidden p-3.5 text-ink ${TONE_BG[tone]}`}
+        >
+          {popup.thumbnail_url && (
+            <>
+              <MediaPhoto src={popup.thumbnail_url} alt={`${popup.title} 대표 사진`} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40" />
+            </>
+          )}
+          <div className={`relative flex items-start justify-between gap-2 ${popup.thumbnail_url ? "text-white" : "text-ink"}`}>
+            <span
+              className="text-[0.61rem] font-medium uppercase tracking-[0.13em] opacity-70"
+              style={{ fontFamily: "var(--font-label)" }}
+            >
+              Popup store
+            </span>
+            <span
+              className="whitespace-nowrap bg-ink px-2 py-[3px] text-[0.63rem] font-medium text-white"
+              style={{ fontFamily: "var(--font-label)" }}
+            >
+              {popupBadge(popup.start_time, popup.end_time)}
+            </span>
+          </div>
+          <span
+            className={`relative line-clamp-3 text-[clamp(1.1rem,1.85vw,1.4rem)] leading-[1.26] tracking-tight ${popup.thumbnail_url ? "text-white" : "text-ink"}`}
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            {popup.title}
+          </span>
+          <i className="absolute inset-x-0 bottom-0 h-1 origin-left scale-x-0 bg-ink transition-transform duration-300 group-hover:scale-x-100" />
+        </div>
+      </ViewTransition>
+      <div className="flex flex-col gap-0.5 px-3.5 py-3 shadow-[inset_0_1px_0_var(--line)]">
+        <span className="line-clamp-1 text-sm font-bold tracking-tight text-ink">{popup.title}</span>
+        <span className="text-[0.79rem] text-soft">{formatAddress(popup.address)}</span>
+        <span className="mt-0.5 text-[0.67rem] text-soft" style={{ fontFamily: "var(--font-label)" }}>
+          {formatDateRangeShort(popup.start_time, popup.end_time)}
+        </span>
+      </div>
+    </Link>
   );
 }

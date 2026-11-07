@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, ViewTransition } from "react";
+import { popupMorphName, useMorphArrival } from "@/shared/hooks/useMorphLink";
 import { IconHeart, IconHeartFilled, IconX, IconZoomIn } from "@tabler/icons-react";
 import { isApiError, getErrorMessage } from "@/shared/api/error";
 import { useAuthStore } from "@/entities/auth";
@@ -18,6 +19,7 @@ import { PopupReviewSection } from "./PopupReviewSection";
 
 /** 팝업 상세 — `GET /popups/{id}` + 리뷰/좋아요. Ported from space의 `SpaceDetailView` 구조. */
 export function PopupDetailView({ popupId }: { popupId: number }) {
+  useMorphArrival();
   const popupQuery = usePopupQuery(popupId);
   const reviewsQuery = usePopupReviewsQuery(popupId, popupQuery.isSuccess);
   const [isImageZoomed, setIsImageZoomed] = useState(false);
@@ -57,6 +59,8 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
 
   return (
     <div className="page-shell">
+      {/* 랜딩 팝업 카드와 같은 이름 — 카드 사진이 이 히어로로 커지며 이어진다. */}
+      <ViewTransition name={popupMorphName(popup.popup_id)} share="morph" default="none">
       <Card
         tone={popup.thumbnail_url ? undefined : "violet"}
         className="relative flex min-h-[300px] flex-col justify-between gap-8 overflow-hidden p-6 sm:min-h-[420px] sm:p-10"
@@ -83,6 +87,7 @@ export function PopupDetailView({ popupId }: { popupId: number }) {
           </p>
         </div>
       </Card>
+      </ViewTransition>
 
       <div className="grid grid-cols-1 gap-px overflow-hidden rounded-b-3xl bg-line lg:grid-cols-[1fr_280px]">
         <div className="flex flex-col gap-9 bg-white p-5 sm:p-8">

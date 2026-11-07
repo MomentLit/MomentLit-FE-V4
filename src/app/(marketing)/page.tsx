@@ -4,7 +4,6 @@ import {
   LandingHeader,
   LandingHero,
   OpenPopups,
-  CategoryMosaic,
   NightMap,
   DuoSection,
   StepsSection,
@@ -27,7 +26,6 @@ export default function LandingPage() {
       </div>
       <SpaceSpotlight />
       <OpenPopups />
-      <CategoryMosaic />
       <NightMap />
       <DuoSection />
       <StepsSection />

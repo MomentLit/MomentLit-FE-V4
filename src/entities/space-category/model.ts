@@ -47,11 +47,7 @@ export const SPACE_CATEGORY_DISPLAY_ORDER: readonly SpaceCategory[] = [
 /**
  * 10 categories mapped onto the 6-color spectrum, so colors are necessarily
  * reused: STUDIO, CLASSROOM and PRACTICE_ROOM all get `rose`, POPUP_STORE
- * and OTHER both get `sky`, and OFFICE reuses HALL's `lemon`. None of these
- * repeats land on tiles that actually touch (edge or corner) in the
- * mosaic's 6-column grid — see CategoryMosaic for the layout this was
- * checked against. The landing mosaic overrides OTHER to a plain white tile
- * regardless of this mapping.
+ * and OTHER both get `sky`, and OFFICE reuses HALL's `lemon`.
  */
 export const SPACE_CATEGORY_COLORS: Record<SpaceCategory, SpectrumTone> = {
   POPUP_STORE: "sky",

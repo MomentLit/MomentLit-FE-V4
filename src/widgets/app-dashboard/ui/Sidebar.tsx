@@ -37,28 +37,33 @@ interface NavItem {
   tone?: SpectrumTone;
 }
 
+/**
+ * 메뉴 묶음. 메뉴가 적어서 묶음마다 제목을 달지 않고 얇은 선으로만 나눈다 — 제목은 권한이 다른
+ * 관리자 메뉴처럼 성격이 확실히 다른 묶음에만 붙인다.
+ */
 interface NavGroup {
-  label: string;
+  id: string;
+  label?: string;
   items: NavItem[];
 }
 
 const NAV_GROUPS: NavGroup[] = [
   {
-    label: "탐색",
+    id: "explore",
     items: [
       { label: "홈", href: "/home", icon: Home },
       { label: "통합 검색", href: "/search", icon: Search, tone: "sky" },
     ],
   },
   {
-    label: "예약 · 소통",
+    id: "booking",
     items: [
       { label: "예약", href: "/reservations", icon: Calendar, tone: "lemon" },
       { label: "메시지", href: "/messages", icon: MessageSquare, tone: "violet" },
     ],
   },
   {
-    label: "내 활동",
+    id: "activity",
     items: [
       { label: "내 공간 및 팝업", href: "/profile", icon: Store, tone: "sky" },
       { label: "관심", href: "/favorites", icon: Heart, tone: "coral" },
@@ -68,6 +73,7 @@ const NAV_GROUPS: NavGroup[] = [
 ];
 
 const ADMIN_NAV_GROUP: NavGroup = {
+  id: "admin",
   label: "관리",
   items: [
     { label: "공간 승인", href: "/admin/spaces", icon: ClipboardCheck, tone: "sky" },
@@ -193,17 +199,16 @@ export function Sidebar() {
         )}
       >
       {navGroups.map((group, groupIndex) => (
-        <div key={group.label} className="flex flex-col gap-px">
-          <span
-            className={cn(
-              "px-4.5 pb-1.5 text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft",
-              collapsed && "md:hidden",
-            )}
-          >
-            {group.label}
-          </span>
-          {/* 접힌 레일에선 그룹 이름 대신 얇은 구분선 */}
-          {collapsed && groupIndex > 0 && <span aria-hidden className="mx-4 mb-1.5 hidden h-px bg-line md:block" />}
+        <div key={group.id} className="flex flex-col gap-px">
+          {/* 묶음 사이는 얇은 선. 제목이 있는 묶음(관리)은 펼쳤을 때 선 대신 제목을 보여 준다. */}
+          {groupIndex > 0 && (
+            <span aria-hidden className={cn("mx-4 mb-2 h-px bg-line", group.label && !collapsed && "hidden")} />
+          )}
+          {group.label && (
+            <span className={cn("px-4.5 pb-1.5 pt-1 text-xs font-bold text-soft", collapsed && "md:hidden")}>
+              {group.label}
+            </span>
+          )}
           {group.items.map((item) => {
             const isActive = isNavItemActive(item, pathname);
             return (
@@ -212,6 +217,7 @@ export function Sidebar() {
                 href={item.href}
                 onClick={() => setMobileOpen(false)}
                 title={collapsed ? item.label : undefined}
+                aria-current={isActive ? "page" : undefined}
                 className={cn(
                   "group mx-2.5 flex items-center gap-2.5 rounded-md px-3 py-2 text-sm font-bold transition-colors",
                   collapsed && "md:justify-center md:px-0",

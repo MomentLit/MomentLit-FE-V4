@@ -353,3 +353,36 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 @media (prefers-reduced-motion: reduce) {
   .night-map-ping { animation: none; opacity: .5; }
 }
+
+/* ── 카드 → 상세 공유 요소 전환 (React <ViewTransition share="morph">, useMorphLink) ── */
+::view-transition-group(.morph) {
+  animation-duration: 480ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+/* 카드(4:3)와 히어로(2:1)는 비율이 달라서, 늘어나 보이지 않게 틀에 맞춰 잘라서 채운다. */
+::view-transition-image-pair(.morph) {
+  overflow: hidden;
+  animation-name: morph-blur;
+}
+::view-transition-old(.morph),
+::view-transition-new(.morph) {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* 카드 쪽은 빨리 빠지고 히어로가 바로 드러나게 — 두 장이 오래 겹쳐 보이지 않게 한다. */
+::view-transition-old(.morph) {
+  animation-duration: 200ms;
+}
+@keyframes morph-blur {
+  35% {
+    filter: blur(3px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}

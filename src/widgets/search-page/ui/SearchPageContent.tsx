@@ -16,7 +16,6 @@ import { cn } from "@/shared/lib";
 import { CAPACITY_MAX, PAGE_SIZE, POPUP_SEARCH_FETCH_SIZE, type SearchMode, type SortKey } from "../lib/constants";
 import { matchesRegion, isPopupOpenOnDate, guessPopupCategory, type PopupCategory } from "../lib/popup-filters";
 import { SearchBar } from "./SearchBar";
-import { SearchModeToggle } from "./SearchModeToggle";
 import { FilterPanel } from "./FilterPanel";
 import { PopupFilterPanel } from "./PopupFilterPanel";
 import { SortBar } from "./SortBar";
@@ -286,12 +285,7 @@ export function SearchPageContent() {
             onClick={() => setMobileFilterOpen(false)}
           />
         )}
-        {/*
-          Single persistent aside — NOT swapped per mode — so SearchModeToggle
-          keeps the same DOM node across a space/popup switch and its slide
-          animation has something to transition from. Only the field group
-          below it (FilterPanel vs PopupFilterPanel) changes.
-        */}
+        {/* 공간/팝업 전환은 결과 머리(SortBar)의 탭으로 옮겼다 — 이 칸에는 검색 조건만 둔다. */}
         <aside
           className={cn(
             "z-50 flex w-[246px] flex-none flex-col gap-6 overflow-y-auto border-r border-line bg-white px-4.5 py-5",
@@ -299,8 +293,6 @@ export function SearchPageContent() {
             mobileFilterOpen ? "fixed inset-y-0 left-0 flex w-[82vw] max-w-[320px]" : "hidden",
           )}
         >
-          <SearchModeToggle mode={mode} onChange={changeMode} />
-
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-bold text-ink">검색 조건</h2>
             <div className="flex items-center gap-3">
@@ -351,9 +343,6 @@ export function SearchPageContent() {
           )}
         </aside>
         <div className="flex min-w-0 flex-1 flex-col">
-          <div className="app-gutter border-b border-line py-4 lg:hidden">
-            <SearchModeToggle mode={mode} onChange={changeMode} />
-          </div>
           <SearchBar
             value={nameInput}
             onChange={setNameInput}
@@ -379,6 +368,8 @@ export function SearchPageContent() {
                 sort={sort}
                 onSortChange={changeSort}
                 geoStatus={geoStatus}
+                mode={mode}
+                onModeChange={changeMode}
               />
               <ResultList
                 items={spaceItems}
@@ -402,8 +393,8 @@ export function SearchPageContent() {
                 sort={sort}
                 onSortChange={changeSort}
                 geoStatus={geoStatus}
-                itemLabel="팝업"
-                unitLabel="개"
+                mode={mode}
+                onModeChange={changeMode}
               />
               <PopupResultList
                 items={hasActivePopupFilter ? sortedPopups.slice(page * PAGE_SIZE, (page + 1) * PAGE_SIZE) : sortedPopups}

@@ -1,7 +1,6 @@
 export { LandingHeader } from "./LandingHeader";
 export { LandingHero } from "./LandingHero";
 export { OpenPopups } from "./OpenPopups";
-export { CategoryMosaic } from "./CategoryMosaic";
 export { NightMap } from "./NightMap";
 export { DuoSection } from "./DuoSection";
 export { StepsSection } from "./StepsSection";

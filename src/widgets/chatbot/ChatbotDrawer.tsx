@@ -12,8 +12,20 @@ type Corner = "tl" | "tr" | "bl" | "br";
 
 const CORNER_STORAGE_KEY = "momentlit_chatbot_corner";
 const DRAG_THRESHOLD = 4;
-const POSITION_TRANSITION =
-  "left 320ms cubic-bezier(0.22,1,0.36,1), right 320ms cubic-bezier(0.22,1,0.36,1), top 320ms cubic-bezier(0.22,1,0.36,1), bottom 320ms cubic-bezier(0.22,1,0.36,1)";
+/**
+ * 놓았을 때 모서리로 붙는 움직임 — 감쇠 스프링(감쇠비 0.8, 주기 0.32s)을 0.5초 동안 샘플링한 곡선.
+ * 약 1.4% 살짝 지나쳤다가 제자리로 돌아와서 Next.js 개발 아이콘처럼 "툭" 하고 안착한다.
+ */
+const SPRING_EASING =
+  "linear(0, 0.0174 2%, 0.0624 4%, 0.1263 6%, 0.2017 8%, 0.2832 10%, 0.4074 13%, 0.5257 16%, 0.6644 20%, 0.7763 24%, 0.8613 28%, 0.9343 33%, 0.9784 38%, 1.0049 44%, 1.0142 50%, 1.0144 57%, 1.0098 65%, 1.0048 74%, 1.0012 85%, 1)";
+const POSITION_TRANSITION = ["left", "right", "top", "bottom"].map((prop) => `${prop} 500ms ${SPRING_EASING}`).join(", ");
+/** 속도를 잴 때 보는 최근 구간 — 손을 떼기 직전의 움직임만 본다. */
+const VELOCITY_WINDOW_MS = 100;
+
+/** 던진 속도(px/s)로 손을 뗀 뒤 더 미끄러졌을 거리를 어림한다 — 빠르게 던지면 반대쪽 모서리까지 간다. */
+function projectDistance(velocity: number, deceleration = 0.998): number {
+  return ((velocity / 1000) * deceleration) / (1 - deceleration);
+}
 
 function edgeMargin(): number {
   return typeof window !== "undefined" && window.innerWidth >= 640 ? 24 : 16;
@@ -118,8 +130,19 @@ export function ChatbotDrawer() {
   const [pos, setPos] = useState({ x: 16, y: 16 });
   const [isDragging, setIsDragging] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
+  const launcherRef = useRef<HTMLButtonElement>(null);
   const posRef = useRef(pos);
-  const dragRef = useRef<{ startX: number; startY: number; startPos: { x: number; y: number }; corner: Corner; moved: boolean } | null>(null);
+  const dragRef = useRef<{
+    startX: number;
+    startY: number;
+    startPos: { x: number; y: number };
+    corner: Corner;
+    moved: boolean;
+    /** 처음 잡은 포인터 — 다른 손가락·포인터의 움직임은 무시한다. */
+    pointerId: number;
+    /** 최근 포인터 위치들 — 손을 뗄 때 던진 속도를 계산한다. */
+    samples: Array<{ t: number; x: number; y: number }>;
+  } | null>(null);
   const justDraggedRef = useRef(false);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hydrated = useAuthStore((state) => state.hydrated);
@@ -208,16 +231,38 @@ export function ChatbotDrawer() {
   }, []);
 
   function handlePointerDown(event: ReactPointerEvent<HTMLButtonElement>) {
-    event.currentTarget.setPointerCapture(event.pointerId);
-    dragRef.current = { startX: event.clientX, startY: event.clientY, startPos: posRef.current, corner, moved: false };
+    // 주 버튼(왼쪽 클릭·트랙패드 한 손가락)으로만 끈다 — 두 손가락 클릭(오른쪽 클릭)으로는 잡히지 않게.
+    if (event.button !== 0 || dragRef.current) return;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // 이미 사라진 포인터면 붙잡기만 실패한다 — 끌기는 버튼 위 움직임으로 계속된다.
+    }
+    dragRef.current = {
+      startX: event.clientX,
+      startY: event.clientY,
+      startPos: posRef.current,
+      corner,
+      moved: false,
+      pointerId: event.pointerId,
+      samples: [{ t: event.timeStamp, x: event.clientX, y: event.clientY }],
+    };
     setIsDragging(true);
   }
 
   function handlePointerMove(event: ReactPointerEvent<HTMLButtonElement>) {
     const drag = dragRef.current;
-    if (!drag || !wrapperRef.current) return;
+    if (!drag || event.pointerId !== drag.pointerId || !wrapperRef.current) return;
+    // 트랙패드는 손을 뗀 신호(pointerup)가 가끔 오지 않는다. 그때 눌린 버튼 없이 움직임만 들어오면
+    // 이미 손을 뗀 것으로 보고 끝낸다 — 안 그러면 버튼이 커서에 붙어 계속 따라다닌다.
+    if (event.buttons === 0) {
+      finishDrag(event.timeStamp);
+      return;
+    }
     const dx = event.clientX - drag.startX;
     const dy = event.clientY - drag.startY;
+    drag.samples.push({ t: event.timeStamp, x: event.clientX, y: event.clientY });
+    while (drag.samples.length > 2 && event.timeStamp - drag.samples[0].t > VELOCITY_WINDOW_MS) drag.samples.shift();
     if (!drag.moved && Math.hypot(dx, dy) > DRAG_THRESHOLD) drag.moved = true;
     if (!drag.moved) return;
 
@@ -232,22 +277,46 @@ export function ChatbotDrawer() {
     setPos(next);
   }
 
-  function handlePointerUp(event: ReactPointerEvent<HTMLButtonElement>) {
+  function handlePointerEnd(event: ReactPointerEvent<HTMLButtonElement>) {
+    if (dragRef.current && event.pointerId !== dragRef.current.pointerId) return;
+    finishDrag(event.timeStamp);
+  }
+
+  /**
+   * 끌기를 끝내고 가장 알맞은 모서리로 붙인다. 손을 뗐을 때뿐 아니라 포인터 연결이 풀렸을 때,
+   * 창 포커스가 빠졌을 때, 눌린 버튼 없이 움직임이 들어왔을 때도 불러서 "끌기 중"에 갇히지 않게 한다.
+   */
+  function finishDrag(timeStamp: number) {
     const drag = dragRef.current;
     dragRef.current = null;
-    event.currentTarget.releasePointerCapture(event.pointerId);
     if (!drag) return;
+    const launcher = launcherRef.current;
+    if (launcher?.hasPointerCapture(drag.pointerId)) launcher.releasePointerCapture(drag.pointerId);
 
     if (!drag.moved) {
       setIsDragging(false);
       return;
     }
+    // 끌고 난 직후의 클릭은 열기로 치지 않는다. 클릭이 아예 안 오는 경우(트랙패드)에 다음 진짜 클릭까지
+    // 막히지 않도록, 같은 입력 처리가 끝나면 바로 푼다.
     justDraggedRef.current = true;
+    window.setTimeout(() => {
+      justDraggedRef.current = false;
+    }, 0);
 
     const rect = wrapperRef.current?.getBoundingClientRect();
     const size = rect ? { width: rect.width, height: rect.height } : { width: 56, height: 56 };
     const abs = offsetToAbsolute(drag.corner, posRef.current, size);
-    const target = nearestCorner(abs, size);
+    // 놓기 직전 속도만큼 더 미끄러진 위치를 기준으로 모서리를 고른다 — 살짝 던져도 그쪽 모서리로 간다.
+    const first = drag.samples[0];
+    const last = drag.samples[drag.samples.length - 1];
+    const elapsed = last.t - first.t;
+    const recent = timeStamp - last.t < VELOCITY_WINDOW_MS && elapsed > 0;
+    const velocity = recent
+      ? { x: ((last.x - first.x) / elapsed) * 1000, y: ((last.y - first.y) / elapsed) * 1000 }
+      : { x: 0, y: 0 };
+    const projected = { x: abs.x + projectDistance(velocity.x), y: abs.y + projectDistance(velocity.y) };
+    const target = nearestCorner(projected, size);
 
     if (target !== drag.corner) {
       const bridge = absoluteToOffset(target, abs, size);
@@ -274,6 +343,17 @@ export function ChatbotDrawer() {
       setPos(flush);
     }
   }
+
+  // 끄는 도중 다른 창·탭으로 넘어가면 손을 뗀 신호를 못 받으니 그 자리에서 끝낸다.
+  const finishDragRef = useRef(finishDrag);
+  useEffect(() => {
+    finishDragRef.current = finishDrag;
+  });
+  useEffect(() => {
+    const onBlur = () => finishDragRef.current(performance.now());
+    window.addEventListener("blur", onBlur);
+    return () => window.removeEventListener("blur", onBlur);
+  }, []);
 
   function handleLauncherClick() {
     if (justDraggedRef.current) {
@@ -353,7 +433,8 @@ export function ChatbotDrawer() {
       ref={wrapperRef}
       style={wrapperStyle}
       className={cn(
-        "fixed z-40 flex gap-3",
+        // 필터·드롭다운·날짜 선택(z-50)보다 위, 로그인 창·모달(z-[300])보다는 아래 — 전송하면 뜨는 로그인 창을 가리지 않게.
+        "fixed z-[200] flex gap-3",
         corner.startsWith("t") ? "flex-col-reverse" : "flex-col",
         corner.endsWith("l") ? "items-start" : "items-end",
       )}
@@ -388,33 +469,27 @@ export function ChatbotDrawer() {
         </section>
       )}
       <button
+        ref={launcherRef}
         type="button"
         onClick={handleLauncherClick}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
-        onPointerUp={handlePointerUp}
-        onPointerCancel={handlePointerUp}
+        onPointerUp={handlePointerEnd}
+        onPointerCancel={handlePointerEnd}
+        onLostPointerCapture={handlePointerEnd}
         aria-expanded={open}
         aria-label={open ? "챗봇 닫기" : "맞춤 공간 추천 열기"}
-        className={cn(
-          "group relative inline-flex h-12 w-12 touch-none items-center select-none transition-[width] duration-300 ease-out hover:w-48 focus-visible:w-48",
-          corner.endsWith("l") ? "justify-start" : "justify-end",
-          isDragging ? "cursor-grabbing" : "cursor-grab",
-        )}
+        className={cn("group relative inline-flex touch-none select-none", isDragging ? "cursor-grabbing" : "cursor-grab")}
       >
-        {/* 기본은 아이콘만 있는 원형, 호버하면 고정된 모서리 쪽에서 바깥으로 펼쳐진다 —
-            커서 아래 영역은 펼쳐지는 동안에도 계속 버튼 안이라 hover가 끊기지 않는다. */}
+        {/* 상세 "AI 소개" 카드(AiSummaryCard)의 아이콘 배지와 같은 모양 — 보라→하늘 그라데이션 원 + 빛 번짐.
+            화면 구석에서 계속 움직이면 거슬려서 퍼지는 링(ping)은 넣지 않는다. 열려 있으면 닫기 화살표. */}
         <span
           className={cn(
-            "pointer-events-none inline-flex h-12 w-full items-center justify-center gap-0 rounded-[24px] border border-ink bg-sky px-0 text-ink shadow-lg transition-[border-radius,padding,gap,background-color,color] duration-300 ease-out",
-            "group-hover:gap-2 group-hover:rounded-none group-hover:bg-main-d group-hover:px-5 group-hover:text-white",
-            "group-focus-visible:gap-2 group-focus-visible:rounded-none group-focus-visible:bg-main-d group-focus-visible:px-5 group-focus-visible:text-white",
+            "pointer-events-none relative flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-violet to-sky text-white shadow-[0_0_22px_-2px_var(--color-violet)] transition-[transform,box-shadow] duration-200 ease-out",
+            "group-hover:scale-105 group-hover:shadow-[0_0_30px_0_var(--color-violet)] group-focus-visible:scale-105 group-active:scale-95",
           )}
         >
-          {open ? <ChevronDown size={18} className="shrink-0" /> : <Sparkles size={18} className="shrink-0" />}
-          <span className="max-w-0 overflow-hidden whitespace-nowrap text-sm font-bold opacity-0 transition-[max-width,opacity] duration-300 ease-out group-hover:max-w-[9rem] group-hover:opacity-100 group-focus-visible:max-w-[9rem] group-focus-visible:opacity-100">
-            맞춤 공간 추천
-          </span>
+          {open ? <ChevronDown size={20} className="relative shrink-0" /> : <Sparkles size={20} className="relative shrink-0" />}
         </span>
       </button>
     </div>

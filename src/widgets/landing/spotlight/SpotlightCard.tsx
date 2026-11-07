@@ -1,12 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import type { CSSProperties } from "react";
+import { ViewTransition, type CSSProperties } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { IconEye, IconHeart, IconHeartFilled } from "@tabler/icons-react";
 import { useAuthStore } from "@/entities/auth";
 import { formatPriceAmount, type GroupedSpace, type SpaceListItem } from "@/entities/space";
 import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-category";
 import { REGION_LABELS } from "@/entities/region";
+import { fetchSpace } from "@/entities/space/api";
+import { spaceMorphName, useMorphLink } from "@/shared/hooks/useMorphLink";
 import { cn } from "@/shared/lib";
 import { useSpaceLikeStatusQuery, useToggleSpaceLikeMutation } from "@/widgets/detail-page/model/queries";
 import { TodayRibbon } from "./TodayRibbon";
@@ -93,12 +96,18 @@ export function SpotlightCard({
   onPreview: (space: SpotlightSpace) => void;
 }) {
   const price = priceText(space);
+  const queryClient = useQueryClient();
+  // 상세와 같은 캐시 키 — 미리 받아 두면 상세 히어로가 이동하는 순간 바로 그려져 카드 사진이 이어서 커진다.
+  const morph = useMorphLink(`/spaces/${space.space_id}`, () =>
+    queryClient.ensureQueryData({ queryKey: ["space", space.space_id], queryFn: () => fetchSpace(space.space_id) }),
+  );
 
   return (
     <article
       className={cn("group relative flex min-w-0 flex-col gap-3.5", big && "sm:col-span-2 lg:row-span-2")}
       style={{ "--ac": toneVar(space) } as CSSProperties}
     >
+      <ViewTransition name={spaceMorphName(space.space_id)} share="morph" default="none">
       <div
         className={cn(
           "relative overflow-hidden transition-[transform,box-shadow] duration-500 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:shadow-[0_0_0_1.5px_var(--ink),8px_8px_0_var(--ac)]",
@@ -113,6 +122,7 @@ export function SpotlightCard({
           {SPACE_CATEGORY_LABELS[space.category]}
         </span>
       </div>
+      </ViewTransition>
 
       <div className="flex min-w-0 flex-col gap-3">
         <div className="flex min-w-0 flex-col gap-0.5">
@@ -142,7 +152,7 @@ export function SpotlightCard({
       </div>
 
       {/* 카드 전체를 덮는 링크 — 버튼들은 z-index로 그 위에 올라온다. */}
-      <Link href={`/spaces/${space.space_id}`} className="absolute inset-0 z-[1]" aria-label={`${space.name} 보기`} />
+      <Link href={`/spaces/${space.space_id}`} {...morph} className="absolute inset-0 z-[1]" aria-label={`${space.name} 보기`} />
 
       <span className="absolute right-2.5 top-2.5 z-[3] flex gap-1.5">
         <button

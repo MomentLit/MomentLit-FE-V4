@@ -146,32 +146,37 @@ export function AdminSpaceList() {
               </p>
             </div>
 
-            {space.adminStatus === "PENDING" && (
-              <div className="flex flex-none gap-2">
-                <button
-                  type="button"
-                  disabled={approveMutation.isPending || rejectMutation.isPending}
-                  onClick={() => {
-                    setActionError(null);
-                    approveMutation.mutate(space.spaceId);
-                  }}
-                  className="button button--primary"
-                >
-                  승인
-                </button>
-                <button
-                  type="button"
-                  disabled={approveMutation.isPending || rejectMutation.isPending}
-                  onClick={() => {
-                    setActionError(null);
-                    rejectMutation.mutate(space.spaceId);
-                  }}
-                  className="button button--outline"
-                >
-                  거절
-                </button>
-              </div>
-            )}
+            <div className="flex flex-none flex-wrap gap-2">
+              {space.adminStatus === "PENDING" && (
+                <>
+                  <button
+                    type="button"
+                    disabled={approveMutation.isPending || rejectMutation.isPending}
+                    onClick={() => {
+                      setActionError(null);
+                      approveMutation.mutate(space.spaceId);
+                    }}
+                    className="button button--primary"
+                  >
+                    승인
+                  </button>
+                  <button
+                    type="button"
+                    disabled={approveMutation.isPending || rejectMutation.isPending}
+                    onClick={() => {
+                      setActionError(null);
+                      rejectMutation.mutate(space.spaceId);
+                    }}
+                    className="button button--outline"
+                  >
+                    거절
+                  </button>
+                </>
+              )}
+              <Link href={`/spaces/${space.spaceId}/edit`} className="button button--outline">
+                수정
+              </Link>
+            </div>
           </Card>
         ))}
       </div>

@@ -12,6 +12,8 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/widgets/auth";
+import { useAuthStore } from "@/entities/auth";
+import { fetchAdminSpaceSiblingIds } from "@/entities/admin";
 import { fetchMySpaceSiblings, fetchSpace, syncSpaceNoticeToSiblings, updateSpace } from "@/entities/space/api";
 import {
   MAX_SPACE_PHOTOS,
@@ -22,6 +24,7 @@ import {
   joinSpaceDescription,
   splitSpaceDescription,
   type BookingType,
+  type SpaceDetail,
 } from "@/entities/space";
 import type { SpaceCategory } from "@/entities/space-category";
 import { uploadImage } from "@/shared/api/upload";
@@ -43,19 +46,28 @@ import {
  * (주소는 지역 재계산이 얽혀있고, 일정은 기존 슬롯을 한 덩어리 [시작,종료,단위]로 되돌릴 수 없어서
  * 별도 화면이 더 적합하다 — 지금은 새로 등록할 때와 같은 방식으로 다시 설정해야 한다).
  */
+async function fetchSiblingIds(space: SpaceDetail, asAdmin: boolean): Promise<number[]> {
+  if (asAdmin) return fetchAdminSpaceSiblingIds(space);
+  return (await fetchMySpaceSiblings(space)).map((sibling) => sibling.space_id);
+}
+
 export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const { ready } = useRequireAuth();
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  const user = useAuthStore((state) => state.user);
+
   const spaceQuery = useQuery({ queryKey: ["space", spaceId], queryFn: () => fetchSpace(spaceId), enabled: ready });
+  // 관리자가 남의 공간을 고치는 중 — 다른 구역은 관리자 목록에서 찾고, 안내 문구를 띄운다.
+  const editingAsAdmin = Boolean(spaceQuery.data && user && user.role === "ADMIN" && spaceQuery.data.host_id !== user.id);
   // 같은 공간의 다른 구역 — 기타사항은 공간 전체 내용이라 저장할 때 같이 맞춘다.
   const siblingsQuery = useQuery({
-    queryKey: ["space-edit-siblings", spaceId],
-    queryFn: () => fetchMySpaceSiblings(spaceQuery.data!),
+    queryKey: ["space-edit-siblings", spaceId, editingAsAdmin],
+    queryFn: () => fetchSiblingIds(spaceQuery.data!, editingAsAdmin),
     enabled: Boolean(spaceQuery.data),
   });
-  const siblingIds = (siblingsQuery.data ?? []).map((sibling) => sibling.space_id);
+  const siblingIds = siblingsQuery.data ?? [];
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<SpaceCategory>("POPUP_STORE");
@@ -151,8 +163,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
 
       // 다른 구역 먼저 — 같은 값으로 덮어쓰기만 해서 실패 후 다시 눌러도 안전하다.
       // 목록을 아직 못 불러왔으면 여기서 불러와서, 동기화를 건너뛰고 저장되는 일이 없게 한다.
-      const siblings = siblingsQuery.data ?? (spaceQuery.data ? await fetchMySpaceSiblings(spaceQuery.data) : []);
-      const targetIds = siblings.map((sibling) => sibling.space_id);
+      const targetIds = siblingsQuery.data ?? (spaceQuery.data ? await fetchSiblingIds(spaceQuery.data, editingAsAdmin) : []);
       if (targetIds.length > 0) await syncSpaceNoticeToSiblings(targetIds, notice);
 
       await updateSpace(spaceId, {
@@ -176,6 +187,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       await queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
       await Promise.all(targetIds.map((id) => queryClient.invalidateQueries({ queryKey: ["space", id] })));
       await queryClient.invalidateQueries({ queryKey: ["spaces", "me"] });
+      if (editingAsAdmin) await queryClient.invalidateQueries({ queryKey: ["admin", "spaces"] });
       router.push(`/spaces/${spaceId}`);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
@@ -207,6 +219,11 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         <p className="mt-2 text-[0.92rem] text-soft">
           주소와 예약 일정은 여기서 바꿀 수 없어요. 일정을 다시 열려면 공간 상세 페이지에서 별도로 설정해 주세요.
         </p>
+        {editingAsAdmin && (
+          <p className="mt-4 max-w-[720px] shadow-[inset_3px_0_0_var(--sky)] bg-wash px-4.5 py-3 text-[0.88rem] leading-[1.75] text-ink">
+            관리자 권한으로 다른 호스트의 공간을 수정하고 있어요. 저장하면 호스트의 공간 정보가 바로 바뀌고, 검토 상태는 그대로 유지돼요.
+          </p>
+        )}
       </div>
 
       <form onSubmit={handleSubmit} className="grid max-w-[720px] grid-cols-1 gap-4.5 sm:grid-cols-2">

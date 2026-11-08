@@ -1,2 +1,2 @@
 export type { AdminAddress, AdminSpaceListItem } from "./model";
-export { approveAdminSpace, fetchAdminSpaces, rejectAdminSpace } from "./api";
+export { approveAdminSpace, fetchAdminSpaceSiblingIds, fetchAdminSpaces, rejectAdminSpace } from "./api";

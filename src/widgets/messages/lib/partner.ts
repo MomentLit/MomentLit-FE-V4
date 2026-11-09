@@ -17,19 +17,18 @@ export function partnerOf(room: ChatRoomListItem, currentUserId: string | undefi
 const KST_TIME_ZONE = "Asia/Seoul";
 
 /**
- * 백엔드 서버가 UTC로 떠 있어서 `created_at`(오프셋 없는 LocalDateTime 문자열)이
- * 이미 UTC 벽시계 값으로 찍혀 온다 — 오프셋을 안 붙이면 브라우저가 "자기 타임존의
- * 현재 시각"으로 잘못 해석해버리므로, 항상 UTC로 못박아 파싱한 뒤 한국 시간(KST,
- * UTC+9)으로 명시 변환해서 보여준다. 뷰어의 브라우저 타임존과 무관하게 항상 KST.
+ * `created_at`은 오프셋 없는 LocalDateTime 문자열로 오는데, 현재 백엔드는 이미 한국 시간(KST)
+ * 벽시계 값으로 내려준다(과거엔 UTC였으나 서버 타임존이 바뀜). 오프셋이 없으면 KST(+09:00)로
+ * 못박아 파싱한 뒤 KST로 표시한다 — 뷰어의 브라우저 타임존과 무관하게 항상 KST.
  */
-function parseAsUtc(iso: string): Date {
+function parseTimestamp(iso: string): Date {
   const hasOffset = /[zZ]|[+-]\d{2}:?\d{2}$/.test(iso);
-  return new Date(hasOffset ? iso : `${iso}Z`);
+  return new Date(hasOffset ? iso : `${iso}+09:00`);
 }
 
 /** `HH:mm` for today(KST), `MM.DD` otherwise — mirrors the old mock's time formatting. */
 export function formatTimestamp(iso: string): string {
-  const date = parseAsUtc(iso);
+  const date = parseTimestamp(iso);
   if (Number.isNaN(date.getTime())) return "";
 
   const todayKst = new Intl.DateTimeFormat("en-CA", { timeZone: KST_TIME_ZONE }).format(new Date());
@@ -52,8 +51,8 @@ export const TIME_DIVIDER_GAP_MS = 2 * 60 * 60 * 1000;
  */
 export function shouldShowTimeDivider(prevIso: string | undefined, currentIso: string): boolean {
   if (!prevIso) return true;
-  const prev = parseAsUtc(prevIso).getTime();
-  const current = parseAsUtc(currentIso).getTime();
+  const prev = parseTimestamp(prevIso).getTime();
+  const current = parseTimestamp(currentIso).getTime();
   if (Number.isNaN(current)) return false;
   if (Number.isNaN(prev)) return true;
   return current - prev >= TIME_DIVIDER_GAP_MS;
@@ -61,7 +60,7 @@ export function shouldShowTimeDivider(prevIso: string | undefined, currentIso: s
 
 /** 구분선용 시간 — 오늘(KST)이면 `HH:mm`, 아니면 `MM.DD HH:mm`. */
 export function formatDividerTimestamp(iso: string): string {
-  const date = parseAsUtc(iso);
+  const date = parseTimestamp(iso);
   if (Number.isNaN(date.getTime())) return "";
   const time = date.toLocaleTimeString("ko-KR", { timeZone: KST_TIME_ZONE, hour: "2-digit", minute: "2-digit", hour12: false });
   const dateLabel = formatTimestamp(iso);

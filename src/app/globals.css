@@ -135,12 +135,13 @@
   --border-error: #ec5562;
 
   /* 주요 버튼(.button--primary) 전용 색. 모든 버튼에 하늘색(--sky)이 반복돼 밋밋해 보여서,
-     버튼만 "밤" 같은 미드나잇 네이비로 두고 호버 때 브랜드 하늘색으로 "불이 켜지게" 한다.
+     버튼만 기존 파스텔 중 violet으로 둔다(sky와 같은 차가운 계열이라 어울리면서 구분되고,
+     coral은 danger 버튼, lemon은 밑줄 강조와 겹친다). 호버는 잉크 반전.
      하늘색은 하이라이트·칩·카테고리 등 다른 곳에서 그대로 쓴다. */
-  --btn-primary: #1b2550;
-  --btn-primary-text: #ffffff;
-  --btn-primary-hover: var(--sky);
-  --btn-primary-hover-text: var(--ink);
+  --btn-primary: var(--violet);
+  --btn-primary-text: var(--ink);
+  --btn-primary-hover: var(--ink);
+  --btn-primary-hover-text: #ffffff;
 }
 
 @theme inline {

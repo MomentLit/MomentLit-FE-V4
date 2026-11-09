@@ -13,7 +13,7 @@ import {
   type ChatMessage,
   type ChatRoomListItem,
 } from "@/entities/message";
-import { formatTimestamp, partnerOf } from "../lib/partner";
+import { formatDividerTimestamp, partnerOf, shouldShowTimeDivider } from "../lib/partner";
 
 const ACCESS_TOKEN_KEY = "momentlit_access_token";
 
@@ -85,9 +85,11 @@ export function MessageThread({
     if (container) container.scrollTop = container.scrollHeight;
   }, [lastMessageId]);
 
+  // 인스타그램처럼: 읽음은 대화방의 "가장 마지막 메시지"가 내가 보낸 것이고 상대가 읽었을 때만,
+  // 그 메시지 밑에 표시한다. 누구든 새 메시지를 보내면 이전 읽음 표시는 사라진다.
   const lastReadOwnMessageId = useMemo(() => {
-    const ownRead = messages.filter((message) => message.sender_id === currentUserId && message.is_read);
-    return ownRead.length > 0 ? ownRead[ownRead.length - 1].message_id : null;
+    const last = messages.at(-1);
+    return last && last.sender_id === currentUserId && last.is_read ? last.message_id : null;
   }, [messages, currentUserId]);
 
   function handleSubmit(event: FormEvent) {
@@ -124,10 +126,17 @@ export function MessageThread({
         {!isLoading && !isError && messages.length === 0 && (
           <p className="text-sm text-soft">아직 메시지가 없어요. 먼저 말을 걸어보세요.</p>
         )}
-        {messages.map((message) => {
+        {messages.map((message, index) => {
           const isOwn = message.sender_id === currentUserId;
+          const showTime = shouldShowTimeDivider(messages[index - 1]?.created_at, message.created_at);
           return (
-            <div key={message.message_id} className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
+            <div key={message.message_id} className="flex flex-col gap-2.5">
+              {showTime && (
+                <div className="py-1 text-center text-[0.72rem] text-soft">
+                  {formatDividerTimestamp(message.created_at)}
+                </div>
+              )}
+              <div className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
               <div
                 className={cn(
                   "max-w-[72%] break-words whitespace-pre-wrap rounded-[22px] px-4 py-2.5 text-[0.89rem] leading-relaxed shadow-sm",
@@ -136,11 +145,9 @@ export function MessageThread({
               >
                 {message.content}
               </div>
-              <div className="mt-1 flex items-center gap-1.5 px-1">
-                <span className="font-mono text-[0.62rem] text-soft">{formatTimestamp(message.created_at)}</span>
-                {isOwn && message.message_id === lastReadOwnMessageId && (
-                  <span className="text-[0.62rem] text-soft">· 읽음</span>
-                )}
+              {isOwn && message.message_id === lastReadOwnMessageId && (
+                <div className="mt-1 px-1 text-[0.62rem] text-soft">읽음</div>
+              )}
               </div>
             </div>
           );

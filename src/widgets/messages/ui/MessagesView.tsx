@@ -27,6 +27,15 @@ export function MessagesView() {
 
   const [activeId, setActiveId] = useState<number | null>(roomParam ? Number(roomParam) : null);
 
+  // 선택한 대화방을 URL(?room=)에 반영해, 새로고침해도 보던 방이 그대로 열리게 한다.
+  // (이전엔 state에만 저장돼서 새로고침하면 항상 목록 맨 위 방으로 돌아갔다.)
+  function selectRoom(id: number) {
+    setActiveId(id);
+    const url = new URL(window.location.href);
+    url.searchParams.set("room", String(id));
+    window.history.replaceState(null, "", url);
+  }
+
   const {
     data: rooms,
     isLoading,
@@ -74,7 +83,7 @@ export function MessagesView() {
   const active = rooms.find((room) => room.chat_room_id === activeId) ?? rooms[0];
 
   return (
-    <MessagesViewBody rooms={rooms} active={active} currentUserId={currentUserId} onSelect={setActiveId} initiallyOpen={roomParam !== null} />
+    <MessagesViewBody rooms={rooms} active={active} currentUserId={currentUserId} onSelect={selectRoom} initiallyOpen={roomParam !== null} />
   );
 }
 

@@ -84,8 +84,8 @@ const NIGHT = {
   faint: "rgba(21,23,28,.38)",
   line: "#E7E9EE",
   dot: "#E3E6EC",
-  dotHi: "#E4F8A9",
-  warm: "#A8D232",
+  dotHi: "#9FD8FA",
+  warm: "#5FC5FC",
   count: "#1D6FE0",
 };
 

@@ -461,7 +461,7 @@ export function ChatbotDrawer() {
 
           <form onSubmit={handleSubmit} className="border-t border-line bg-white p-3">
             <div className="flex gap-2">
-              <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="예: 성수동 20명 팝업 공간" aria-label="챗봇 메시지" disabled={isStreaming} className="min-w-0 flex-1 rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-ink disabled:bg-wash" />
+              <input value={draft} onChange={(event) => setDraft(event.target.value)} placeholder="예: 성수동 20명 팝업 공간" aria-label="챗봇 메시지" disabled={isStreaming} className="min-w-0 flex-1 rounded-xl border border-line px-3 py-2 text-sm outline-none focus:border-sky disabled:bg-wash" />
               <button type="submit" disabled={!draft.trim() || isStreaming} className="grid h-10 w-10 place-items-center rounded-xl bg-ink text-white transition-opacity disabled:opacity-35" aria-label="전송"><Send size={17} /></button>
             </div>
             {!isAuthenticated && <p className="mt-2 text-center text-[0.68rem] text-soft">전송하면 로그인 화면이 열려요.</p>}

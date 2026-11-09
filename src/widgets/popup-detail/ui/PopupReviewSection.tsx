@@ -78,7 +78,7 @@ function ReviewComposer({ popupId }: { popupId: number }) {
         onChange={(event) => setContent(event.target.value)}
         placeholder="방문 후기를 남겨주세요."
         rows={3}
-        className="w-full resize-none rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-ink"
+        className="w-full resize-none rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-sky"
       />
       <div className="flex flex-col gap-2 sm:flex-row">
         <label className="flex items-center gap-2 text-sm text-ink">
@@ -100,7 +100,7 @@ function ReviewComposer({ popupId }: { popupId: number }) {
           value={verificationPayload}
           onChange={(event) => setVerificationPayload(event.target.value)}
           placeholder={verificationType === "QR" ? "QR 코드 값" : "영수증 번호/내용"}
-          className="flex-1 rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-ink"
+          className="flex-1 rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-sky"
         />
       </div>
       {error && <p className="text-sm text-coral">{error}</p>}

@@ -47,7 +47,7 @@ export function PopupFilterPanel({
           min={new Date().toISOString().slice(0, 10)}
           onChange={(e) => onDateChange(e.target.value || null)}
           aria-label="날짜"
-          className="border border-line px-2.5 py-2 text-[0.86rem] text-ink outline-none focus:border-ink"
+          className="border border-line px-2.5 py-2 text-[0.86rem] text-ink outline-none focus:border-sky"
         />
         {date && <span className="text-[0.76rem] text-soft">이 날짜에 진행 중인 팝업만 보여요.</span>}
       </div>

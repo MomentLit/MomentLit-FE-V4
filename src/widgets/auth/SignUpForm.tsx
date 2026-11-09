@@ -137,7 +137,7 @@ export function SignUpForm({ onSuccess, onSwitchToSignIn }: SignUpFormProps) {
       <button
         type="submit"
         disabled={!canSubmit || isSubmitting}
-        className="w-full rounded-xl bg-primary-500 py-3 text-sm font-bold text-ink transition-all duration-200 hover:-translate-y-0.5 hover:bg-ink hover:text-white hover:shadow-lg active:translate-y-0 disabled:pointer-events-none disabled:bg-gray-300 disabled:shadow-none"
+        className="w-full rounded-xl bg-primary-500 py-3 text-sm font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary-600 hover:shadow-lg active:translate-y-0 disabled:pointer-events-none disabled:bg-gray-300 disabled:shadow-none"
       >
         {isSubmitting ? "가입 중" : "회원가입"}
       </button>

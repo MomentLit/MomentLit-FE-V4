@@ -28,4 +28,4 @@ export function FormField({ label, full, hint, children }: FormFieldProps) {
  * design-reference.html's `.ff input,.ff textarea,.ff select` rule.
  */
 export const fieldInputClass =
-  "w-full appearance-none rounded-none border-0 bg-transparent px-3.5 py-3 text-sm text-ink shadow-[inset_0_0_0_1px_var(--line)] outline-none transition-shadow placeholder:text-soft focus:shadow-[inset_0_0_0_1.5px_var(--ink)]";
+  "w-full appearance-none rounded-none border-0 bg-transparent px-3.5 py-3 text-sm text-ink shadow-[inset_0_0_0_1px_var(--line)] outline-none transition-shadow placeholder:text-soft focus:shadow-[inset_0_0_0_1.5px_var(--sky)]";

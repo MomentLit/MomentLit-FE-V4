@@ -13,7 +13,7 @@ import { Badge, type BadgeProps } from "@/shared/ui";
 import { formatPriceAmount, type MySpaceListItem, type SpaceAdminStatus } from "@/entities/space";
 
 const fieldInputClass =
-  "w-full border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-soft focus:border-ink";
+  "w-full border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-soft focus:border-sky";
 
 const SPACE_STATUS_META: Record<SpaceAdminStatus, { label: string; variant: NonNullable<BadgeProps["variant"]> }> = {
   DRAFT: { label: "임시저장", variant: "neutral" },

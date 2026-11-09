@@ -109,7 +109,7 @@ export function PanoramaCaptureGuide({ files, onFileChange, mobile, disabled }: 
             <label
               key={step.label}
               className={cn(
-                "flex cursor-pointer items-start gap-3 border px-4 py-3.5 transition-colors focus-within:border-ink",
+                "flex cursor-pointer items-start gap-3 border px-4 py-3.5 transition-colors focus-within:border-sky",
                 file
                   ? "border-sky bg-wash"
                   : "border-line hover:border-ink",

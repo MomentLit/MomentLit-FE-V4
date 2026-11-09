@@ -188,7 +188,7 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
 
       {mode === "UPLOAD" && (
         <div className="flex flex-col gap-4">
-          <label className={`flex cursor-pointer flex-col items-center gap-3 border-2 border-dashed border-line-2 bg-wash p-6 text-center transition-colors hover:border-ink focus-within:border-ink ${busy ? "pointer-events-none opacity-60" : ""}`}>
+          <label className={`flex cursor-pointer flex-col items-center gap-3 border-2 border-dashed border-line-2 bg-wash p-6 text-center transition-colors hover:border-ink focus-within:border-sky ${busy ? "pointer-events-none opacity-60" : ""}`}>
             <IconUpload size={28} stroke={1.5} aria-hidden />
             <span className="button button--primary">{panoramaFile ? "360° 사진 변경" : "360° 사진 선택"}</span>
             <span className="text-sm text-soft">{panoramaFile?.name ?? "JPG · PNG, 가로:세로 2:1 비율의 사진 한 장"}</span>

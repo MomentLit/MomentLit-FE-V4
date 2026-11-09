@@ -6,7 +6,7 @@ export interface DaySchedulePickerProps {
   onChange: (day: Day, patch: Partial<DaySchedule>) => void;
 }
 
-const timeInputClass = `${fieldInputClass} w-auto flex-none py-1.5 shadow-none ring-1 ring-line focus:ring-1 focus:ring-ink`;
+const timeInputClass = `${fieldInputClass} w-auto flex-none py-1.5 shadow-none ring-1 ring-line focus:ring-1 focus:ring-sky`;
 
 /** 요일별로 운영 여부 + 시작/종료 시간 + 예약 단위(몇 시간씩 끊어 받을지)를 정한다. */
 export function DaySchedulePicker({ schedule, onChange }: DaySchedulePickerProps) {

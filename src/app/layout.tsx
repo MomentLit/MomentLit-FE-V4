@@ -20,15 +20,18 @@ const geistMono = Geist_Mono({
 
 /*
  * Display/label/wordmark faces from docs/design-reference.html's `--f-d`
- * (롯데리아 촵땡겨체 — Black Han Sans 대체), `--f-en` (Archivo) and `--f-m` (DM Mono) tokens — see
+ * (롯데리아 리아체 ExtraBold — Black Han Sans 대체), `--f-en` (Archivo) and `--f-m` (DM Mono) tokens — see
  * ANALYSIS.md §2.1/§2.7/§2.8. Exposed as CSS variables (not Tailwind theme
  * tokens, since globals.css's `@theme inline` block is out of scope here)
  * and consumed directly via `style={{ fontFamily: "var(--font-*)" }}` in
  * the landing/opening-intro widgets.
  */
-// 롯데리아 촵땡겨체 — 한글 전체가 들어 있는 단일 굵기 디스플레이 폰트라 로컬로 묶어 셀프 호스팅한다.
+// 롯데리아 리아체(RiaSans) ExtraBold — https://www.lotteriafont.com/riasans
+// 라이선스(fonts/RiaSans_license.pdf)상 웹 임베딩은 허용, 폰트 파일 수정·재배포는 금지라
+// 공식 배포 TTF를 변환 없이 그대로 셀프 호스팅한다. 호출부가 모두 font-normal(400)로
+// 쓰므로 단일 굵기를 400으로 등록해 합성 굵기 없이 ExtraBold 그대로 그려지게 한다.
 const displayFont = localFont({
-  src: "./fonts/LotteriaChab.woff2",
+  src: "./fonts/RiaSans-ExtraBold.ttf",
   variable: "--font-display",
   weight: "400",
   display: "swap",

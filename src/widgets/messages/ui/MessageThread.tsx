@@ -130,7 +130,7 @@ export function MessageThread({
           return (
             <div key={message.message_id} className="flex flex-col gap-2.5">
               {showTime && (
-                <div className="py-1 text-center font-mono text-[0.68rem] text-soft">
+                <div className="py-1 text-center text-[0.72rem] text-soft">
                   {formatDividerTimestamp(message.created_at)}
                 </div>
               )}

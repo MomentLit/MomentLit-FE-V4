@@ -58,11 +58,17 @@ export function shouldShowTimeDivider(prevIso: string | undefined, currentIso: s
   return current - prev >= TIME_DIVIDER_GAP_MS;
 }
 
-/** 구분선용 시간 — 오늘(KST)이면 `HH:mm`, 아니면 `MM.DD HH:mm`. */
+/** 구분선용 시간 — 항상 KST 기준 `2026. 11. 2. 오후 6:59` 형식. */
 export function formatDividerTimestamp(iso: string): string {
   const date = parseTimestamp(iso);
   if (Number.isNaN(date.getTime())) return "";
-  const time = date.toLocaleTimeString("ko-KR", { timeZone: KST_TIME_ZONE, hour: "2-digit", minute: "2-digit", hour12: false });
-  const dateLabel = formatTimestamp(iso);
-  return dateLabel.includes(".") ? `${dateLabel} ${time}` : time;
+  return date.toLocaleString("ko-KR", {
+    timeZone: KST_TIME_ZONE,
+    year: "numeric",
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    hour12: true,
+  });
 }

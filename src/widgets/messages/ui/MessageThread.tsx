@@ -85,11 +85,11 @@ export function MessageThread({
     if (container) container.scrollTop = container.scrollHeight;
   }, [lastMessageId]);
 
-  // 인스타그램처럼: 내가 보낸 "가장 마지막 메시지"를 상대가 읽었을 때만 읽음을 표시한다.
-  // (그 뒤에 안 읽힌 새 메시지가 있으면, 오래된 메시지 밑에 읽음이 남지 않도록 표시하지 않는다.)
+  // 인스타그램처럼: 읽음은 대화방의 "가장 마지막 메시지"가 내가 보낸 것이고 상대가 읽었을 때만,
+  // 그 메시지 밑에 표시한다. 누구든 새 메시지를 보내면 이전 읽음 표시는 사라진다.
   const lastReadOwnMessageId = useMemo(() => {
-    const lastOwn = messages.findLast((message) => message.sender_id === currentUserId);
-    return lastOwn?.is_read ? lastOwn.message_id : null;
+    const last = messages.at(-1);
+    return last && last.sender_id === currentUserId && last.is_read ? last.message_id : null;
   }, [messages, currentUserId]);
 
   function handleSubmit(event: FormEvent) {

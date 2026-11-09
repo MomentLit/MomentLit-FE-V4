@@ -69,7 +69,7 @@ export function SignInForm({ onSuccess, onSwitchToSignUp }: SignInFormProps) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="w-full rounded-xl bg-primary-500 py-3 text-sm font-medium text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-primary-600 hover:shadow-lg active:translate-y-0 disabled:pointer-events-none disabled:bg-gray-300 disabled:shadow-none"
+        className="w-full rounded-xl bg-[var(--btn-primary)] py-3 text-sm font-medium text-[var(--btn-primary-text)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--btn-primary-hover)] hover:text-[var(--btn-primary-hover-text)] hover:shadow-lg active:translate-y-0 disabled:pointer-events-none disabled:bg-gray-300 disabled:shadow-none"
       >
         {isSubmitting ? "로그인 중" : "로그인"}
       </button>

@@ -28,11 +28,11 @@ export function AiSummaryCard({ label, status, text }: AiSummaryCardProps) {
         />
 
         <div className="relative mb-3 flex items-center gap-2.5">
-          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet to-sky text-white shadow-[0_0_18px_-2px_var(--color-violet)]">
+          <span className="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-violet to-main-d text-white shadow-[0_0_18px_-2px_var(--color-violet)]">
             <span aria-hidden className="absolute inset-0 animate-ping rounded-full bg-violet/60" />
             <Sparkles size={16} aria-hidden className="relative" />
           </span>
-          <span className="bg-gradient-to-r from-violet via-main-d to-sky bg-clip-text text-base font-extrabold tracking-tight text-transparent">
+          <span className="bg-gradient-to-r from-main-d to-violet bg-clip-text text-base font-extrabold tracking-tight text-transparent">
             {label}
           </span>
           <span className="ml-auto flex items-center gap-1 rounded-full bg-ink px-2.5 py-1 font-mono text-[0.6rem] font-bold uppercase tracking-[0.14em] text-white">

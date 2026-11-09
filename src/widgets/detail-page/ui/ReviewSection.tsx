@@ -86,7 +86,7 @@ function ReviewComposer({ spaceId }: { spaceId: number }) {
         onChange={(event) => setContent(event.target.value)}
         placeholder="이용 후기를 남겨주세요."
         rows={3}
-        className="w-full resize-none rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-sky"
+        className="w-full resize-none rounded-md border border-line px-3 py-2 text-sm outline-none focus:border-ink"
       />
       {error && <p className="text-sm text-coral">{error}</p>}
       <button

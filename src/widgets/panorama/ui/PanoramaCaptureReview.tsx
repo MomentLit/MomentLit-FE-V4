@@ -95,7 +95,7 @@ export function PanoramaCaptureReview({ files, onFileChange, mobile, disabled }:
               {/* .button과 같은 모양의 작은 버전 — 5열 칸이 좁아 기본 .button 여백으로는 넘친다. */}
               <label
                 className={cn(
-                  "mt-auto inline-flex min-h-9 cursor-pointer items-center justify-center gap-1 border border-line-2 bg-white px-2 text-xs font-bold text-ink transition-colors hover:border-ink hover:bg-ink hover:text-white focus-within:border-sky",
+                  "mt-auto inline-flex min-h-9 cursor-pointer items-center justify-center gap-1 border border-line-2 bg-white px-2 text-xs font-bold text-ink transition-colors hover:border-ink hover:bg-ink hover:text-white focus-within:border-ink",
                   disabled && "pointer-events-none opacity-60",
                 )}
               >

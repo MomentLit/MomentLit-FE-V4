@@ -11,7 +11,7 @@ import {
   type WeeklySchedule,
 } from "./model";
 
-const timeInputClass = `${fieldInputClass} w-auto flex-none py-1.5 shadow-none ring-1 ring-line focus:ring-1 focus:ring-sky`;
+const timeInputClass = `${fieldInputClass} w-auto flex-none py-1.5 shadow-none ring-1 ring-line focus:ring-1 focus:ring-ink`;
 
 export interface BulkSchedulePanelProps {
   schedule: WeeklySchedule;

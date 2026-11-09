@@ -12,7 +12,12 @@
  * tokens as before (`--sky`, `--ink`, `--soft`, `--wash`, `--line`,
  * `--line-2`, plus the spectrum names), so only the values below changed —
  * no call sites needed renaming:
- *   - `--sky` is the new ramp's own `sky` stop (#5FC5FC) — the brand blue.
+ *   - `--sky` is the brand color. It used to be the ramp's `sky` stop
+ *     (#5FC5FC), but the same pastel blue on every button read as dated, so
+ *     it's now a "lit lime" (#C9F25A) — a light-catching accent that fits the
+ *     "Moment-Lit" name and pairs with ink text/borders. The token keeps its
+ *     old name so call sites don't change. Because lime has almost no
+ *     contrast against white, focus rings/borders use ink instead.
  *   - `--ink`/`--soft`/`--wash`/`--line`/`--line-2`/`--main-d` map onto the
  *     reference's neutral + brand-hover tokens 1:1.
  *   - The remaining spectrum names take the reference's alias table (old
@@ -36,14 +41,14 @@
   /*
    * "Spectrum" tone names — category/region color-coding. Old hex → new
    * ramp source:
-   *   sky     #5cb8ff → ramp `sky`    #5FC5FC (direct)
+   *   sky     #5cb8ff → ramp `sky`    #5FC5FC → brand lime #C9F25A
    *   violet  #358fd9 → ramp `violet` #C1A6FC (now genuinely violet)
    *   lime    #46a46f → ramp `peri`   #8EB6FE
    *   lemon   #eec053 → ramp `butter` #FFD52E
    *   coral   #ec5562 → ramp `blush`  #FD9F97
    *   rose    #f6bec3 → ramp `orchid` #F88EE0
    */
-  --sky: #5fc5fc;
+  --sky: #c9f25a; /* brand "lit lime" — was #5fc5fc */
   --lime: #8eb6fe;
   --lemon: #ffd52e;
   --coral: #fd9f97;
@@ -62,12 +67,12 @@
      aliases above don't cover (new work should reach for these directly).
      Re-anchored on the new --sky (500) / --main-d (600); 50–400 keep the old
      ramp's white-blend ratios, 700–900 keep its black-blend ratios. */
-  --primary-50: #f5fbff;
-  --primary-100: #eff9ff;
-  --primary-200: #e1f4fe;
-  --primary-300: #cdedfe;
-  --primary-400: #aae0fd;
-  --primary-500: #5fc5fc;
+  --primary-50: #fcfef5;
+  --primary-100: #fafeee;
+  --primary-200: #f5fde1;
+  --primary-300: #eefbcc;
+  --primary-400: #e2f8a8;
+  --primary-500: #c9f25a;
   --primary-600: #1d6fe0;
   --primary-700: #155fc9;
   --primary-800: #104ca6;
@@ -121,7 +126,7 @@
      bg-brand/text-brand/border-focus track the brand blue (sky/main-d);
      the success/warning/error trio are functional status colors off the
      green/yellow/red atomic scales, independent of the spectrum ramp. */
-  --bg-brand: #5fc5fc;
+  --bg-brand: #c9f25a;
   --bg-success: #f6fbf8;
   --bg-warning: #fefbf3;
   --bg-error: #fef3f4;
@@ -129,7 +134,7 @@
   --text-success: #46a46f;
   --text-warning: #997624;
   --text-error: #c72331;
-  --border-focus: #5fc5fc;
+  --border-focus: #15171c;
   --border-success: #76cb9b;
   --border-warning: #eec053;
   --border-error: #ec5562;

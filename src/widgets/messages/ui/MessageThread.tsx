@@ -170,7 +170,7 @@ export function MessageThread({
             placeholder="메시지를 입력하세요"
             aria-label="메시지 입력"
             disabled={!connected}
-            className="min-w-0 flex-1 rounded-full border border-line bg-white px-4.5 py-2.5 text-sm outline-none focus:border-sky disabled:opacity-60"
+            className="min-w-0 flex-1 rounded-full border border-line bg-white px-4.5 py-2.5 text-sm outline-none focus:border-ink disabled:opacity-60"
           />
           <button
             type="submit"

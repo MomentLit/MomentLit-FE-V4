@@ -13,7 +13,7 @@ import { uploadImage } from "@/shared/api/upload";
 import { getErrorMessage } from "@/shared/api/error";
 
 const fieldInputClass =
-  "w-full border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-soft focus:border-sky";
+  "w-full border border-line bg-white px-3.5 py-2.5 text-sm text-ink outline-none transition-colors placeholder:text-soft focus:border-ink";
 
 function formatDate(iso: string): string {
   const d = new Date(iso);

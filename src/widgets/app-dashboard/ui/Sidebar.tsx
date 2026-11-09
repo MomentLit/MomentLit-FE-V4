@@ -230,7 +230,7 @@ export function Sidebar() {
                     strokeWidth={2}
                     className={cn(
                       "transition-transform duration-200 group-hover:scale-125",
-                      isActive ? "text-sky" : item.tone ? TONE_TEXT[item.tone] : "text-soft",
+                      isActive ? "text-ink" : item.tone ? TONE_TEXT[item.tone] : "text-soft",
                     )}
                     aria-hidden
                   />

@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Archivo, Black_Han_Sans, DM_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Archivo, DM_Mono } from "next/font/google";
+import localFont from "next/font/local";
 import { SITE_NAME, SITE_DESCRIPTION, SITE_URL } from "@/shared/config";
 import { OpeningIntro } from "@/widgets/opening-intro/OpeningIntro";
 import { AuthModal } from "@/widgets/auth";
@@ -19,19 +20,21 @@ const geistMono = Geist_Mono({
 
 /*
  * Display/label/wordmark faces from docs/design-reference.html's `--f-d`
- * (Black Han Sans), `--f-en` (Archivo) and `--f-m` (DM Mono) tokens — see
+ * (롯데리아 리아체 ExtraBold — Black Han Sans 대체), `--f-en` (Archivo) and `--f-m` (DM Mono) tokens — see
  * ANALYSIS.md §2.1/§2.7/§2.8. Exposed as CSS variables (not Tailwind theme
  * tokens, since globals.css's `@theme inline` block is out of scope here)
  * and consumed directly via `style={{ fontFamily: "var(--font-*)" }}` in
  * the landing/opening-intro widgets.
  */
-const displayFont = Black_Han_Sans({
+// 롯데리아 리아체(RiaSans) ExtraBold — https://www.lotteriafont.com/riasans
+// 라이선스(fonts/RiaSans_license.pdf)상 웹 임베딩은 허용, 폰트 파일 수정·재배포는 금지라
+// 공식 배포 TTF를 변환 없이 그대로 셀프 호스팅한다. 호출부가 모두 font-normal(400)로
+// 쓰므로 단일 굵기를 400으로 등록해 합성 굵기 없이 ExtraBold 그대로 그려지게 한다.
+const displayFont = localFont({
+  src: "./fonts/RiaSans-ExtraBold.ttf",
   variable: "--font-display",
   weight: "400",
-  // "latin" is the only subset Google registers for this font, but (per its
-  // font-face response) that one subset ships unsubsetted — full Hangul
-  // coverage included — which is why this still renders Korean headings.
-  subsets: ["latin"],
+  display: "swap",
 });
 
 const enFont = Archivo({

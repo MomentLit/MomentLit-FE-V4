@@ -28,6 +28,13 @@ const TONE_BG: Record<string, string> = {
 
 export const toneVar = (space: SpaceListItem) => `var(--${SPACE_CATEGORY_COLORS[space.category]})`;
 
+/**
+ * 호버 시 카드 뒤에 깔리는 오프셋 면 색. 카테고리 색을 그대로 쓰면 스튜디오·연습실·클래스룸이
+ * 모두 rose라 그리드가 온통 핑크가 되므로, 카드 순서대로 스펙트럼 톤을 돌려 가며 쓴다.
+ */
+const HOVER_TONES = ["sky", "violet", "lemon", "coral", "lime", "rose"] as const;
+const hoverToneVar = (index: number) => `var(--${HOVER_TONES[index % HOVER_TONES.length]})`;
+
 export function placeText(space: SpaceListItem) {
   const region = space.address.region ? REGION_LABELS[space.address.region] : space.address.sido;
   const local = [space.address.sigungu, space.address.eup_myeon_dong].filter(Boolean).join(" ");
@@ -88,11 +95,14 @@ export function SpotlightCard({
   space,
   today,
   big = false,
+  index = 0,
   onPreview,
 }: {
   space: SpotlightSpace;
   today: TodayStatus | undefined;
   big?: boolean;
+  /** 그리드 안 순서 — 호버 오프셋 색을 고르는 데 쓴다. */
+  index?: number;
   onPreview: (space: SpotlightSpace) => void;
 }) {
   const price = priceText(space);
@@ -105,12 +115,12 @@ export function SpotlightCard({
   return (
     <article
       className={cn("group relative flex min-w-0 flex-col gap-3.5", big && "sm:col-span-2 lg:row-span-2")}
-      style={{ "--ac": toneVar(space) } as CSSProperties}
+      style={{ "--ac": toneVar(space), "--hover-ac": hoverToneVar(index) } as CSSProperties}
     >
       <ViewTransition name={spaceMorphName(space.space_id)} share="morph" default="none">
       <div
         className={cn(
-          "relative overflow-hidden transition-[transform,box-shadow] duration-500 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:shadow-[0_0_0_1.5px_var(--ink),8px_8px_0_var(--ac)]",
+          "relative overflow-hidden transition-[transform,box-shadow] duration-500 ease-[cubic-bezier(.2,.8,.2,1)] group-hover:-translate-x-1 group-hover:-translate-y-1 group-hover:shadow-[0_0_0_1.5px_var(--ink),8px_8px_0_var(--hover-ac)]",
           big ? "aspect-[4/3] lg:aspect-auto lg:min-h-[360px] lg:flex-1" : "aspect-[4/3]",
         )}
       >

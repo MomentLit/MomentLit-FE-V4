@@ -124,6 +124,7 @@ export function SpaceSpotlight() {
                     space={space}
                     today={todayById.get(space.space_id)}
                     big={i === 0 && ordered.length > 2}
+                    index={i}
                     onPreview={setPreview}
                   />
                 ))

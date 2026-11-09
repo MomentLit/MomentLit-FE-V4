@@ -13,7 +13,7 @@ import {
   type ChatMessage,
   type ChatRoomListItem,
 } from "@/entities/message";
-import { formatTimestamp, partnerOf } from "../lib/partner";
+import { formatDividerTimestamp, partnerOf, shouldShowTimeDivider } from "../lib/partner";
 
 const ACCESS_TOKEN_KEY = "momentlit_access_token";
 
@@ -124,10 +124,17 @@ export function MessageThread({
         {!isLoading && !isError && messages.length === 0 && (
           <p className="text-sm text-soft">아직 메시지가 없어요. 먼저 말을 걸어보세요.</p>
         )}
-        {messages.map((message) => {
+        {messages.map((message, index) => {
           const isOwn = message.sender_id === currentUserId;
+          const showTime = shouldShowTimeDivider(messages[index - 1]?.created_at, message.created_at);
           return (
-            <div key={message.message_id} className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
+            <div key={message.message_id} className="flex flex-col gap-2.5">
+              {showTime && (
+                <div className="py-1 text-center font-mono text-[0.68rem] text-soft">
+                  {formatDividerTimestamp(message.created_at)}
+                </div>
+              )}
+              <div className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
               <div
                 className={cn(
                   "max-w-[72%] break-words whitespace-pre-wrap rounded-[22px] px-4 py-2.5 text-[0.89rem] leading-relaxed shadow-sm",
@@ -136,11 +143,9 @@ export function MessageThread({
               >
                 {message.content}
               </div>
-              <div className="mt-1 flex items-center gap-1.5 px-1">
-                <span className="font-mono text-[0.62rem] text-soft">{formatTimestamp(message.created_at)}</span>
-                {isOwn && message.message_id === lastReadOwnMessageId && (
-                  <span className="text-[0.62rem] text-soft">· 읽음</span>
-                )}
+              {isOwn && message.message_id === lastReadOwnMessageId && (
+                <div className="mt-1 px-1 text-[0.62rem] text-soft">읽음</div>
+              )}
               </div>
             </div>
           );

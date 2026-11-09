@@ -42,3 +42,28 @@ export function formatTimestamp(iso: string): string {
   const [, mm, dd] = dateKst.split("-");
   return `${mm}.${dd}`;
 }
+
+/** 이 간격(2시간) 이상 지난 뒤 보낸 메시지에는 시간 구분선을 다시 표시한다. */
+export const TIME_DIVIDER_GAP_MS = 2 * 60 * 60 * 1000;
+
+/**
+ * 인스타그램 DM처럼: 첫 메시지이거나, 직전 메시지로부터 2시간 이상 지났을 때만 시간을 보여준다.
+ * 기준은 항상 "직전 메시지의 전송 시각"이다.
+ */
+export function shouldShowTimeDivider(prevIso: string | undefined, currentIso: string): boolean {
+  if (!prevIso) return true;
+  const prev = parseAsUtc(prevIso).getTime();
+  const current = parseAsUtc(currentIso).getTime();
+  if (Number.isNaN(current)) return false;
+  if (Number.isNaN(prev)) return true;
+  return current - prev >= TIME_DIVIDER_GAP_MS;
+}
+
+/** 구분선용 시간 — 오늘(KST)이면 `HH:mm`, 아니면 `MM.DD HH:mm`. */
+export function formatDividerTimestamp(iso: string): string {
+  const date = parseAsUtc(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  const time = date.toLocaleTimeString("ko-KR", { timeZone: KST_TIME_ZONE, hour: "2-digit", minute: "2-digit", hour12: false });
+  const dateLabel = formatTimestamp(iso);
+  return dateLabel.includes(".") ? `${dateLabel} ${time}` : time;
+}

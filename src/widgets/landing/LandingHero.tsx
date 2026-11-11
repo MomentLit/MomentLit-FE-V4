@@ -35,7 +35,7 @@ export function LandingHero() {
   return (
     <section className="search-hero relative border-b border-line px-5 sm:px-10">
       {/* 히어로는 마우스 자국이 보이되 너무 진하지 않게(가운데 .45). */}
-      <TrailLayer visible />
+      <TrailLayer />
 
       <div className="search-hero-content relative z-[2] pt-24 sm:pt-12 lg:pt-6">
           <h1

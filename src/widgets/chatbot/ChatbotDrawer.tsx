@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Bot, ChevronDown, Send, Sparkles, X } from "lucide-react";
 import { streamChatbotReply, type ChatbotSpaceCard } from "@/entities/chatbot";
 import { useAuthStore } from "@/entities/auth";
@@ -144,6 +145,7 @@ export function ChatbotDrawer() {
     samples: Array<{ t: number; x: number; y: number }>;
   } | null>(null);
   const justDraggedRef = useRef(false);
+  const pathname = usePathname();
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const hydrated = useAuthStore((state) => state.hydrated);
   const userId = useAuthStore((state) => state.user?.id);
@@ -427,6 +429,10 @@ export function ChatbotDrawer() {
       }
     }
   }
+
+
+  // 메시지(사람끼리 대화) 화면에서는 입력창 오른쪽 끝의 보내기 버튼을 가려서 띄우지 않는다.
+  if (pathname?.startsWith("/messages")) return null;
 
   return (
     <div

@@ -58,6 +58,25 @@ export function shouldShowTimeDivider(prevIso: string | undefined, currentIso: s
   return current - prev >= TIME_DIVIDER_GAP_MS;
 }
 
+/** 말풍선 옆 작은 시간 — KST 기준 `오후 3:42`. */
+export function formatMessageTime(iso: string): string {
+  const date = parseTimestamp(iso);
+  if (Number.isNaN(date.getTime())) return "";
+  // 브라우저·환경의 한국어 데이터 유무와 상관없이 항상 "오후 3:42"가 되게 KST 시·분만 뽑아 직접 붙인다.
+  const parts = new Intl.DateTimeFormat("en-US", { timeZone: KST_TIME_ZONE, hour: "numeric", minute: "2-digit", hourCycle: "h23" }).formatToParts(date);
+  const hour = Number(parts.find((part) => part.type === "hour")?.value ?? 0);
+  const minute = parts.find((part) => part.type === "minute")?.value ?? "00";
+  return `${hour < 12 ? "오전" : "오후"} ${hour % 12 || 12}:${minute}`;
+}
+
+/** 같은 "분"에 보낸 메시지인지 — KST는 고정 오프셋이라 분 단위로 잘라 비교하면 된다. */
+export function isSameMinute(aIso: string, bIso: string): boolean {
+  const a = parseTimestamp(aIso).getTime();
+  const b = parseTimestamp(bIso).getTime();
+  if (Number.isNaN(a) || Number.isNaN(b)) return false;
+  return Math.floor(a / 60_000) === Math.floor(b / 60_000);
+}
+
 /** 구분선용 시간 — 항상 KST 기준 `2026. 11. 2. 오후 6:59` 형식. */
 export function formatDividerTimestamp(iso: string): string {
   const date = parseTimestamp(iso);

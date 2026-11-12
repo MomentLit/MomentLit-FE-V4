@@ -94,11 +94,11 @@ export function MessageThread({
     if (container) container.scrollTop = container.scrollHeight;
   }, [lastMessageId]);
 
-  // 인스타그램처럼: 읽음은 대화방의 "가장 마지막 메시지"가 내가 보낸 것이고 상대가 읽었을 때만,
-  // 그 메시지 밑에 표시한다. 누구든 새 메시지를 보내면 이전 읽음 표시는 사라진다.
+  // 읽음은 "내가 보낸 메시지 중 가장 최근 것"을 상대가 읽었을 때 그 아래에만 표시한다.
+  // 상대가 그 뒤에 답장을 보냈어도 내 마지막 메시지 아래에 남아서, 내 말을 읽었는지 늘 확인할 수 있다.
   const lastReadOwnMessageId = useMemo(() => {
-    const last = messages.at(-1);
-    return last && last.sender_id === currentUserId && last.is_read ? last.message_id : null;
+    const lastOwn = messages.findLast((message) => message.sender_id === currentUserId);
+    return lastOwn?.is_read ? lastOwn.message_id : null;
   }, [messages, currentUserId]);
 
   // ── 사진 보내기 — "+" 메뉴에서 고르면 한 장씩 올리고, 올린 순서대로 사진 메시지를 보낸다. ──
@@ -257,7 +257,7 @@ export function MessageThread({
                 </time>
               )}
               </div>
-              {/* 읽음은 대화의 가장 최근 메시지(내가 보낸 것)를 상대가 읽었을 때만, 그 아래에 작게. */}
+              {/* 내가 보낸 가장 최근 메시지를 상대가 읽었으면 그 아래에 작게. */}
               {isLastReadOwn && <div className="mt-1 px-1 text-[0.66rem] font-semibold text-soft">읽음</div>}
               </div>
             </div>

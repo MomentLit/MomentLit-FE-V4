@@ -11,6 +11,7 @@ export interface MatchingCreateRequest {
   space_id: number;
   start_time: string;
   end_time: string;
+  /** 서버가 공간 요금으로 다시 계산해 저장한다 — 예전 서버 호환용으로만 보낸다. */
   total_price: string;
   guest_count?: number;
 }
@@ -31,6 +32,13 @@ export interface MatchingSearchItem {
   guest_count: number | null;
   status: MatchingStatus;
   created_at: string;
+}
+
+/** `GET /matchings/spaces/{id}/booked-times` — 아직 끝나지 않은 승인 예약의 시간대(예약자 정보 없음). */
+export interface BookedTime {
+  /** `LocalDateTime` — "2026-11-12T10:00:00" */
+  start_time: string;
+  end_time: string;
 }
 
 export interface HostStats {

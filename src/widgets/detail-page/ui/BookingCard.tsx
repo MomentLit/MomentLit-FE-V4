@@ -9,16 +9,24 @@ import { Card } from "@/shared/ui";
 import { useAuthStore } from "@/entities/auth";
 import { getErrorMessage } from "@/shared/api/error";
 import { createChatRoom } from "@/entities/message";
-import { formatPriceAmount, getExternalBookingUrl, type SpaceAvailabilitySlot, type SpaceDetail } from "@/entities/space";
+import {
+  calculateBookingPrice,
+  formatPriceAmount,
+  getExternalBookingUrl,
+  getExtraGuestFee,
+  type SpaceAvailabilitySlot,
+  type SpaceDetail,
+} from "@/entities/space";
 import { recordExternalBookingClick } from "@/entities/space/api";
-import type { HostStats } from "@/entities/matching";
+import type { BookedTime, HostStats } from "@/entities/matching";
 import type { MatchingCreateRequest } from "@/entities/matching";
 import { Modal } from "@/shared/ui/Modal";
 import { AvailabilityCalendar } from "./AvailabilityCalendar";
 import {
   USAGE_UNIT_LABELS,
-  dayOfWeekForDate,
-  slotDurationHours,
+  consecutiveSlotsFrom,
+  daySlotsForDate,
+  timeToMinutes,
   useCreateMatchingMutation,
   useSpaceLikeStatusQuery,
   useToggleSpaceLikeMutation,
@@ -26,6 +34,14 @@ import {
 
 function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
+}
+
+/** 90 → "1시간 30분", 120 → "2시간" */
+function formatDuration(minutes: number): string {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours === 0) return `${rest}분`;
+  return rest === 0 ? `${hours}시간` : `${hours}시간 ${rest}분`;
 }
 
 function formatResponseRate(rate: number): string {
@@ -44,14 +60,14 @@ export function BookingCard({
   space,
   spaceId,
   availability,
-  bookedDates,
+  bookedTimes,
   hostStats,
   hostStatsLoading,
 }: {
   space: SpaceDetail;
   spaceId: number;
   availability: SpaceAvailabilitySlot[];
-  bookedDates: string[];
+  bookedTimes: BookedTime[];
   hostStats: HostStats | undefined;
   hostStatsLoading: boolean;
 }) {
@@ -74,23 +90,34 @@ export function BookingCard({
 
   const minDate = useMemo(() => todayIso(), []);
   const [date, setDate] = useState(minDate);
-  const [slotKey, setSlotKey] = useState<string | null>(null);
+  const [startKey, setStartKey] = useState<string | null>(null);
+  const [endKey, setEndKey] = useState<string | null>(null);
   const [guestCount, setGuestCount] = useState(1);
   const [feedback, setFeedback] = useState<{ type: "success" | "error"; message: string } | null>(null);
   const [pendingRequest, setPendingRequest] = useState<MatchingCreateRequest | null>(null);
   const [confirmationError, setConfirmationError] = useState<string | null>(null);
 
-  const bookedDateSet = useMemo(() => new Set(bookedDates), [bookedDates]);
-  const isDateBooked = bookedDateSet.has(date);
+  // 연속 예약을 켠 공간은 시작·종료 슬롯을 따로 골라 이어진 슬롯 여러 개를 한 번에 예약한다.
+  // 꺼져 있으면(기존 공간 기본값) 지금처럼 슬롯 하나만 고른다.
+  const allowConsecutive = space.allow_consecutive_booking === true;
+  const daySlots = useMemo(() => daySlotsForDate(date, availability, bookedTimes), [availability, bookedTimes, date]);
+  const openSlots = daySlots.filter((slot) => !slot.booked);
+  const isDateFull = daySlots.length > 0 && openSlots.length === 0;
 
-  const openSlots = useMemo(() => {
-    if (isDateBooked) return [];
-    const dayOfWeek = dayOfWeekForDate(date);
-    return availability.filter((slot) => slot.is_open && slot.day_of_week === dayOfWeek);
-  }, [availability, date, isDateBooked]);
-
-  const selectedSlot =
-    openSlots.find((slot) => `${slot.start_time}-${slot.end_time}` === slotKey) ?? openSlots[0] ?? null;
+  const startSlot = openSlots.find((slot) => slot.start_time === startKey) ?? openSlots[0] ?? null;
+  const endChoices = startSlot ? consecutiveSlotsFrom(daySlots, startSlot, allowConsecutive) : [];
+  const durationOf = (end: SpaceAvailabilitySlot) =>
+    startSlot ? timeToMinutes(end.end_time) - timeToMinutes(startSlot.start_time) : 0;
+  // 최소 이용 시간은 시간 단위 공간에서만 — 종료를 아직 안 골랐으면 최소 시간을 채우는 첫 칸으로 맞춘다.
+  const minUsageHours = space.usage_unit !== "DAILY" ? space.min_usage_hours ?? null : null;
+  const minUsageMinutes = (minUsageHours ?? 0) * 60;
+  const endSlot =
+    endChoices.find((slot) => slot.end_time === endKey) ??
+    endChoices.find((slot) => durationOf(slot) >= minUsageMinutes) ??
+    endChoices[endChoices.length - 1] ??
+    null;
+  const durationMinutes = endSlot ? durationOf(endSlot) : 0;
+  const meetsMinUsage = durationMinutes >= minUsageMinutes;
 
   const likeStatusQuery = useSpaceLikeStatusQuery(spaceId);
   const likeCount = likeStatusQuery.data?.like_count ?? space.like_count;
@@ -106,18 +133,18 @@ export function BookingCard({
     void recordExternalBookingClick(spaceId).catch(() => undefined);
   };
 
-  const hours = selectedSlot ? slotDurationHours(selectedSlot) : 0;
   const pricePerHour = space.price_per_hour;
-  // DAILY 공간의 price_per_hour는 이름과 달리 "1일 요금"이다 — 시간을 곱하면 하루치 슬롯
-  // 하나를 몇 배로 청구하게 된다. HOURLY만 시간에 비례해서 계산한다.
-  // 가격 문의 공간은 금액 없이 요청하고(total_price "0"), 화면에는 "가격 문의"로 보여준다.
-  const totalPrice =
-    pricePerHour == null ? 0 : space.usage_unit === "DAILY" ? pricePerHour : Math.round(pricePerHour * hours);
-  const totalPriceText = formatPriceAmount(pricePerHour == null ? null : totalPrice);
+  // 서버가 같은 식으로 다시 계산해 저장한다(`BookingPriceCalculator`). 가격 문의 공간은 null → "가격 문의".
+  const price = calculateBookingPrice(space, durationMinutes, guestCount);
+  const totalPriceText = formatPriceAmount(price?.total ?? null);
+  const durationLabel = space.usage_unit === "DAILY" ? "1일" : formatDuration(durationMinutes);
+  const extraGuestFee = getExtraGuestFee(space);
+  const unitLabel = space.usage_unit === "DAILY" ? "1일" : "시간";
 
   const handleDateChange = (value: string) => {
     setDate(value);
-    setSlotKey(null);
+    setStartKey(null);
+    setEndKey(null);
     setFeedback(null);
   };
 
@@ -134,11 +161,11 @@ export function BookingCard({
       openAuthModal();
       return;
     }
-    if (isDateBooked) {
+    if (isDateFull) {
       setFeedback({ type: "error", message: "이미 예약이 찬 날짜예요. 다른 날짜를 선택해주세요." });
       return;
     }
-    if (!selectedSlot) {
+    if (!startSlot || !endSlot) {
       setFeedback({ type: "error", message: "선택한 날짜에는 예약 가능한 시간이 없어요." });
       return;
     }
@@ -146,14 +173,18 @@ export function BookingCard({
       setFeedback({ type: "error", message: `이 공간의 최대 수용 인원은 ${space.capacity}명이에요.` });
       return;
     }
+    if (!meetsMinUsage) {
+      setFeedback({ type: "error", message: `이 공간은 최소 ${minUsageHours}시간 이상 예약할 수 있어요.` });
+      return;
+    }
 
     setFeedback(null);
     setConfirmationError(null);
     setPendingRequest({
       space_id: spaceId,
-      start_time: `${date}T${selectedSlot.start_time}`,
-      end_time: `${date}T${selectedSlot.end_time}`,
-      total_price: String(totalPrice),
+      start_time: `${date}T${startSlot.start_time}`,
+      end_time: `${date}T${endSlot.end_time}`,
+      total_price: String(price?.total ?? 0),
       guest_count: guestCount,
     });
   };
@@ -216,7 +247,7 @@ export function BookingCard({
       ) : (
         <>
         <label
-          className={`mt-3 flex flex-col gap-1 border px-3 py-2.5 ${isDateBooked ? "border-coral" : "border-line"}`}
+          className={`mt-3 flex flex-col gap-1 border px-3 py-2.5 ${isDateFull ? "border-coral" : "border-line"}`}
         >
           <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">날짜</span>
           <input
@@ -227,41 +258,75 @@ export function BookingCard({
             className="w-full appearance-none bg-transparent text-sm font-bold text-ink outline-none"
           />
         </label>
-        {isDateBooked && <p className="mt-1 text-[0.79rem] text-coral">이미 예약이 찬 날짜예요. 다른 날짜를 선택해주세요.</p>}
+        {isDateFull && <p className="mt-1 text-[0.79rem] text-coral">이미 예약이 찬 날짜예요. 다른 날짜를 선택해주세요.</p>}
 
         <div className="mt-2">
           <AvailabilityCalendar
             availability={availability}
-            bookedDates={bookedDates}
+            bookedTimes={bookedTimes}
             selectedDate={date}
             onSelectDate={handleDateChange}
             minDate={minDate}
           />
         </div>
 
-        <label className="mt-2 flex flex-col gap-1 border border-line px-3 py-2.5">
+        <div className="mt-2 flex flex-col gap-1 border border-line px-3 py-2.5">
           <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">시간</span>
-          {isDateBooked ? (
+          {isDateFull ? (
             <span className="text-sm text-soft">이 날짜는 이미 예약이 찼어요</span>
-          ) : openSlots.length === 0 ? (
+          ) : !startSlot || !endSlot ? (
             <span className="text-sm text-soft">이 날짜엔 예약 가능한 시간이 없어요</span>
+          ) : allowConsecutive ? (
+            <div className="flex items-center gap-2">
+              <select
+                aria-label="시작 시간"
+                value={startSlot.start_time}
+                onChange={(event) => {
+                  setStartKey(event.target.value);
+                  setEndKey(null);
+                }}
+                className="min-w-0 flex-1 appearance-none bg-transparent text-sm font-bold text-ink outline-none"
+              >
+                {openSlots.map((slot) => (
+                  <option key={slot.start_time} value={slot.start_time}>
+                    {slot.start_time.slice(0, 5)}
+                  </option>
+                ))}
+              </select>
+              <span className="text-soft" aria-hidden>—</span>
+              <select
+                aria-label="종료 시간"
+                value={endSlot.end_time}
+                onChange={(event) => setEndKey(event.target.value)}
+                className="min-w-0 flex-1 appearance-none bg-transparent text-sm font-bold text-ink outline-none"
+              >
+                {endChoices.map((slot) => (
+                  <option key={slot.end_time} value={slot.end_time}>
+                    {slot.end_time.slice(0, 5)} ({formatDuration(durationOf(slot))})
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : (
             <select
-              value={selectedSlot ? `${selectedSlot.start_time}-${selectedSlot.end_time}` : ""}
-              onChange={(event) => setSlotKey(event.target.value)}
+              aria-label="시간"
+              value={startSlot.start_time}
+              onChange={(event) => setStartKey(event.target.value)}
               className="w-full appearance-none bg-transparent text-sm font-bold text-ink outline-none"
             >
-              {openSlots.map((slot) => {
-                const key = `${slot.start_time}-${slot.end_time}`;
-                return (
-                  <option key={key} value={key}>
-                    {slot.start_time.slice(0, 5)} — {slot.end_time.slice(0, 5)}
-                  </option>
-                );
-              })}
+              {openSlots.map((slot) => (
+                <option key={slot.start_time} value={slot.start_time}>
+                  {slot.start_time.slice(0, 5)} — {slot.end_time.slice(0, 5)}
+                </option>
+              ))}
             </select>
           )}
-        </label>
+        </div>
+        {minUsageHours != null && (
+          <p className={`mt-1 text-[0.76rem] ${startSlot && !meetsMinUsage ? "text-coral" : "text-soft"}`}>
+            최소 {minUsageHours}시간 이상 예약할 수 있어요.
+          </p>
+        )}
 
         <label className="mt-2 flex flex-col gap-1 border border-line px-3 py-2.5">
           <span className="font-mono text-[0.58rem] uppercase tracking-wide text-soft">인원</span>
@@ -277,20 +342,35 @@ export function BookingCard({
             className="w-full appearance-none bg-transparent text-sm font-bold text-ink outline-none"
           />
         </label>
+        {extraGuestFee && pricePerHour != null && (
+          <p className="mt-1 text-[0.76rem] text-soft">
+            기준 {extraGuestFee.baseGuestCount}명, 초과 시 1인당 {unitLabel} {formatPriceAmount(extraGuestFee.extraGuestFee)}이 추가돼요.
+          </p>
+        )}
 
         <div className="mt-2.5 min-h-5 text-sm text-soft">
-          {selectedSlot && (
-            <p>
-              예상 금액 <b className="text-ink">{totalPriceText}</b> (
-              {space.usage_unit === "DAILY" ? "1일" : `${hours}시간`})
-            </p>
+          {startSlot && endSlot && (
+            price && price.extraGuests > 0 ? (
+              <dl className="grid grid-cols-[1fr_auto] gap-x-3 gap-y-0.5">
+                <dt>기본 요금 ({durationLabel})</dt>
+                <dd className="text-right tabular-nums">{formatPriceAmount(price.baseAmount)}</dd>
+                <dt>추가 인원 {price.extraGuests}명</dt>
+                <dd className="text-right tabular-nums">{formatPriceAmount(price.extraAmount)}</dd>
+                <dt className="text-ink">예상 금액</dt>
+                <dd className="text-right font-bold tabular-nums text-ink">{totalPriceText}</dd>
+              </dl>
+            ) : (
+              <p>
+                예상 금액 <b className="text-ink">{totalPriceText}</b> ({durationLabel})
+              </p>
+            )
           )}
         </div>
 
         <button
           type="button"
           onClick={handleReserve}
-          disabled={createMatching.isPending || isDateBooked}
+          disabled={createMatching.isPending || isDateFull}
           className="button button--primary w-full"
         >
           {createMatching.isPending ? "요청 보내는 중…" : "예약 요청 보내기"} <IconArrowRight size={16} stroke={2} aria-hidden />
@@ -338,9 +418,15 @@ export function BookingCard({
           <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-3 border-y border-line py-4 text-sm">
             <dt className="text-soft">공간</dt><dd className="min-w-0 break-words font-bold text-ink">{space.name}</dd>
             <dt className="text-soft">날짜</dt><dd className="font-bold text-ink">{pendingRequest.start_time.slice(0, 10)}</dd>
-            <dt className="text-soft">시간</dt><dd className="font-bold text-ink">{pendingRequest.start_time.slice(11, 16)} — {pendingRequest.end_time.slice(11, 16)}</dd>
+            <dt className="text-soft">시간</dt><dd className="font-bold text-ink">{pendingRequest.start_time.slice(11, 16)} — {pendingRequest.end_time.slice(11, 16)} ({durationLabel})</dd>
             <dt className="text-soft">인원</dt><dd className="font-bold text-ink">{pendingRequest.guest_count}명</dd>
-            <dt className="text-soft">예상 금액</dt><dd className="font-bold text-ink">{formatPriceAmount(pricePerHour == null ? null : Number(pendingRequest.total_price))}</dd>
+            {price && price.extraGuests > 0 && (
+              <>
+                <dt className="text-soft">기본 요금</dt><dd className="font-bold text-ink">{formatPriceAmount(price.baseAmount)}</dd>
+                <dt className="text-soft">추가 인원 요금</dt><dd className="font-bold text-ink">{formatPriceAmount(price.extraAmount)} ({price.extraGuests}명)</dd>
+              </>
+            )}
+            <dt className="text-soft">예상 금액</dt><dd className="font-bold text-ink">{totalPriceText}</dd>
           </dl>
           <p className="text-sm leading-relaxed text-soft">호스트가 승인하면 예약이 확정됩니다. 결제는 모먼트릿에서 처리하지 않습니다.</p>
           {confirmationError && <p role="alert" className="text-sm text-coral">{confirmationError}</p>}

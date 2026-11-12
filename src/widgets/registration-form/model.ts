@@ -7,6 +7,7 @@ import {
   type DayOfWeek,
   type SpaceAvailabilitySlot,
   type SpaceCreateRequest,
+  type SpaceDetail,
 } from "@/entities/space";
 import type { PhotoItem } from "@/shared/ui/MultiPhotoUpload";
 import { toPanoramaSceneRequests, type PanoramaTourScene } from "@/widgets/panorama/model";
@@ -96,12 +97,96 @@ function minutesToTimeString(totalMinutes: number): string {
 }
 
 /**
+ * 예약 규칙 — 연속 예약, 최소 이용 시간, 인원 초과 요금. 등록 마법사(구역마다)와 수정 폼이 같이 쓴다.
+ * 입력 칸 값 그대로(문자열) 들고 있다가 보낼 때 `toBookingRulesRequest`로 바꾼다.
+ */
+export interface BookingRulesState {
+  /** 이어진 예약 슬롯 여러 개를 한 번에 예약받을지. 새 공간은 켜고, 기존 공간은 서버 값(기본 꺼짐)을 따른다. */
+  allowConsecutiveBooking: boolean;
+  /** 시간 단위 공간만 — 비우면 제한 없음. */
+  minUsageHours: string;
+  extraGuestEnabled: boolean;
+  baseGuestCount: string;
+  /** 초과 1인당 요금(이용 단위당). */
+  extraGuestFee: string;
+}
+
+export function createInitialBookingRules(): BookingRulesState {
+  return {
+    allowConsecutiveBooking: true,
+    minUsageHours: "",
+    extraGuestEnabled: false,
+    baseGuestCount: "",
+    extraGuestFee: "",
+  };
+}
+
+/** 수정 폼 — 서버 값으로 채운다. 백엔드 배포 전 응답에 없으면 기존 동작(연속 예약 꺼짐, 제한 없음)으로 본다. */
+export function bookingRulesFromSpace(
+  space: Pick<SpaceDetail, "allow_consecutive_booking" | "min_usage_hours" | "base_guest_count" | "extra_guest_fee">,
+): BookingRulesState {
+  const hasExtraGuestFee = space.base_guest_count != null && space.extra_guest_fee != null;
+  return {
+    allowConsecutiveBooking: space.allow_consecutive_booking === true,
+    minUsageHours: space.min_usage_hours != null ? String(space.min_usage_hours) : "",
+    extraGuestEnabled: hasExtraGuestFee,
+    baseGuestCount: hasExtraGuestFee ? String(space.base_guest_count) : "",
+    extraGuestFee: hasExtraGuestFee ? String(space.extra_guest_fee) : "",
+  };
+}
+
+function isWholeNumber(value: string, min: number): boolean {
+  const parsed = Number(value.trim());
+  return value.trim() !== "" && Number.isInteger(parsed) && parsed >= min;
+}
+
+/** 백엔드 `Space.updateMinUsageHours`/`updateExtraGuestFee`와 같은 기준. 문제가 없으면 null. */
+export function validateBookingRules(rules: BookingRulesState, usageUnit: UsageUnit | null, capacity: string): string | null {
+  if (usageUnit !== "DAILY" && rules.minUsageHours.trim() && !isWholeNumber(rules.minUsageHours, 0)) {
+    return "최소 이용 시간은 시간 단위 정수로 입력해 주세요.";
+  }
+  if (!rules.extraGuestEnabled) return null;
+  if (!isWholeNumber(rules.baseGuestCount, 1)) return "추가 요금의 기준 인원을 1명 이상으로 입력해 주세요.";
+  if (!isWholeNumber(rules.extraGuestFee, 1)) return "초과 1인당 추가 요금을 입력해 주세요.";
+  const maxCapacity = toOptionalNumber(capacity);
+  if (maxCapacity !== undefined && maxCapacity > 0 && Number(rules.baseGuestCount) > maxCapacity) {
+    return "추가 요금의 기준 인원은 최대 수용 인원보다 많을 수 없어요.";
+  }
+  return null;
+}
+
+type BookingRulesRequest = Pick<
+  SpaceCreateRequest,
+  "allow_consecutive_booking" | "min_usage_hours" | "base_guest_count" | "extra_guest_fee"
+>;
+
+/**
+ * 등록(`create`)은 설정한 값만 보낸다. 수정(`update`)은 비운 값을 지우도록 0을 보낸다 —
+ * 백엔드는 `min_usage_hours`/`extra_guest_fee`가 0이면 삭제, 생략하면 변경 없음으로 처리한다.
+ * 일 단위 공간은 최소 이용 시간을 쓰지 않으므로 지운다.
+ */
+export function toBookingRulesRequest(
+  rules: BookingRulesState,
+  usageUnit: UsageUnit | null,
+  mode: "create" | "update",
+): BookingRulesRequest {
+  const clear = mode === "update" ? 0 : undefined;
+  const minUsageHours = usageUnit !== "DAILY" ? toOptionalNumber(rules.minUsageHours) : undefined;
+  return {
+    allow_consecutive_booking: rules.allowConsecutiveBooking,
+    min_usage_hours: minUsageHours && minUsageHours > 0 ? minUsageHours : clear,
+    base_guest_count: rules.extraGuestEnabled ? Number(rules.baseGuestCount) : undefined,
+    extra_guest_fee: rules.extraGuestEnabled ? Number(rules.extraGuestFee) : clear,
+  };
+}
+
+/**
  * 한 공간 안에서 따로 빌려주는 구역(예: 1층, 2층 세미나실) 하나. 백엔드에는 "옵션"
  * 개념이 없어서 구역마다 Space를 하나씩 만들고, 이름을 `공간 이름 · 구역 이름`으로
  * 맞춰서 상세 페이지가 같은 공간의 구역끼리 묶어 보여준다 (`splitSpaceOptionName`).
  * 구역이 하나뿐이면 구역 이름 없이 공간 이름 그대로 등록한다.
  */
-export interface SpaceOptionState {
+export interface SpaceOptionState extends BookingRulesState {
   /** 화면 key 전용 — 서버로 보내지 않는다. */
   id: string;
   label: string;
@@ -120,8 +205,6 @@ export interface SpaceOptionState {
   pricePerUnit: string;
   /** "문의 바람" — 켜면 요금 대신 "가격 문의"로 노출하고 `pricePerUnit`은 보내지 않는다. */
   priceInquiry: boolean;
-  /** UI-only — `SpaceCreateRequest` has no matching field, so this isn't sent on submit. */
-  minUsageHours: string;
   floor: string;
   weeklySchedule: WeeklySchedule;
 }
@@ -171,7 +254,15 @@ export function createOptionState(base?: SpaceOptionState): SpaceOptionState {
     usageUnit: base?.usageUnit ?? "HOURLY",
     pricePerUnit: base?.pricePerUnit ?? "",
     priceInquiry: base?.priceInquiry ?? false,
-    minUsageHours: base?.minUsageHours ?? "",
+    ...(base
+      ? {
+          allowConsecutiveBooking: base.allowConsecutiveBooking,
+          minUsageHours: base.minUsageHours,
+          extraGuestEnabled: base.extraGuestEnabled,
+          baseGuestCount: base.baseGuestCount,
+          extraGuestFee: base.extraGuestFee,
+        }
+      : createInitialBookingRules()),
     floor: "",
     weeklySchedule: base ? structuredClone(base.weeklySchedule) : createInitialSchedule(),
   };
@@ -286,6 +377,11 @@ function validateTerms(state: RegistrationFormState): ValidationError | null {
     const price = toOptionalNumber(option.pricePerUnit);
     if (price === undefined || price <= 0) return optionError(state, index, "요금을 입력해 주세요.");
   }
+  // 외부 예약 공간은 예약 규칙 칸을 보여주지 않는다.
+  for (const [index, option] of usesWeeklySchedule(state) ? state.options.entries() : []) {
+    const rulesError = validateBookingRules(option, option.usageUnit, option.capacity);
+    if (rulesError) return optionError(state, index, rulesError);
+  }
   if (state.bookingType === "EXTERNAL" && !isValidExternalBookingUrl(state.externalBookingUrl)) {
     return { message: "예약 페이지 링크를 http:// 또는 https://로 시작하는 주소로 입력해 주세요." };
   }
@@ -300,6 +396,15 @@ function validateSchedule(state: RegistrationFormState): ValidationError | null 
       const daySchedule = option.weeklySchedule[day];
       if (daySchedule.isOpen && parseTimeToMinutes(daySchedule.endTime) <= parseTimeToMinutes(daySchedule.startTime)) {
         return optionError(state, index, `${day}요일의 종료 시간은 시작 시간보다 늦어야 합니다.`);
+      }
+      // 연속 예약을 끄면 슬롯 하나만 예약할 수 있어서, 최소 이용 시간이 예약 단위보다 길면 아무도 예약할 수 없다.
+      const minUsageHours = option.usageUnit !== "DAILY" ? toOptionalNumber(option.minUsageHours) ?? 0 : 0;
+      if (daySchedule.isOpen && !option.allowConsecutiveBooking && minUsageHours > daySchedule.unitHours) {
+        return optionError(
+          state,
+          index,
+          `${day}요일 예약 단위(${daySchedule.unitHours}시간)가 최소 이용 시간(${minUsageHours}시간)보다 짧아요. 연속 예약을 켜거나 예약 단위를 늘려 주세요.`,
+        );
       }
     }
   }
@@ -367,6 +472,7 @@ export function toSpaceCreateRequest(
     is_draft: options.isDraft,
     booking_type: state.bookingType,
     external_booking_url: state.bookingType === "EXTERNAL" ? state.externalBookingUrl.trim() : undefined,
+    ...toBookingRulesRequest(option, option.usageUnit, "create"),
   };
 }
 

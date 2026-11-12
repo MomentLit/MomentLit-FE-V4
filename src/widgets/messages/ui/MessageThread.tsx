@@ -20,7 +20,7 @@ import {
   type ChatMessage,
   type ChatRoomListItem,
 } from "@/entities/message";
-import { formatDividerTimestamp, partnerOf, shouldShowTimeDivider } from "../lib/partner";
+import { formatDividerTimestamp, formatMessageTime, isSameMinute, partnerOf, shouldShowTimeDivider } from "../lib/partner";
 
 const ACCESS_TOKEN_KEY = "momentlit_access_token";
 
@@ -81,8 +81,10 @@ export function MessageThread({
 
   const messages = useMemo(() => {
     const byId = new Map<number, ChatMessage>();
-    for (const message of history ?? []) byId.set(message.message_id, message);
+    // 실시간으로 받은 메시지는 받은 순간의 "안 읽음" 상태로 멈춰 있다. 5초마다 다시 받아 오는 기록(history)이
+    // 읽음 여부를 새로 알려 주므로, 같은 메시지면 기록 쪽이 이기게 실시간 → 기록 순서로 덮어쓴다.
     for (const message of liveMessages) byId.set(message.message_id, message);
+    for (const message of history ?? []) byId.set(message.message_id, message);
     return Array.from(byId.values()).sort((a, b) => a.message_id - b.message_id);
   }, [history, liveMessages]);
 
@@ -213,6 +215,10 @@ export function MessageThread({
           const isOwn = message.sender_id === currentUserId;
           const showTime = shouldShowTimeDivider(messages[index - 1]?.created_at, message.created_at);
           const imageUrl = parseImageMessage(message.content);
+          // 카톡처럼: 같은 사람이 같은 분에 이어 보낸 메시지는 마지막 것에만 시간을 붙인다.
+          const next = messages[index + 1];
+          const showMinute = !next || next.sender_id !== message.sender_id || !isSameMinute(message.created_at, next.created_at);
+          const isLastReadOwn = isOwn && message.message_id === lastReadOwnMessageId;
           return (
             <div key={message.message_id} className="flex flex-col gap-2.5">
               {showTime && (
@@ -221,6 +227,7 @@ export function MessageThread({
                 </div>
               )}
               <div className={cn("flex flex-col", isOwn ? "items-end" : "items-start")}>
+              <div className={cn("flex w-full items-end gap-1.5", isOwn ? "flex-row-reverse" : "flex-row")}>
               {imageUrl ? (
                 <button
                   type="button"
@@ -244,9 +251,14 @@ export function MessageThread({
                   {message.content}
                 </div>
               )}
-              {isOwn && message.message_id === lastReadOwnMessageId && (
-                <div className="mt-1 px-1 text-[0.62rem] text-soft">읽음</div>
+              {showMinute && (
+                <time dateTime={message.created_at} className="mb-0.5 flex-none whitespace-nowrap text-[0.66rem] text-soft">
+                  {formatMessageTime(message.created_at)}
+                </time>
               )}
+              </div>
+              {/* 읽음은 대화의 가장 최근 메시지(내가 보낸 것)를 상대가 읽었을 때만, 그 아래에 작게. */}
+              {isLastReadOwn && <div className="mt-1 px-1 text-[0.66rem] font-semibold text-soft">읽음</div>}
               </div>
             </div>
           );

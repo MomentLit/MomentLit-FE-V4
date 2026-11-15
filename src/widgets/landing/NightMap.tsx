@@ -118,15 +118,15 @@ export function NightMap() {
         <Reveal className="flex flex-col gap-5 lg:col-start-1 lg:row-start-1">
           <h2
             id="night-map-title"
-            className="text-[clamp(2rem,4.6vw,3.6rem)] leading-[1.08] tracking-tight"
-            style={{ fontFamily: "var(--font-display)" }}
+            className="landing-section-title"
           >
             지도로 보는
             <br />
             공간
           </h2>
           <p className="max-w-[34em] text-[0.95rem] leading-[1.75]" style={{ color: NIGHT.fg2 }}>
-            하늘색 점이 찍힌 곳에 지금 빌릴 수 있는 공간이 있어요. 권역을 누르면 지도에서 바로 위치를 볼 수 있어요.
+            <span className="block">하늘색 점이 찍힌 곳에 지금 빌릴 수 있는 공간이 있어요.</span>
+            <span className="block">권역을 누르면 지도에서 바로 위치를 볼 수 있어요.</span>
           </p>
         </Reveal>
 

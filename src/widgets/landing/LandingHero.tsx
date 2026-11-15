@@ -40,7 +40,7 @@ export function LandingHero() {
       <div className="search-hero-content relative z-[2] pt-24 sm:pt-12 lg:pt-6">
           <h1
             className="search-hero-headline text-[clamp(2.6rem,8vw,6.4rem)] font-normal leading-[1.02] tracking-tight text-ink"
-            style={{ fontFamily: "var(--font-display)" }}
+            style={{ fontFamily: "var(--font-hero)" }}
           >
             <span className="relative inline-block px-[0.06em]">
               <span className="absolute inset-x-0 -z-10 top-[0.17em] bottom-[0.13em] bg-sky" />

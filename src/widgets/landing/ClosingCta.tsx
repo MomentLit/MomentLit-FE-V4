@@ -12,8 +12,7 @@ export function ClosingCta() {
       <div className="relative z-[2]">
         <Reveal>
           <h2
-            className="max-w-[17ch] text-[clamp(1.9rem,4.6vw,3.6rem)] leading-[1.14] tracking-tight text-balance"
-            style={{ fontFamily: "var(--font-display)" }}
+            className="landing-section-title max-w-[17ch] text-balance"
           >
             등록에 드는 건
             <br />
@@ -37,7 +36,7 @@ export function ClosingCta() {
           <div className="flex flex-wrap justify-start gap-2.5 lg:justify-end">
             <Link
               href="/spaces/new"
-              className="button button--primary group"
+              className="button button--light group"
             >
               공간 등록하기
               <IconArrowRight size={18} stroke={2} className="transition-transform duration-200 group-hover:translate-x-1" aria-hidden />

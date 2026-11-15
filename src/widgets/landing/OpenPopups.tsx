@@ -9,6 +9,7 @@ import { fetchPopup, fetchPopups, type PopupListItem } from "@/entities/popup";
 import { popupMorphName, useMorphLink } from "@/shared/hooks/useMorphLink";
 import { toneForIndex, formatAddress, formatDateRangeShort, popupBadge } from "@/widgets/app-dashboard/lib/format";
 import { Reveal } from "./Reveal";
+import { CtaTile } from "./CtaTile";
 
 const TONE_BG: Record<string, string> = {
   sky: "bg-sky",
@@ -31,8 +32,7 @@ export function OpenPopups() {
     <section className="border-b border-line px-4 py-11 sm:px-6 sm:py-16 lg:py-20">
       <Reveal className="mb-6 flex flex-col items-start gap-3 sm:mb-8">
         <h2
-          className="text-[clamp(1.5rem,3.2vw,2.4rem)] leading-[1.2] tracking-tight text-ink"
-          style={{ fontFamily: "var(--font-display)" }}
+          className="landing-section-title text-ink"
         >
           지금 열려 있는 팝업
         </h2>
@@ -42,20 +42,27 @@ export function OpenPopups() {
       </Reveal>
 
       {isLoading ? (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3" aria-label="팝업 불러오는 중">
-          {[0, 1, 2].map((index) => <div key={index} className="aspect-[3/2] animate-pulse border border-line bg-wash" />)}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-label="팝업 불러오는 중">
+          {[0, 1, 2, 3].map((index) => <div key={index} className="aspect-[3/2] animate-pulse border border-line bg-wash" />)}
         </div>
       ) : isError ? (
         <p role="status" className="py-6 text-sm text-soft">팝업을 불러오지 못했어요. {getErrorMessage(error)}</p>
-      ) : popups.length === 0 ? (
-        <p className="py-6 text-sm text-soft">아직 등록된 팝업이 없어요.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {popups.map((popup, i) => (
-            <Reveal key={popup.popup_id} delayMs={i * 80}>
-              <PopupCard popup={popup} tone={toneForIndex(popup.popup_id + i)} />
-            </Reveal>
-          ))}
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {popups.length === 0 ? (
+            <div className="flex flex-col items-start justify-center gap-2 bg-wash p-8 sm:col-span-1 lg:col-span-3">
+              <p className="text-sm text-soft">아직 등록된 팝업이 없어요.</p>
+            </div>
+          ) : (
+            popups.map((popup, i) => (
+              <Reveal key={popup.popup_id} delayMs={i * 80}>
+                <PopupCard popup={popup} tone={toneForIndex(popup.popup_id + i)} />
+              </Reveal>
+            ))
+          )}
+          <Reveal delayMs={popups.length * 80}>
+            <CtaTile href="/popups/new" tone="sky" title={["다음 팝업은", "당신의 브랜드"]} cta="팝업 등록하기" className="h-full" />
+          </Reveal>
         </div>
       )}
     </section>

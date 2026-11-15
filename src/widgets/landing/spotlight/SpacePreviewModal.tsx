@@ -9,8 +9,6 @@ import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-c
 import { Modal } from "@/shared/ui/Modal";
 import { MediaPhoto } from "@/shared/ui/MediaPhoto";
 import { placeText, priceText, SpacePhoto, toneVar, type SpotlightSpace } from "./SpotlightCard";
-import { TodayRibbon } from "./TodayRibbon";
-import type { TodayStatus } from "./today";
 
 // 패널(Modal)에는 style을 넘길 수 없어서, 카테고리 색 그림자를 색마다 정적 클래스로 둔다.
 const PANEL_SHADOW: Record<string, string> = {
@@ -23,16 +21,14 @@ const PANEL_SHADOW: Record<string, string> = {
 };
 
 /**
- * 카드의 눈 버튼으로 여는 미리보기 — 상세에 들어가기 전에 사진·소개·기본 정보·오늘 빈 시간을 본다.
+ * 카드의 눈 버튼으로 여는 미리보기 — 상세에 들어가기 전에 사진·소개·기본 정보를 본다.
  * 상세로 가는 버튼은 두지 않는다(카드 자체가 상세 링크).
  */
 export function SpacePreviewModal({
   space,
-  today,
   onClose,
 }: {
   space: SpotlightSpace;
-  today: TodayStatus | undefined;
   onClose: () => void;
 }) {
   // 상세 페이지와 같은 캐시 키 — 미리보기 후 상세로 들어가면 바로 뜬다.
@@ -92,7 +88,6 @@ export function SpacePreviewModal({
             ))}
           </dl>
 
-          <TodayRibbon status={today} />
         </div>
       </div>
 

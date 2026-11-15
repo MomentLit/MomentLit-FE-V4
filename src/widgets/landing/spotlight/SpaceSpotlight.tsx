@@ -5,15 +5,16 @@ import { useState } from "react";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { IconArrowRight } from "@tabler/icons-react";
 import { groupSpaceOptions } from "@/entities/space";
-import { fetchAvailability, fetchBookedDates, searchSpaces } from "@/entities/space/api";
+import { fetchAvailability, searchSpaces } from "@/entities/space/api";
 import { SPACE_CATEGORY_LABELS, type SpaceCategory } from "@/entities/space-category";
 import { collectPages } from "@/shared/api/pagination";
 import { cn } from "@/shared/lib";
 import { Reveal } from "../Reveal";
+import { CtaTile } from "../CtaTile";
 import { CATEGORY_DISPLAY_ORDER } from "../layoutConfig";
 import { SpacePreviewModal } from "./SpacePreviewModal";
 import { SpotlightCard, type SpotlightSpace } from "./SpotlightCard";
-import { hasOpenSchedule, todayStatus } from "./today";
+import { hasOpenSchedule } from "./today";
 
 /** 4칸 그리드에서 큰 카드(2×2) + 작은 카드 + 등록 타일이 줄을 딱 맞게 채우는 최대 개수. */
 const MAX_CARDS = 8;
@@ -34,18 +35,11 @@ export function SpaceSpotlight() {
   });
   const spaces = spacesQuery.data ?? [];
 
-  // 상세 페이지와 같은 캐시 키 — 운영 시간 · 예약 마감일.
+  // 상세 페이지와 같은 캐시 키 — 운영 시간(열어 둔 공간만 추리는 데 쓴다).
   const availability = useQueries({
     queries: spaces.map((space) => ({
       queryKey: ["space-availability", space.space_id],
       queryFn: () => fetchAvailability(space.space_id),
-      staleTime: 60_000,
-    })),
-  });
-  const booked = useQueries({
-    queries: spaces.map((space) => ({
-      queryKey: ["space-booked-dates", space.space_id],
-      queryFn: () => fetchBookedDates(space.space_id),
       staleTime: 60_000,
     })),
   });
@@ -54,12 +48,7 @@ export function SpaceSpotlight() {
   const entries = spaces
     .map((space, i) => {
       const slots = availability[i]?.data;
-      const dates = booked[i]?.data;
-      return {
-        space,
-        open: slots ? hasOpenSchedule(slots) : false,
-        today: slots && dates ? todayStatus(slots, dates) : undefined,
-      };
+      return { space, open: slots ? hasOpenSchedule(slots) : false };
     })
     .filter((entry) => entry.open);
 
@@ -69,7 +58,6 @@ export function SpaceSpotlight() {
   const filtered = entries.filter((entry) => !category || entry.space.category === category);
   // 사진이 있는 공간을 앞에 둬서 큰 카드가 비어 보이지 않게 한다(나머지는 서버 순서 유지).
   const ordered = [...filtered].sort((a, b) => Number(Boolean(b.space.thumbnail_url)) - Number(Boolean(a.space.thumbnail_url))).slice(0, MAX_CARDS);
-  const todayById = new Map(entries.map((entry) => [entry.space.space_id, entry.today]));
   const loading = spacesQuery.isPending || (spaces.length > 0 && scheduleLoading);
 
   return (
@@ -78,8 +66,7 @@ export function SpaceSpotlight() {
         <div className="flex min-w-0 flex-col gap-4">
           <h2
             id="spotlight-title"
-            className="text-[clamp(1.9rem,4.2vw,3.4rem)] leading-[1.12] tracking-tight text-ink"
-            style={{ fontFamily: "var(--font-display)" }}
+            className="landing-section-title text-ink"
           >
             지금 바로{" "}
             <span className="relative inline-block px-[0.06em]">
@@ -122,7 +109,6 @@ export function SpaceSpotlight() {
                   <SpotlightCard
                     key={space.space_id}
                     space={space}
-                    today={todayById.get(space.space_id)}
                     big={i === 0 && ordered.length > 2}
                     index={i}
                     onPreview={setPreview}
@@ -136,12 +122,12 @@ export function SpaceSpotlight() {
                     <p className="text-sm text-soft">첫 번째로 올리면 이 자리에 가장 먼저 보여요.</p>
                   </div>
                 )}
-          {!loading && <HostTile />}
+          {!loading && <CtaTile href="/spaces/new" tone="lemon" title={["다음 자리는", "당신의 공간"]} cta="공간 등록하기" />}
         </div>
       )}
 
       {preview && (
-        <SpacePreviewModal space={preview} today={todayById.get(preview.space_id)} onClose={() => setPreview(null)} />
+        <SpacePreviewModal space={preview} onClose={() => setPreview(null)} />
       )}
     </section>
   );
@@ -166,30 +152,5 @@ function Chip({ label, count, active, onClick }: { label: string; count: number;
         {count}
       </span>
     </button>
-  );
-}
-
-function HostTile() {
-  return (
-    <Link
-      href="/spaces/new"
-      className="group relative flex min-h-[300px] flex-col justify-between gap-6 overflow-hidden bg-lemon p-6 text-ink transition-[transform,box-shadow] duration-500 ease-[cubic-bezier(.2,.8,.2,1)] hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[0_0_0_1.5px_var(--ink),8px_8px_0_var(--ink)]"
-    >
-      <span className="inline-flex items-center gap-2.5 text-[0.72rem] tracking-[0.08em]" style={{ fontFamily: "var(--font-label)" }}>
-        <i className="block h-3 w-3 bg-white shadow-[inset_0_0_0_1px_var(--ink)]" />
-        HOST
-      </span>
-      <div className="flex flex-col gap-3">
-        <b className="text-[clamp(1.6rem,2.2vw,2.1rem)] font-normal leading-[1.15] tracking-tight" style={{ fontFamily: "var(--font-display)" }}>
-          다음 자리는
-          <br />
-          당신의 공간
-        </b>
-      </div>
-      <span className="inline-flex items-center gap-1.5 self-start px-px text-sm font-bold shadow-[inset_0_-0.32em_0_white]">
-        공간 등록하기
-        <IconArrowRight size={15} stroke={2.2} aria-hidden className="transition-transform group-hover:translate-x-0.5" />
-      </span>
-    </Link>
   );
 }

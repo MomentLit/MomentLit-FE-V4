@@ -448,7 +448,7 @@ export function ChatbotDrawer() {
       {open && (
         <section className="flex h-[min(620px,calc(100dvh-7rem))] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-line bg-wash shadow-2xl" aria-label="AI 공간 추천 챗봇">
           <header className="flex items-center gap-2 border-b border-line bg-white px-4 py-3">
-            <span className="grid h-9 w-9 place-items-center rounded-xl bg-sky text-ink"><Bot size={19} /></span>
+            <Bot size={22} strokeWidth={1.8} className="shrink-0 text-ink" aria-hidden />
             <span className="min-w-0 flex-1"><b className="block text-sm">AI 공간 추천</b><span className="block text-[0.68rem] text-soft">실시간으로 맞춤 공간을 찾아드려요</span></span>
             <button type="button" onClick={close} className="grid h-8 w-8 place-items-center rounded-full text-soft hover:bg-wash hover:text-ink" aria-label="챗봇 닫기"><X size={18} /></button>
           </header>

@@ -36,7 +36,7 @@ export function ComboSearch() {
       <TrailLayer />
       <div className="search-hero-content relative z-[2]">
         <h1
-          style={{ fontFamily: "var(--font-display)" }}
+          style={{ fontFamily: "var(--font-hero)" }}
           className="search-hero-headline text-[clamp(2.1rem,4.5vw,4rem)] font-normal leading-[1.05] tracking-tight text-ink"
         >
           <span className="relative inline-block px-[0.06em]">

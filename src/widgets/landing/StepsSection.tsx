@@ -27,8 +27,7 @@ export function StepsSection() {
     <section className="border-b border-line px-4 py-11 sm:px-6 sm:py-16 lg:py-20">
       <Reveal className="mb-6 flex flex-col items-start gap-3 sm:mb-8">
         <h2
-          className="text-[clamp(1.5rem,3.2vw,2.4rem)] leading-[1.2] tracking-tight text-ink"
-          style={{ fontFamily: "var(--font-display)" }}
+          className="landing-section-title text-ink"
         >
           마음에 드는 공간을 만났다면
         </h2>

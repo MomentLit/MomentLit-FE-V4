@@ -1,6 +1,20 @@
 @import "tailwindcss";
 
 /*
+ * 페이퍼로지(Paperlogy) ExtraBold — 랜딩 섹션 제목 등 디스플레이 글꼴(`--font-display`).
+ * SIL OFL 무료 폰트, 눈누 공식 배포 CDN에서 불러온다. 호출부가 모두 font-normal(400)이라
+ * ExtraBold 한 굵기를 400으로 등록해 합성 굵기 없이 그대로 그려지게 한다.
+ * (히어로 헤드라인은 Black Han Sans `--font-hero` — layout.tsx)
+ */
+@font-face {
+  font-family: "Paperlogy";
+  src: url("https://cdn.jsdelivr.net/gh/projectnoonnu/2408-3@1.0/Paperlogy-8ExtraBold.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+/*
  * Design tokens — MomentLit v18 palette ("각진 톤" color system, from the
  * design reference artifact). Neutrals and the brand blue got darker/cooler,
  * and the category/region "spectrum" tones sit on one continuous
@@ -29,6 +43,7 @@
  * which uses a bottom gradient + white text instead.
  */
 :root {
+  --font-display: "Paperlogy", "Pretendard Variable", Pretendard, sans-serif;
   --page-gutter: clamp(20px, 3vw, 40px);
   --background: #ffffff;
   --foreground: #15171c;
@@ -134,12 +149,12 @@
   --border-warning: #eec053;
   --border-error: #ec5562;
 
-  /* 주요 버튼(.button--primary, 로그인·회원가입 버튼) 전용 색. 넓은 면을 하늘색으로 채우면 눈이 피로하다는
-     피드백이 있어서 버튼은 잉크(검정) 바탕 + 흰 글씨로 차분하게 두고, 마우스를 올렸을 때만 브랜드 하늘색이
-     드러나게 한다. 하늘색은 하이라이트·칩·카테고리 등 다른 곳에서 그대로 쓴다. */
+  /* 주요 버튼(.button--primary, 로그인·회원가입 버튼) 전용 색. 버튼에는 색감을 넣지 않고 흑백만 쓴다 —
+     기본은 잉크 바탕·흰 글자, 호버는 흰 바탕·잉크 글자(테두리로 윤곽 유지).
+     하늘색 등 파스텔은 하이라이트·칩·카테고리 등 버튼 밖에서만 쓴다. */
   --btn-primary: var(--ink);
   --btn-primary-text: #ffffff;
-  --btn-primary-hover: var(--sky);
+  --btn-primary-hover: #ffffff;
   --btn-primary-hover-text: var(--ink);
 }
 
@@ -252,20 +267,26 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 :where(a[href], button, [role="button"]):focus-visible { outline: 3px solid var(--main-d); outline-offset: 3px; }
 .page-shell { width: 100%; min-width: 0; flex: 1; padding: var(--page-gutter); }
 .page-title { font-size: clamp(1.9rem, 3vw, 2.8rem); font-weight: 800; line-height: 1.2; letter-spacing: -.04em; }
+/* 랜딩 섹션 제목 — 모든 섹션이 같은 글꼴·크기·줄간격·자간을 쓰도록 한 곳에서 정한다. */
+.landing-section-title { font-family: var(--font-display); font-weight: 400; font-size: clamp(1.8rem, 3.6vw, 2.8rem); line-height: 1.2; letter-spacing: -.025em; word-break: keep-all; }
 .section-title { font-size: clamp(1.35rem, 2vw, 1.8rem); font-weight: 800; letter-spacing: -.03em; }
 .collection-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; align-items: stretch; }
 .result-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); gap: 16px; padding: 24px var(--page-gutter); }
 .interactive-card { transition: border-color 160ms, transform 160ms; }
 .interactive-card:hover, .interactive-card:focus-visible { border-color: var(--ink); transform: translateY(-4px); }
 .button { display: inline-flex; min-height: 44px; align-items: center; justify-content: center; gap: 8px; border: 1px solid transparent; padding: 10px 18px; font-size: .875rem; font-weight: 700; line-height: 1.4; border-radius: 0; transition: background-color 160ms, color 160ms, border-color 160ms; }
-.button--primary { background: var(--btn-primary); color: var(--btn-primary-text); }
-.button--primary:hover { background: var(--btn-primary-hover); color: var(--btn-primary-hover-text); }
+.button--primary { border-color: var(--ink); background: var(--btn-primary); color: var(--btn-primary-text); }
+.button--primary:hover { border-color: var(--ink); background: var(--btn-primary-hover); color: var(--btn-primary-hover-text); }
 .button--outline { border-color: var(--line-2); background: white; color: var(--ink); }
 .button--outline:hover { border-color: var(--ink); background: var(--ink); color: white; }
 .button--inverse { border-color: #ffffff70; color: white; background: transparent; }
 .button--inverse:hover { background: white; color: var(--ink); }
-.button--danger { background: var(--coral); color: var(--ink); }
-.button--danger:hover { border-color: var(--ink); }
+/* 삭제 등 파괴적 동작도 색 없이 흰 바탕 + 잉크 테두리. 위험성은 문구와 확인 모달로 알린다. */
+.button--danger { border-color: var(--ink); background: white; color: var(--ink); }
+.button--danger:hover { background: var(--ink); color: white; }
+/* 어두운 바탕(ClosingCta 등) 위의 주요 버튼 — 흰 바탕·잉크 글자, 호버는 반전. */
+.button--light { border-color: white; background: white; color: var(--ink); }
+.button--light:hover { background: transparent; color: white; }
 .button:disabled { cursor: not-allowed; opacity: .5; }
 .landing-top .button { min-height: 46px; padding: 11px 20px; font-size: .95rem; }
 .landing-page > section, .landing-page > footer, .landing-top, .landing-explore, .landing-page > div > section { padding-inline: max(20px, calc((100% - 1280px) / 2)); }

@@ -12,8 +12,6 @@ import { fetchSpace } from "@/entities/space/api";
 import { spaceMorphName, useMorphLink } from "@/shared/hooks/useMorphLink";
 import { cn } from "@/shared/lib";
 import { useSpaceLikeStatusQuery, useToggleSpaceLikeMutation } from "@/widgets/detail-page/model/queries";
-import { TodayRibbon } from "./TodayRibbon";
-import type { TodayStatus } from "./today";
 
 export type SpotlightSpace = GroupedSpace<SpaceListItem>;
 
@@ -93,13 +91,11 @@ function LikeButton({ space }: { space: SpaceListItem }) {
  */
 export function SpotlightCard({
   space,
-  today,
   big = false,
   index = 0,
   onPreview,
 }: {
   space: SpotlightSpace;
-  today: TodayStatus | undefined;
   big?: boolean;
   /** 그리드 안 순서 — 호버 오프셋 색을 고르는 데 쓴다. */
   index?: number;
@@ -147,7 +143,6 @@ export function SpotlightCard({
             {space.option_group && ` · 구역 ${space.option_group.count}곳`}
           </span>
         </div>
-        <TodayRibbon status={today} />
         <div className="flex items-baseline justify-between gap-2.5 pt-3 shadow-[inset_0_1px_0_var(--line)]">
           <b className="text-base font-bold tabular-nums text-ink">
             {price.amount}

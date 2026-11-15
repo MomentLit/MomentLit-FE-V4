@@ -9,9 +9,10 @@ import type { SpaceOptionSummary } from "../model/queries";
  */
 export function SpaceOptionTabs({ options, currentSpaceId }: { options: SpaceOptionSummary[]; currentSpaceId: number }) {
   return (
-    <nav aria-label="구역 선택" className="border-x border-b border-line bg-white p-4 sm:px-8 sm:py-5">
-      {/* 모바일은 2칸씩 — 마지막 줄에 남는 자리는 그 줄 탭이 나눠 채워 빈 회색 칸이 생기지 않게 한다. */}
-      <div className="flex flex-wrap gap-px bg-line shadow-[0_0_0_1px_var(--line)]">
+    <nav aria-label="구역 선택" className="border-x border-b border-line bg-white">
+      {/* 박스 안에 박스를 두지 않고, 구역 탭이 폭 전체를 나눠 쓴다. 모바일은 2칸씩 — 마지막 줄에 남는
+          자리는 그 줄 탭이 나눠 채운다. 칸 사이 구분선은 바깥 그림자 1px를 겹쳐 그린다. */}
+      <div className="flex flex-wrap">
         {options.map((option) => {
           const active = option.spaceId === currentSpaceId;
           return (
@@ -22,12 +23,12 @@ export function SpaceOptionTabs({ options, currentSpaceId }: { options: SpaceOpt
               scroll={false}
               aria-current={active ? "page" : undefined}
               className={cn(
-                "flex flex-1 basis-[calc(50%-1px)] flex-col gap-1 px-4 py-3 transition-colors sm:min-w-36 sm:basis-auto",
-                active ? "bg-primary-100 text-ink" : "bg-white text-ink hover:bg-wash",
+                "flex flex-1 basis-1/2 flex-col gap-1.5 px-5 py-5 transition-colors sm:basis-0 sm:px-8 sm:py-6",
+                active ? "bg-wash text-ink shadow-[inset_0_-3px_0_var(--ink),0_0_0_0.5px_var(--line)]" : "bg-white text-soft shadow-[0_0_0_0.5px_var(--line)] hover:bg-wash hover:text-ink",
               )}
             >
-              <b className="break-keep text-[0.95rem] font-bold">{option.label}</b>
-              <span className="text-xs text-soft">
+              <b className={cn("break-keep text-lg tracking-tight sm:text-xl", active ? "font-extrabold text-ink" : "font-bold")}>{option.label}</b>
+              <span className="text-[0.8rem] text-soft">
                 {formatPriceAmount(option.pricePerHour)}
                 {option.pricePerHour != null && (option.usageUnit === "DAILY" ? " / 일" : " / 시간")}
                 {option.capacity != null && ` · 최대 ${option.capacity}인`}

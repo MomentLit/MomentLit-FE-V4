@@ -5,7 +5,6 @@ import { createPortal } from "react-dom";
 import { useRouter } from "next/navigation";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { IconArrowRight, IconExternalLink, IconHeart, IconHeartFilled } from "@tabler/icons-react";
-import { Card } from "@/shared/ui";
 import { useAuthStore } from "@/entities/auth";
 import { getErrorMessage } from "@/shared/api/error";
 import { createChatRoom } from "@/entities/message";
@@ -171,7 +170,8 @@ export function BookingCard({
   };
 
   return (
-    <Card className="sticky top-4 rounded-2xl p-5 shadow-[inset_0_0_0_1px_var(--color-ink)]">
+    <div className="sticky top-4 bg-white">
+      {/* 오른쪽 열 자체가 구분선으로 나뉘어 있어 카드 테두리는 두지 않는다. */}
       <div className="flex flex-wrap items-start justify-between gap-2">
         <div className="whitespace-nowrap text-2xl font-semibold tracking-tight text-ink">
           {formatPriceAmount(pricePerHour)}
@@ -381,6 +381,6 @@ export function BookingCard({
           </span>
         </div>
       </div>
-    </Card>
+    </div>
   );
 }

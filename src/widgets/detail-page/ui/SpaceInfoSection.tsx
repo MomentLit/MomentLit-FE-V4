@@ -1,5 +1,11 @@
 import { AiSummaryCard } from "@/shared/ui";
-import { splitSpaceDescription, type SpaceDetail } from "@/entities/space";
+import {
+  formatPriceAmount,
+  getExtraGuestFee,
+  isPriceInquiry,
+  splitSpaceDescription,
+  type SpaceDetail,
+} from "@/entities/space";
 import { USAGE_UNIT_LABELS } from "../model/queries";
 
 const FALLBACK = "정보 없음";
@@ -25,6 +31,17 @@ export function SpaceInfoSection({ space }: { space: SpaceDetail }) {
     { label: "층수", value: space.floor ? `${space.floor.replace(/층\s*$/, "")}층` : FALLBACK },
     { label: "주차", value: space.parking_info ?? FALLBACK },
   ];
+  // 호스트가 설정한 공간에만 보여준다 — 없는 항목까지 "정보 없음"으로 채우지 않는다.
+  const extraGuestFee = getExtraGuestFee(space);
+  if (extraGuestFee && !isPriceInquiry(space)) {
+    facts.push({
+      label: "추가 인원 요금",
+      value: `기준 ${extraGuestFee.baseGuestCount}인 · 초과 1인당 ${space.usage_unit === "DAILY" ? "1일" : "시간"} ${formatPriceAmount(extraGuestFee.extraGuestFee)}`,
+    });
+  }
+  if (space.min_usage_hours != null && space.usage_unit !== "DAILY") {
+    facts.push({ label: "최소 이용", value: `${space.min_usage_hours}시간 이상` });
+  }
 
   return (
     <div className="flex flex-col gap-9">

@@ -2,8 +2,9 @@ import { cn } from "@/shared/lib";
 import { FormField, fieldInputClass } from "./FormField";
 import { PriceField } from "./PriceField";
 import { BookingTypeField } from "./BookingTypeField";
+import { BookingRulesFields } from "./BookingRulesFields";
 import { OptionTabs, type OptionStepProps } from "./OptionTabs";
-import { USAGE_UNIT_LABELS, type RegistrationFormState, type UsageUnit } from "./model";
+import { USAGE_UNIT_LABELS, type RegistrationFormState, type SpaceOptionState, type UsageUnit } from "./model";
 
 export interface Step3TermsProps extends OptionStepProps {
   state: RegistrationFormState;
@@ -81,17 +82,6 @@ export function Step3Terms({ state, onFieldChange, optionTabs, onOptionChange }:
           onPriceInquiryChange={(priceInquiry) => onOptionChange("priceInquiry", priceInquiry)}
         />
 
-        <FormField label="최소 이용 시간">
-          <input
-            type="number"
-            min={0}
-            value={option.minUsageHours}
-            onChange={(e) => onOptionChange("minUsageHours", e.target.value)}
-            aria-label="최소 이용 시간"
-            className={fieldInputClass}
-          />
-        </FormField>
-
         <FormField label="층수">
           <input
             type="text"
@@ -102,6 +92,15 @@ export function Step3Terms({ state, onFieldChange, optionTabs, onOptionChange }:
             className={fieldInputClass}
           />
         </FormField>
+
+        {/* 외부 예약 공간은 모먼트릿에서 예약을 받지 않으니 예약 규칙도 의미가 없다. */}
+        {state.bookingType !== "EXTERNAL" && (
+          <BookingRulesFields
+            rules={option}
+            usageUnit={option.usageUnit}
+            onChange={(key, value) => onOptionChange(key, value as SpaceOptionState[typeof key])}
+          />
+        )}
       </OptionTabs>
     </div>
   );

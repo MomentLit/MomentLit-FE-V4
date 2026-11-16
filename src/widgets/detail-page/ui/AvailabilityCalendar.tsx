@@ -4,6 +4,7 @@ import { useState } from "react";
 import { IconChevronLeft, IconChevronRight } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
 import type { SpaceAvailabilitySlot } from "@/entities/space";
+import type { BookedTime } from "@/entities/matching";
 import { isDateOpen, toDateInputValue } from "../model/queries";
 
 const WEEKDAY_LABELS = ["일", "월", "화", "수", "목", "금", "토"];
@@ -16,7 +17,7 @@ function startOfMonth(date: Date): Date {
 
 interface AvailabilityCalendarProps {
   availability: SpaceAvailabilitySlot[];
-  bookedDates: string[];
+  bookedTimes: BookedTime[];
   selectedDate: string;
   onSelectDate: (date: string) => void;
   minDate: string;
@@ -25,12 +26,12 @@ interface AvailabilityCalendarProps {
 /**
  * 예약 가능한 날짜를 달력으로 보여준다 — 이전엔 `<input type="date">` 하나뿐이라
  * 날짜를 하나씩 찍어봐야만 그 날이 열려있는지 알 수 있었다. 주간 반복 가용시간
- * (`availability`)과 이미 찬 날짜(`bookedDates`)만으로 클라이언트에서 바로 계산할 수
- * 있어서 새 백엔드 엔드포인트 없이 만들 수 있었다.
+ * (`availability`)과 승인 예약 시간대(`bookedTimes`)로 클라이언트에서 계산한다 — 슬롯이
+ * 하나라도 비어 있으면 예약 가능한 날짜다.
  */
 export function AvailabilityCalendar({
   availability,
-  bookedDates,
+  bookedTimes,
   selectedDate,
   onSelectDate,
   minDate,
@@ -89,7 +90,7 @@ export function AvailabilityCalendar({
           if (!date) return <span key={`blank-${i}`} />;
           const value = toDateInputValue(date);
           const isPast = value < minDate;
-          const open = !isPast && isDateOpen(value, availability, bookedDates);
+          const open = !isPast && isDateOpen(value, availability, bookedTimes);
           const isSelected = value === selectedDate;
           return (
             <button

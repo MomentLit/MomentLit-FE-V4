@@ -7,10 +7,11 @@ import { fetchSpaceReviews, createSpaceReview } from "@/entities/review";
 import type { SpaceReview } from "@/entities/review";
 import {
   createMatching,
+  fetchBookedTimes,
   fetchHostStats,
   fetchMyMatchings,
 } from "@/entities/matching";
-import type { HostStats, MatchingCreateRequest, MatchingCreateResponse } from "@/entities/matching";
+import type { BookedTime, HostStats, MatchingCreateRequest, MatchingCreateResponse } from "@/entities/matching";
 import { fetchSpaceLikeStatus, likeSpace, unlikeSpace } from "@/entities/like";
 import type { LikeStatus } from "@/entities/like";
 
@@ -36,24 +37,77 @@ export function dayOfWeekForDate(dateStr: string): DayOfWeek {
   return JS_DAY_TO_DAY_OF_WEEK[day];
 }
 
-/** true when `date` has at least one open weekly slot and isn't already fully booked. */
-export function isDateOpen(date: string, availability: SpaceAvailabilitySlot[], bookedDates: string[]): boolean {
-  if (bookedDates.includes(date)) return false;
-  const dayOfWeek = dayOfWeekForDate(date);
-  return availability.some((slot) => slot.is_open && slot.day_of_week === dayOfWeek);
-}
-
 export function toDateInputValue(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 
-/** Hours between an availability slot's `start_time`/`end_time` (`"HH:mm:ss"` strings). */
-export function slotDurationHours(slot: SpaceAvailabilitySlot): number {
-  const toMinutes = (time: string) => {
-    const [h, m] = time.split(":").map(Number);
-    return h * 60 + m;
-  };
-  return Math.max(0, (toMinutes(slot.end_time) - toMinutes(slot.start_time)) / 60);
+/** `"HH:mm"` / `"HH:mm:ss"` → 0시부터 지난 분. */
+export function timeToMinutes(time: string): number {
+  const [h, m] = time.split(":").map(Number);
+  return (h || 0) * 60 + (m || 0);
+}
+
+/** 예약 시간 선택기의 슬롯 한 칸 — 승인된 예약과 겹치면 `booked`. */
+export interface DaySlot extends SpaceAvailabilitySlot {
+  booked: boolean;
+}
+
+/** 그 날짜 안에서 승인 예약이 차지하는 [시작, 끝) 분 구간 — 날짜를 넘는 예약은 그날 0시/24시로 자른다. */
+function bookedRangesOnDate(date: string, bookedTimes: BookedTime[]): Array<[number, number]> {
+  const ranges: Array<[number, number]> = [];
+  for (const booked of bookedTimes) {
+    const [startDate, startTime = "00:00"] = booked.start_time.split("T");
+    const [endDate, endTime = "00:00"] = booked.end_time.split("T");
+    if (startDate > date || endDate < date) continue;
+    const start = startDate < date ? 0 : timeToMinutes(startTime);
+    const end = endDate > date ? 24 * 60 : timeToMinutes(endTime);
+    if (end > start) ranges.push([start, end]);
+  }
+  return ranges;
+}
+
+/** 그 날짜(요일)에 열린 슬롯을 시작 시각 순으로, 이미 찬 슬롯은 `booked` 표시해서 돌려준다. */
+export function daySlotsForDate(date: string, availability: SpaceAvailabilitySlot[], bookedTimes: BookedTime[]): DaySlot[] {
+  const dayOfWeek = dayOfWeekForDate(date);
+  const ranges = bookedRangesOnDate(date, bookedTimes);
+  return availability
+    .filter((slot) => slot.is_open && slot.day_of_week === dayOfWeek)
+    .map((slot) => {
+      const start = timeToMinutes(slot.start_time);
+      const end = timeToMinutes(slot.end_time);
+      return { ...slot, booked: ranges.some(([bookedStart, bookedEnd]) => bookedStart < end && bookedEnd > start) };
+    })
+    .sort((a, b) => timeToMinutes(a.start_time) - timeToMinutes(b.start_time));
+}
+
+/** 그 날짜에 아직 비어 있는 슬롯이 하나라도 있으면 true. */
+export function isDateOpen(date: string, availability: SpaceAvailabilitySlot[], bookedTimes: BookedTime[]): boolean {
+  return daySlotsForDate(date, availability, bookedTimes).some((slot) => !slot.booked);
+}
+
+/**
+ * 연속 예약에서 고를 수 있는 종료 슬롯들 — 시작 슬롯부터 다음 슬롯이 바로 이어지고(빈 시간 없음)
+ * 비어 있는 동안 계속 이어 붙인다. 연속 예약이 꺼져 있으면 시작 슬롯 하나만.
+ */
+export function consecutiveSlotsFrom(daySlots: DaySlot[], start: DaySlot, allowConsecutive: boolean): DaySlot[] {
+  const chain = [start];
+  if (!allowConsecutive) return chain;
+  let cursor = start;
+  for (;;) {
+    const next = daySlots.find((slot) => !slot.booked && timeToMinutes(slot.start_time) === timeToMinutes(cursor.end_time));
+    if (!next) return chain;
+    chain.push(next);
+    cursor = next;
+  }
+}
+
+/** `booked-times`를 못 불러왔을 때 — 예전처럼 승인 예약이 있는 날짜를 하루 통째로 막는다. */
+export function bookedDatesToTimes(dates: string[]): BookedTime[] {
+  return dates.map((date) => {
+    const next = new Date(`${date}T00:00:00`);
+    next.setDate(next.getDate() + 1);
+    return { start_time: `${date}T00:00:00`, end_time: `${toDateInputValue(next)}T00:00:00` };
+  });
 }
 
 export function useSpaceQuery(spaceId: number) {
@@ -134,6 +188,16 @@ export function useAvailabilityQuery(spaceId: number, enabled: boolean) {
   });
 }
 
+export function useBookedTimesQuery(spaceId: number, enabled: boolean) {
+  return useQuery({
+    queryKey: ["space-booked-times", spaceId],
+    queryFn: () => fetchBookedTimes(spaceId),
+    enabled,
+    retry: 1,
+  });
+}
+
+/** `useBookedTimesQuery`가 실패했을 때만 켠다(백엔드 배포 전 대비). */
 export function useBookedDatesQuery(spaceId: number, enabled: boolean) {
   return useQuery({
     queryKey: ["space-booked-dates", spaceId],

@@ -1,5 +1,6 @@
 export type {
   AiSummaryStatus,
+  BookingPrice,
   BookingType,
   AddressRequest,
   AddressResponse,
@@ -22,7 +23,9 @@ export {
   MAX_SPACE_PHOTOS,
   PRICE_INQUIRY_LABEL,
   SPACE_HERO_ASPECT,
+  calculateBookingPrice,
   formatPriceAmount,
+  getExtraGuestFee,
   getExternalBookingUrl,
   getSpacePhotoUrls,
   groupSpaceOptions,

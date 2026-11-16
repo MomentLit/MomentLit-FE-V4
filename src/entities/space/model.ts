@@ -113,6 +113,13 @@ export interface SpaceDetail extends SpaceBase {
   /** 백엔드 배포 전 응답에는 없을 수 있다 — 없으면 INTERNAL로 본다. */
   booking_type?: BookingType;
   external_booking_url?: string | null;
+  /** 이어진 슬롯 여러 개를 한 번에 예약받을지. 백엔드 배포 전 응답에는 없을 수 있다 — 없으면 false로 본다. */
+  allow_consecutive_booking?: boolean;
+  /** 시간 단위 공간의 최소 이용 시간. null이면 제한 없음. */
+  min_usage_hours?: number | null;
+  /** 인원 초과 요금 — 기준 인원과 초과 1인당 요금(이용 단위당). 둘 다 있거나 둘 다 null. */
+  base_guest_count?: number | null;
+  extra_guest_fee?: number | null;
 }
 
 export interface SpaceCreateRequest {
@@ -140,6 +147,14 @@ export interface SpaceCreateRequest {
   booking_type?: BookingType;
   /** EXTERNAL일 때 필수 (http/https). 수정 시 빈 문자열이면 링크 삭제. */
   external_booking_url?: string;
+  /** 등록 시 생략하면 false. 수정 시 생략하면 변경 없음. */
+  allow_consecutive_booking?: boolean;
+  /** 수정 시 0이면 삭제, 생략하면 변경 없음. */
+  min_usage_hours?: number;
+  /** 처음 설정할 때는 `extra_guest_fee`와 함께 보낸다. */
+  base_guest_count?: number;
+  /** 수정 시 0이면 기준 인원과 함께 삭제, 생략하면 변경 없음. */
+  extra_guest_fee?: number;
 }
 
 export type SpaceUpdateRequest = Partial<SpaceCreateRequest>;
@@ -210,6 +225,56 @@ export const PRICE_INQUIRY_LABEL = "가격 문의";
 /** 가격 문의 공간인지 — 백엔드 배포 전 응답에는 `price_inquiry`가 없을 수 있어 가격이 비었는지도 본다. */
 export function isPriceInquiry(space: Pick<SpaceListItem, "price_per_hour" | "price_inquiry">): boolean {
   return space.price_inquiry === true || space.price_per_hour == null;
+}
+
+/** 인원 초과 요금이 설정된 공간이면 `{ baseGuestCount, extraGuestFee }`, 아니면 null. */
+export function getExtraGuestFee(
+  space: Pick<SpaceDetail, "base_guest_count" | "extra_guest_fee">,
+): { baseGuestCount: number; extraGuestFee: number } | null {
+  return space.base_guest_count != null && space.extra_guest_fee != null
+    ? { baseGuestCount: space.base_guest_count, extraGuestFee: space.extra_guest_fee }
+    : null;
+}
+
+export interface BookingPrice {
+  /** 기본 요금 (시간 단위면 요금 × 시간). */
+  baseAmount: number;
+  /** 기준 인원을 넘은 인원 수. */
+  extraGuests: number;
+  /** 초과 인원 요금 합계. */
+  extraAmount: number;
+  /** 서버가 저장하는 금액과 같은 값 — 내역 합과 반올림 차이가 날 수 있어 합계는 이 값을 보여준다. */
+  total: number;
+}
+
+/**
+ * 예약 금액 미리보기. 백엔드 `BookingPriceCalculator`와 같은 식이어야 화면 금액과 저장 금액이 같다.
+ * - DAILY: 1일 요금 + 초과 인원 × 1인당 요금 (`price_per_hour`는 이름과 달리 1일 요금)
+ * - HOURLY(또는 미정): (시간당 요금 + 초과 인원 × 1인당 요금) × 시간, 원 단위 반올림
+ * 가격 문의 공간이면 null.
+ */
+export function calculateBookingPrice(
+  space: Pick<SpaceDetail, "price_per_hour" | "usage_unit" | "base_guest_count" | "extra_guest_fee">,
+  durationMinutes: number,
+  guestCount: number,
+): BookingPrice | null {
+  const price = space.price_per_hour;
+  if (price == null) return null;
+
+  const fee = getExtraGuestFee(space);
+  const extraGuests = fee ? Math.max(0, guestCount - fee.baseGuestCount) : 0;
+  const extraPerUnit = fee ? extraGuests * fee.extraGuestFee : 0;
+
+  if (space.usage_unit === "DAILY") {
+    return { baseAmount: price, extraGuests, extraAmount: extraPerUnit, total: price + extraPerUnit };
+  }
+  const hours = durationMinutes / 60;
+  return {
+    baseAmount: Math.round(price * hours),
+    extraGuests,
+    extraAmount: Math.round(extraPerUnit * hours),
+    total: Math.round(((price + extraPerUnit) * durationMinutes) / 60),
+  };
 }
 
 /** `12,000원`, 가격 문의 공간이면 `가격 문의`. 이용 단위(/시간, /일)는 붙이지 않는다. */

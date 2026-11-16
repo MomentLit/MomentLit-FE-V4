@@ -1,4 +1,5 @@
 export type {
+  BookedTime,
   HostStats,
   MatchingCreateRequest,
   MatchingCreateResponse,
@@ -9,6 +10,7 @@ export {
   approveMatching,
   cancelMatching,
   createMatching,
+  fetchBookedTimes,
   fetchHostStats,
   fetchMatchingInbox,
   fetchMyMatchings,

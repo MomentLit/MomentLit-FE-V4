@@ -1,6 +1,6 @@
 import { apiClient, publicApiClient } from "@/shared/api/client";
 import type { ApiResponse } from "@/shared/api/types";
-import type { HostStats, MatchingCreateRequest, MatchingCreateResponse, MatchingSearchItem } from "./model";
+import type { BookedTime, HostStats, MatchingCreateRequest, MatchingCreateResponse, MatchingSearchItem } from "./model";
 
 export async function createMatching(request: MatchingCreateRequest): Promise<MatchingCreateResponse> {
   const { data } = await apiClient.post<ApiResponse<MatchingCreateResponse>>("/matchings", request);
@@ -34,4 +34,11 @@ export async function cancelMatching(matchingId: number): Promise<void> {
 export async function fetchHostStats(hostId: string): Promise<HostStats> {
   const { data } = await publicApiClient.get<ApiResponse<HostStats>>(`/matchings/host-stats/${hostId}`);
   return data.data;
+}
+
+export async function fetchBookedTimes(spaceId: number): Promise<BookedTime[]> {
+  const { data } = await publicApiClient.get<ApiResponse<{ booked_times: BookedTime[] }>>(
+    `/matchings/spaces/${spaceId}/booked-times`,
+  );
+  return data.data.booked_times;
 }

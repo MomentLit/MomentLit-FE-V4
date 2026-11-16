@@ -3,7 +3,9 @@
 import { isApiError, getErrorMessage } from "@/shared/api/error";
 import {
   useAvailabilityQuery,
+  bookedDatesToTimes,
   useBookedDatesQuery,
+  useBookedTimesQuery,
   useHostStatsQuery,
   useSpaceQuery,
   useSpaceOptionsQuery,
@@ -23,7 +25,10 @@ import { SpaceOptionTabs } from "./SpaceOptionTabs";
 export function SpaceDetailView({ spaceId }: { spaceId: number }) {
   const spaceQuery = useSpaceQuery(spaceId);
   const availabilityQuery = useAvailabilityQuery(spaceId, spaceQuery.isSuccess);
-  const bookedDatesQuery = useBookedDatesQuery(spaceId, spaceQuery.isSuccess);
+  const bookedTimesQuery = useBookedTimesQuery(spaceId, spaceQuery.isSuccess);
+  // 시간대 조회가 실패하면(백엔드 배포 전 등) 예전처럼 예약이 있는 날짜를 하루 통째로 막는다.
+  const bookedDatesQuery = useBookedDatesQuery(spaceId, bookedTimesQuery.isError);
+  const bookedTimes = bookedTimesQuery.data ?? bookedDatesToTimes(bookedDatesQuery.data ?? []);
   const reviewsQuery = useSpaceReviewsQuery(spaceId, spaceQuery.isSuccess);
   const hostStatsQuery = useHostStatsQuery(spaceQuery.data?.host_id);
   const options = useSpaceOptionsQuery(spaceQuery.data).data ?? [];
@@ -79,7 +84,7 @@ export function SpaceDetailView({ spaceId }: { spaceId: number }) {
             space={space}
             spaceId={spaceId}
             availability={availabilityQuery.data ?? []}
-            bookedDates={bookedDatesQuery.data ?? []}
+            bookedTimes={bookedTimes}
             hostStats={hostStatsQuery.data}
             hostStatsLoading={hostStatsQuery.isPending}
           />

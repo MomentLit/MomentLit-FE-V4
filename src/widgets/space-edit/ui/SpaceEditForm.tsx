@@ -33,6 +33,14 @@ import { FormField, fieldInputClass } from "@/widgets/registration-form/FormFiel
 import { CategoryPicker } from "@/widgets/registration-form/CategoryPicker";
 import { BookingTypeField } from "@/widgets/registration-form/BookingTypeField";
 import { PriceField } from "@/widgets/registration-form/PriceField";
+import { BookingRulesFields } from "@/widgets/registration-form/BookingRulesFields";
+import {
+  bookingRulesFromSpace,
+  createInitialBookingRules,
+  toBookingRulesRequest,
+  validateBookingRules,
+  type BookingRulesState,
+} from "@/widgets/registration-form/model";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
 import {
   isSamePanoramaScenes,
@@ -88,6 +96,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   const [panoramaScenes, setPanoramaScenes] = useState<PanoramaTourScene[]>([]);
   const [bookingType, setBookingType] = useState<BookingType>("INTERNAL");
   const [externalBookingUrl, setExternalBookingUrl] = useState("");
+  const [bookingRules, setBookingRules] = useState<BookingRulesState>(createInitialBookingRules);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<{ done: number; total: number } | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -112,6 +121,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setPhotos(toPhotoItems(getSpacePhotoUrls(space)));
       setBookingType(space.booking_type ?? "INTERNAL");
       setExternalBookingUrl(space.external_booking_url ?? "");
+      setBookingRules(bookingRulesFromSpace(space));
     });
   }, [spaceQuery.data, spaceId]);
 
@@ -139,6 +149,13 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
 
     if (bookingType === "EXTERNAL" && !isValidExternalBookingUrl(externalBookingUrl)) {
       setError("예약 페이지 링크를 http:// 또는 https://로 시작하는 주소로 입력해 주세요.");
+      return;
+    }
+
+    const usageUnit = spaceQuery.data?.usage_unit ?? null;
+    const rulesError = bookingType === "EXTERNAL" ? null : validateBookingRules(bookingRules, usageUnit, capacity);
+    if (rulesError) {
+      setError(rulesError);
       return;
     }
 
@@ -182,6 +199,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         panorama_scenes: panoramaScenesChange,
         booking_type: bookingType,
         external_booking_url: bookingType === "EXTERNAL" ? externalBookingUrl.trim() : undefined,
+        // 외부 예약 공간은 예약 규칙 칸을 숨기므로 건드리지 않는다.
+        ...(bookingType === "EXTERNAL" ? {} : toBookingRulesRequest(bookingRules, usageUnit, "update")),
       });
 
       await queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
@@ -271,6 +290,14 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           onBookingTypeChange={setBookingType}
           onExternalBookingUrlChange={setExternalBookingUrl}
         />
+
+        {bookingType !== "EXTERNAL" && (
+          <BookingRulesFields
+            rules={bookingRules}
+            usageUnit={spaceQuery.data?.usage_unit ?? null}
+            onChange={(key, value) => setBookingRules((prev) => ({ ...prev, [key]: value }))}
+          />
+        )}
 
         <FormField label="공간 소개" full>
           <textarea

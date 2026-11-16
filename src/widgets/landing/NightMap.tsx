@@ -120,9 +120,7 @@ export function NightMap() {
             id="night-map-title"
             className="landing-section-title"
           >
-            지도로 보는
-            <br />
-            공간
+            지도로 보는 공간
           </h2>
           <p className="max-w-[34em] text-[0.95rem] leading-[1.75]" style={{ color: NIGHT.fg2 }}>
             <span className="block">하늘색 점이 찍힌 곳에 지금 빌릴 수 있는 공간이 있어요.</span>
@@ -202,9 +200,6 @@ export function NightMap() {
             </span>
           )}
 
-          <p className="mt-3 text-center text-[0.66rem]" style={{ fontFamily: "var(--font-label)", color: NIGHT.faint }}>
-            실제 지도를 점으로 옮긴 모식도예요. 권역을 누르면 지도에서 그 지역을 보여 줘요.
-          </p>
         </Reveal>
         <Reveal delayMs={80} className="flex flex-col gap-5 lg:col-start-1 lg:row-start-2">
           <ul className="flex flex-col" style={{ boxShadow: `inset 0 1px 0 ${NIGHT.line}` }}>

@@ -24,6 +24,7 @@ export function TrailLayer({ dark = false }: { dark?: boolean }) {
           box-shadow:inset -1px 0 var(--line),inset 0 -1px var(--line);
         }
         .ml-gl b{display:block;background:transparent;transition:background .8s cubic-bezier(.3,0,.5,1)}
+        @media (prefers-reduced-motion: reduce){.ml-gl b{transition:none}}
         .ml-gl--dark{
           box-shadow:inset -1px 0 rgba(255,255,255,.07),inset 0 -1px rgba(255,255,255,.07);
           background-image:linear-gradient(to right,rgba(255,255,255,.07) 1px,transparent 1px),linear-gradient(to bottom,rgba(255,255,255,.07) 1px,transparent 1px);

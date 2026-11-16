@@ -10,9 +10,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
  * `pointermove`, the cell under the cursor (plus its 4 neighbours) is
  * briefly tinted, then fades back out.
  *
- * Disabled entirely when the user prefers reduced motion — the element
- * still renders its static CSS grid-line background, it just never
- * paints a trail.
+ * Under `prefers-reduced-motion` the trail still paints (Windows with
+ * "animation effects" off reports reduce, and the hero looked broken), but
+ * cells snap on/off instead of fading — see `.ml-gl b` in TrailLayer.
  */
 
 const TRAIL_COLORS: Array<[number, number, number]> = [
@@ -48,8 +48,6 @@ export function usePointerTrail<T extends HTMLElement>(fit = false) {
     const layer = domRef.current;
     if (!layer || typeof window === "undefined") return;
 
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-
     let cols = 0;
     let cellWidth = FALLBACK_CELL_PX;
     let cellHeight = FALLBACK_CELL_PX;
@@ -68,7 +66,7 @@ export function usePointerTrail<T extends HTMLElement>(fit = false) {
       layer.style.gridTemplateRows = `repeat(${rows}, ${cellHeight}px)`;
       layer.style.setProperty("--trail-cell-width", `${cellWidth}px`);
       layer.style.setProperty("--trail-cell-height", `${cellHeight}px`);
-      const want = reduce ? 0 : Math.min(nextCols * rows, MAX_CELLS);
+      const want = Math.min(nextCols * rows, MAX_CELLS);
       if (layer.childElementCount === want && cols === nextCols) return;
       cols = nextCols;
       for (const cell of Array.from(layer.children)) {
@@ -97,7 +95,7 @@ export function usePointerTrail<T extends HTMLElement>(fit = false) {
     let frameId = 0;
 
     function onPointerMove(e: PointerEvent) {
-      if (!layer || reduce) return;
+      if (!layer) return;
       const rect = layer.getBoundingClientRect();
       if (
         e.clientX < rect.left ||

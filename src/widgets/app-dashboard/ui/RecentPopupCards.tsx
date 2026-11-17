@@ -2,9 +2,11 @@
 
 import { MediaPhoto } from "@/shared/ui/MediaPhoto";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { ViewTransition } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/shared/lib";
-import { fetchPopups } from "@/entities/popup";
+import { fetchPopup, fetchPopups, type PopupListItem } from "@/entities/popup";
+import { popupMorphName, useMorphLink } from "@/shared/hooks/useMorphLink";
 import { getErrorMessage } from "@/shared/api/error";
 import { formatAddress, formatDateRangeShort, popupBadge, toneForIndex } from "../lib/format";
 import { TONE_ON_BG } from "./tone-dot";
@@ -45,42 +47,57 @@ export function RecentPopupCards() {
       ) : (
         <div className="collection-grid">
           {popups.map((popup) => (
-            <Link
-              key={popup.popup_id}
-              href={`/popups/${popup.popup_id}`}
-              className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white interactive-card"
-            >
-              <div
-                className={cn(
-                  "relative overflow-hidden flex aspect-3/2 flex-col justify-between p-3.5",
-                  TONE_ON_BG[toneForIndex(popup.popup_id)],
-                )}
-              >
-                {popup.thumbnail_url && (
-                  <>
-                    <MediaPhoto src={popup.thumbnail_url} alt={`${popup.title} 대표 사진`} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40" />
-                  </>
-                )}
-                <div className={`relative flex items-start justify-between gap-2 ${popup.thumbnail_url ? "text-white" : "text-ink"}`}>
-                  <span className="text-[0.61rem] font-medium uppercase tracking-[0.13em] opacity-70">Popup</span>
-                  <span className="whitespace-nowrap bg-ink px-2 py-0.5 text-[0.63rem] font-medium text-white">
-                    {popupBadge(popup.start_time, popup.end_time)}
-                  </span>
-                </div>
-                <span className={`relative line-clamp-3 text-lg font-bold leading-tight tracking-tight ${popup.thumbnail_url ? "text-white" : "text-ink"}`}>{popup.title}</span>
-              </div>
-              <div className="flex flex-col gap-0.5 px-3 py-2.5 shadow-[inset_0_1px_0_var(--line)]">
-                <span className="line-clamp-1 text-sm font-bold tracking-tight text-ink">{popup.title}</span>
-                <span className="text-[0.79rem] text-soft">{formatAddress(popup.address)}</span>
-                <span className="mt-0.5 font-mono text-[0.67rem] text-soft">
-                  {formatDateRangeShort(popup.start_time, popup.end_time)}
-                </span>
-              </div>
-            </Link>
+            <PopupCard key={popup.popup_id} popup={popup} />
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+/** 팝업 카드 — 누르면 사진 칸이 상세 히어로로 커지며 이어진다(`useMorphLink`, 랜딩 카드와 같은 전환). */
+function PopupCard({ popup }: { popup: PopupListItem }) {
+  const queryClient = useQueryClient();
+  // 상세와 같은 캐시 키 — 미리 받아 두면 상세 히어로가 이동하는 순간 바로 그려진다.
+  const morph = useMorphLink(`/popups/${popup.popup_id}`, () =>
+    queryClient.ensureQueryData({ queryKey: ["popup", popup.popup_id], queryFn: () => fetchPopup(popup.popup_id) }),
+  );
+
+  return (
+    <Link
+      href={`/popups/${popup.popup_id}`}
+      {...morph}
+      className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white interactive-card"
+    >
+      <ViewTransition name={popupMorphName(popup.popup_id)} share="morph" default="none">
+        <div
+          className={cn(
+            "relative overflow-hidden flex aspect-3/2 flex-col justify-between p-3.5",
+            TONE_ON_BG[toneForIndex(popup.popup_id)],
+          )}
+        >
+          {popup.thumbnail_url && (
+            <>
+              <MediaPhoto src={popup.thumbnail_url} alt={`${popup.title} 대표 사진`} className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/10 to-black/40" />
+            </>
+          )}
+          <div className={`relative flex items-start justify-between gap-2 ${popup.thumbnail_url ? "text-white" : "text-ink"}`}>
+            <span className="text-[0.61rem] font-medium uppercase tracking-[0.13em] opacity-70">Popup</span>
+            <span className="whitespace-nowrap bg-ink px-2 py-0.5 text-[0.63rem] font-medium text-white">
+              {popupBadge(popup.start_time, popup.end_time)}
+            </span>
+          </div>
+          <span className={`relative line-clamp-3 text-lg font-bold leading-tight tracking-tight ${popup.thumbnail_url ? "text-white" : "text-ink"}`}>{popup.title}</span>
+        </div>
+      </ViewTransition>
+      <div className="flex flex-col gap-0.5 px-3 py-2.5 shadow-[inset_0_1px_0_var(--line)]">
+        <span className="line-clamp-1 text-sm font-bold tracking-tight text-ink">{popup.title}</span>
+        <span className="text-[0.79rem] text-soft">{formatAddress(popup.address)}</span>
+        <span className="mt-0.5 font-mono text-[0.67rem] text-soft">
+          {formatDateRangeShort(popup.start_time, popup.end_time)}
+        </span>
+      </div>
+    </Link>
   );
 }

@@ -56,6 +56,7 @@ export function LandingHero() {
 
           <p className="search-hero-description text-ink/70">
             비어 있던 공간에, 브랜드의 다음 장면을.
+            <br />
             팝업부터 스튜디오까지 당신의 아이디어가 머물 자리를 찾아보세요.
           </p>
 

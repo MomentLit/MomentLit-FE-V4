@@ -13,6 +13,11 @@ const FALLBACK = "정보 없음";
 /** AI 요약 + 소개 + 기타사항 + 기본 정보(면적/수용인원/이용단위/층수/주차). Ported from design-reference `.dsec`/`.facts`. */
 export function SpaceInfoSection({ space }: { space: SpaceDetail }) {
   const { description, notice } = splitSpaceDescription(space.description);
+  // 호스트가 "- ", "• ", "1. " 같은 머리표를 직접 붙여 쓴 경우가 많아 떼고 우리 점으로 통일한다.
+  const noticeItems = (notice ?? "")
+    .split("\n")
+    .map((line) => line.trim().replace(/^([-•·*▪︎]|\d+[.)])\s*/, ""))
+    .filter(Boolean);
   const facts: Array<{ label: string; value: string }> = [
     {
       label: "면적",
@@ -61,9 +66,19 @@ export function SpaceInfoSection({ space }: { space: SpaceDetail }) {
       {notice && (
         <section>
           <h3 className="mb-3 text-lg font-semibold tracking-tight text-ink">기타사항</h3>
-          <p className="whitespace-pre-line break-words bg-wash px-4.5 py-4 text-[0.92rem] leading-[1.9] text-soft shadow-[inset_3px_0_0_var(--sky)]">
-            {notice}
-          </p>
+          {/* 박스 없이 소개와 같은 결로 두되, 줄마다 항목으로 끊어 훑어보기 쉽게 한다(한 줄뿐이면 그냥 문단). */}
+          {noticeItems.length > 1 ? (
+            <ul className="flex flex-col gap-2 text-[0.92rem] leading-[1.75] text-soft">
+              {noticeItems.map((item, i) => (
+                <li key={i} className="flex gap-2.5 break-words">
+                  <span aria-hidden className="mt-[0.72em] h-1.5 w-1.5 shrink-0 bg-sky" />
+                  <span className="min-w-0">{item}</span>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="whitespace-pre-line break-words text-[0.92rem] leading-[1.9] text-soft">{notice}</p>
+          )}
         </section>
       )}
 

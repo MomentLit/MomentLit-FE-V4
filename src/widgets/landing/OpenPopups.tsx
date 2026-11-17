@@ -34,7 +34,11 @@ export function OpenPopups() {
         <h2
           className="landing-section-title text-ink"
         >
-          지금 열려 있는 팝업
+          지금 열려 있는{" "}
+          <span className="relative inline-block px-[0.06em]">
+            <span className="absolute inset-x-0 -z-10 top-[0.17em] bottom-[0.13em] bg-lemon" />
+            팝업
+          </span>
         </h2>
         <p className="max-w-[60ch] text-[0.89rem] leading-[1.75] text-soft">
           새로운 브랜드와 뜻밖의 만남. 지금 시작하는 팝업을 살펴보세요.

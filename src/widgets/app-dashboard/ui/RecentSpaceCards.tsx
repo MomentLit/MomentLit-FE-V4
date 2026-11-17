@@ -1,10 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { ViewTransition } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { cn } from "@/shared/lib";
-import { searchSpaces } from "@/entities/space/api";
-import { groupSpaceOptions } from "@/entities/space";
+import { fetchSpace, searchSpaces } from "@/entities/space/api";
+import { groupSpaceOptions, type GroupedSpace, type SpaceListItem } from "@/entities/space";
+import { spaceMorphName, useMorphLink } from "@/shared/hooks/useMorphLink";
 import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-category";
 import { getErrorMessage } from "@/shared/api/error";
 import { formatAddress, formatCapacityText } from "../lib/format";
@@ -48,57 +50,72 @@ export function RecentSpaceCards() {
       ) : (
         <div className="collection-grid">
           {spaces.map((space) => (
-            <Link
-              key={space.space_id}
-              href={`/spaces/${space.space_id}`}
-              className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white interactive-card"
-            >
-              <div
-                className={cn(
-                  "relative flex aspect-3/2 flex-col justify-between overflow-hidden p-3.5",
-                  !space.thumbnail_url && TONE_ON_BG[SPACE_CATEGORY_COLORS[space.category]],
-                )}
-              >
-                {space.thumbnail_url && (
-                  <>
-                    {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
-                    <img
-                      src={space.thumbnail_url}
-                      alt=""
-                      className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-black/30" />
-                  </>
-                )}
-                <span
-                  className={cn(
-                    "relative text-[0.61rem] font-medium uppercase tracking-[0.13em]",
-                    space.thumbnail_url ? "text-white/85" : "opacity-70",
-                  )}
-                >
-                  {SPACE_CATEGORY_LABELS[space.category]}
-                </span>
-                <span
-                  className={cn(
-                    "relative line-clamp-3 text-lg font-bold leading-tight tracking-tight",
-                    space.thumbnail_url && "text-white",
-                  )}
-                >
-                  {space.name}
-                </span>
-              </div>
-              <div className="flex flex-col gap-0.5 px-3 py-2.5 shadow-[inset_0_1px_0_var(--line)]">
-                <span className="line-clamp-1 text-sm font-bold tracking-tight text-ink">{space.name}</span>
-                <span className="text-[0.79rem] text-soft">{formatAddress(space.address)}</span>
-                <span className="mt-0.5 font-mono text-[0.67rem] text-soft">
-                  {space.option_group && <b className="font-bold text-main-d">구역 {space.option_group.count}곳 · </b>}
-                  {formatCapacityText(space.usage_unit, space.capacity)}
-                </span>
-              </div>
-            </Link>
+            <SpaceCard key={space.space_id} space={space} />
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+/** 공간 카드 — 누르면 사진 칸이 상세 히어로로 커지며 이어진다(`useMorphLink`, 랜딩 카드와 같은 전환). */
+function SpaceCard({ space }: { space: GroupedSpace<SpaceListItem> }) {
+  const queryClient = useQueryClient();
+  // 상세와 같은 캐시 키 — 미리 받아 두면 상세 히어로가 이동하는 순간 바로 그려진다.
+  const morph = useMorphLink(`/spaces/${space.space_id}`, () =>
+    queryClient.ensureQueryData({ queryKey: ["space", space.space_id], queryFn: () => fetchSpace(space.space_id) }),
+  );
+
+  return (
+    <Link
+      href={`/spaces/${space.space_id}`}
+      {...morph}
+      className="group flex flex-col overflow-hidden rounded-xl border border-line bg-white interactive-card"
+    >
+      <ViewTransition name={spaceMorphName(space.space_id)} share="morph" default="none">
+        <div
+          className={cn(
+            "relative flex aspect-3/2 flex-col justify-between overflow-hidden p-3.5",
+            !space.thumbnail_url && TONE_ON_BG[SPACE_CATEGORY_COLORS[space.category]],
+          )}
+        >
+          {space.thumbnail_url && (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
+              <img
+                src={space.thumbnail_url}
+                alt=""
+                className="absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-105"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/5 to-black/30" />
+            </>
+          )}
+          <span
+            className={cn(
+              "relative text-[0.61rem] font-medium uppercase tracking-[0.13em]",
+              space.thumbnail_url ? "text-white/85" : "opacity-70",
+            )}
+          >
+            {SPACE_CATEGORY_LABELS[space.category]}
+          </span>
+          <span
+            className={cn(
+              "relative line-clamp-3 text-lg font-bold leading-tight tracking-tight",
+              space.thumbnail_url && "text-white",
+            )}
+          >
+            {space.name}
+          </span>
+        </div>
+      </ViewTransition>
+      <div className="flex flex-col gap-0.5 px-3 py-2.5 shadow-[inset_0_1px_0_var(--line)]">
+        <span className="line-clamp-1 text-sm font-bold tracking-tight text-ink">{space.name}</span>
+        <span className="text-[0.79rem] text-soft">{formatAddress(space.address)}</span>
+        <span className="mt-0.5 font-mono text-[0.67rem] text-soft">
+          {space.option_group && <b className="font-bold text-main-d">구역 {space.option_group.count}곳 · </b>}
+          {formatCapacityText(space.usage_unit, space.capacity)}
+        </span>
+      </div>
+    </Link>
   );
 }

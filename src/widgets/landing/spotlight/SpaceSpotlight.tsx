@@ -68,12 +68,11 @@ export function SpaceSpotlight() {
             id="spotlight-title"
             className="landing-section-title text-ink"
           >
-            지금 바로{" "}
+            지금 바로 요청할 수 있는{" "}
             <span className="relative inline-block px-[0.06em]">
               <span className="absolute inset-x-0 -z-10 top-[0.17em] bottom-[0.13em] bg-sky" />
-              요청할 수 있는
-            </span>{" "}
-            공간
+              공간
+            </span>
           </h2>
         </div>
         <Link

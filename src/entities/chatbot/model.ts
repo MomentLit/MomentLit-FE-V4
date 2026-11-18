@@ -14,6 +14,11 @@ export interface ChatbotSpaceCard {
   price_inquiry?: boolean;
   category: string;
   address: string;
+  usage_unit?: "HOURLY" | "DAILY" | null;
+  /** 카드의 링크와 요금이 가리키는 구역. */
+  option_label?: string | null;
+  /** 이번 검색 조건에 맞는 구역 수. */
+  option_count?: number;
 }
 
 export interface ChatbotDone {

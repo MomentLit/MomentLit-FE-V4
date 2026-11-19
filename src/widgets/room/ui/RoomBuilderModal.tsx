@@ -1,12 +1,12 @@
 "use client";
 
-import { useCallback, useMemo, useState, type KeyboardEvent } from "react";
-import { IconArrowBackUp, IconCube, IconRefresh, IconRuler2, IconSparkles, IconView360, IconX } from "@tabler/icons-react";
+import { useCallback, useMemo, useRef, useState, type KeyboardEvent } from "react";
+import { IconArrowBackUp, IconCube, IconLayoutBoard, IconRefresh, IconRuler2, IconSparkles, IconView360, IconX } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
 import { Modal } from "@/shared/ui/Modal";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
 import type { PanoramaTourScene } from "@/widgets/panorama/model";
-import { floorCornersFromLayout, measureCeilingHeight, outerFromCorners, round, type Vec2 } from "../lib/geometry";
+import { directionToUv, floorCornersFromLayout, measureCeilingHeight, outerFromCorners, round, type Vec2 } from "../lib/geometry";
 import { outerOfCorners, type PickMode, type RoomStageState, type RoomView } from "../lib/stage";
 import {
   createRoomDraft,
@@ -20,6 +20,7 @@ import {
   withCeilingHeight,
   type RoomDraft,
 } from "../model";
+import { PlanEditor, type PlanShape } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { useLayoutDetection } from "./useLayoutDetection";
 
@@ -86,7 +87,12 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState<RoomDraft>(() => initialDraft ?? createRoomDraft(scene.image_url));
-  const [view, setView] = useState<RoomView>("photo");
+  // "plan" — 위에서 본 도면에서 벽 길이·꼭짓점을 수치로 고친다
+  const [view, setView] = useState<RoomView | "plan">("photo");
+  // 되돌리기 기록(모서리 목록). 끌기처럼 잇따른 변경은 한 번으로 묶는다.
+  const historyRef = useRef<Vec2[][]>([]);
+  const lastChangeRef = useRef(0);
+  const [canUndo, setCanUndo] = useState(false);
   const [pickMode, setPickMode] = useState<PickMode>("corners");
   const [hint, setHint] = useState<string | null>(null);
   const detection = useLayoutDetection();
@@ -122,10 +128,26 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
     setHint(`모서리 ${corners.length}개를 찾았어요. 어긋난 점은 끌어서 고치고, 천장 높이를 맞춰 주세요.`);
   }
 
+  /** 모서리를 바꾸고 되돌리기 기록에 남긴다 — 0.5초 안에 잇따른 변경(끌기)은 한 번으로 친다. */
+  const changeCorners = useCallback((corners: Vec2[]) => {
+    const now = Date.now();
+    if (now - lastChangeRef.current > 500) {
+      historyRef.current.push(draft.corners.map(([u, v]) => [u, v]));
+      setCanUndo(true);
+    }
+    lastChangeRef.current = now;
+    setDraft((current) => ({ ...current, corners }));
+  }, [draft.corners]);
+
   const handleCornersChange = useCallback((corners: Vec2[]) => {
     setHint(null);
-    setDraft((current) => ({ ...current, corners }));
-  }, []);
+    changeCorners(corners);
+  }, [changeCorners]);
+
+  /** 도면에서 고친 바닥 점(m) → 사진에서 본 방향(모서리 사진 좌표). 촬영 높이를 바꿔도 모양이 유지된다. */
+  const handlePlanChange = useCallback(({ outer }: PlanShape) => {
+    changeCorners(outer.map(([x, z]) => directionToUv([x, -draft.cameraHeight, z])));
+  }, [changeCorners, draft.cameraHeight]);
 
   const handleCeilingPick = useCallback((uv: Vec2) => {
     const floorPoints = outerFromCorners(draft.corners, draft.cameraHeight) ?? [];
@@ -145,11 +167,18 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
     setPickMode("corners");
   }, [draft]);
 
-  function undoCorner() {
-    setDraft((current) => ({ ...current, corners: current.corners.slice(0, -1) }));
+  function undo() {
+    const previous = historyRef.current.pop();
+    setCanUndo(historyRef.current.length > 0);
+    lastChangeRef.current = 0;
+    if (previous) setDraft((current) => ({ ...current, corners: previous }));
   }
 
   function clearCorners() {
+    if (draft.corners.length > 0) {
+      historyRef.current.push(draft.corners.map(([u, v]) => [u, v]));
+      setCanUndo(true);
+    }
     setDraft((current) => ({ ...current, corners: [], layoutRatio: null, imageUrl: current.sceneImageUrl }));
     setView("photo");
     setPickMode("corners");
@@ -167,7 +196,9 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
     setHint("이미 찍은 바닥 모서리 바로 위의 천장 모서리를 눌러 주세요.");
   }
 
-  const guide = pickMode === "ceiling"
+  const guide = view === "plan"
+    ? "벽을 눌러 길이(mm)를 고치거나 점을 끌어 옮겨요. 고친 모양은 사진 시점과 미니어처에도 바로 반영돼요."
+    : pickMode === "ceiling"
     ? "천장과 벽이 만나는 모서리를 눌러 주세요."
     : draft.corners.length < 3
       ? `바닥과 벽이 만나는 모서리를 차례대로 눌러 주세요 (${draft.corners.length}개). 찍은 점은 끌어서 옮길 수 있어요.`
@@ -195,13 +226,21 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
         <RoomStageCanvas
           imageUrl={draft.imageUrl}
           state={stageState}
-          view={view}
+          view={view === "plan" ? "miniature" : view}
           pickMode={view === "photo" ? pickMode : "none"}
           onCornersChange={handleCornersChange}
           onCeilingPick={handleCeilingPick}
           onHint={setHint}
           className="h-[360px] sm:h-[480px]"
         />
+        {view === "plan" && summary && (
+          <PlanEditor
+            outer={summary.outer}
+            onChange={handlePlanChange}
+            ceilingHeight={draft.ceilingHeight}
+            className="absolute inset-0"
+          />
+        )}
         <div className="absolute right-3 top-3 flex gap-1" role="group" aria-label="시점">
           <button
             type="button"
@@ -222,6 +261,19 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
             <IconCube size={16} stroke={2} aria-hidden />
             미니어처
           </button>
+          <button
+            type="button"
+            onClick={() => {
+              setView("plan");
+              setPickMode("corners");
+            }}
+            disabled={!summary}
+            aria-pressed={view === "plan"}
+            className={cn("button min-h-9 px-3 py-1.5", view === "plan" ? "button--primary" : "button--outline")}
+          >
+            <IconLayoutBoard size={16} stroke={2} aria-hidden />
+            도면
+          </button>
         </div>
       </div>
 
@@ -237,9 +289,9 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
           {detecting ? "찾는 중…" : "자동으로 모서리 찾기"}
         </button>
         <span className="mx-1 h-6 w-px bg-line" aria-hidden />
-        <button type="button" onClick={undoCorner} disabled={detecting || draft.corners.length === 0} className="button button--outline">
+        <button type="button" onClick={undo} disabled={detecting || !canUndo} className="button button--outline">
           <IconArrowBackUp size={18} stroke={2} aria-hidden />
-          하나 되돌리기
+          되돌리기
         </button>
         <button type="button" onClick={clearCorners} disabled={detecting || draft.corners.length === 0} className="button button--outline">
           <IconRefresh size={18} stroke={2} aria-hidden />

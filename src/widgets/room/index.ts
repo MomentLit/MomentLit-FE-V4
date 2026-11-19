@@ -1,7 +1,9 @@
 export { RoomBuilderModal } from "./ui/RoomBuilderModal";
 export { RoomField } from "./ui/RoomField";
 export {
-  isSameRoomDraft,
+  keepRoomsForScenes,
+  planRoomSaves,
+  roomPlacement,
   roomToDraft,
   summarizeRoom,
   toRoomRequest,

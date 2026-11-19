@@ -72,22 +72,20 @@ function HeightField({ label, value, min, max, onCommit, disabled }: {
 }
 
 /**
- * 호스트가 360° 사진으로 실제 크기의 3D 방을 만드는 창.
- * 1) 쓸 사진 고르기 → 2) 바닥 모서리 찾기(자동 또는 직접 찍기) → 3) 높이 맞추기 → 4) 미니어처로 확인 후 저장.
+ * 호스트가 360° 장면 하나로 실제 크기의 3D 방을 만드는 창.
+ * 1) 바닥 모서리 찾기(자동 또는 직접 찍기) → 2) 높이 맞추기 → 3) 미니어처로 확인 후 정하기.
  * 저장은 하지 않고 초안을 부모에게 돌려준다 — 공간이 만들어진 뒤(등록) 또는 수정 저장 때 함께 저장한다.
  */
-export function RoomBuilderModal({ scenes, initialDraft, title, onConfirm, onClose }: {
-  scenes: readonly PanoramaTourScene[];
+export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onConfirm, onClose }: {
+  scene: PanoramaTourScene;
+  /** 화면에 보일 장면 이름(예: "거실", "장면 2"). */
+  sceneLabel: string;
   initialDraft: RoomDraft | null;
   title: string;
   onConfirm: (draft: RoomDraft) => void;
   onClose: () => void;
 }) {
-  // 저장된 방이 지금 장면 중 하나로 만든 것이면 그 장면을 고른 채로 연다. 정렬된 사진이면 어느 장면인지 알 수 없어 첫 장면.
-  const [sceneIndex, setSceneIndex] = useState(() =>
-    Math.max(0, scenes.findIndex((scene) => scene.image_url === initialDraft?.imageUrl)),
-  );
-  const [draft, setDraft] = useState<RoomDraft>(() => initialDraft ?? createRoomDraft(scenes[0].image_url));
+  const [draft, setDraft] = useState<RoomDraft>(() => initialDraft ?? createRoomDraft(scene.image_url));
   const [view, setView] = useState<RoomView>("photo");
   const [pickMode, setPickMode] = useState<PickMode>("corners");
   const [hint, setHint] = useState<string | null>(null);
@@ -101,19 +99,10 @@ export function RoomBuilderModal({ scenes, initialDraft, title, onConfirm, onClo
     [draft.corners, draft.cameraHeight, draft.ceilingHeight],
   );
 
-  function changeScene(index: number) {
-    detection.cancel();
-    setSceneIndex(index);
-    setDraft((current) => ({ ...createRoomDraft(scenes[index].image_url), ceilingHeight: current.ceilingHeight }));
-    setView("photo");
-    setPickMode("corners");
-    setHint(null);
-  }
-
   async function handleDetect() {
     setHint(null);
-    const sceneUrl = scenes[sceneIndex].image_url;
-    const result = await detection.detect(sceneUrl);
+    // 이미 자동 인식으로 수평을 맞춘 사진이어도, 다시 찾을 땐 원래 장면 사진으로 한다.
+    const result = await detection.detect(draft.sceneImageUrl);
     if (!result) return;
     const corners = floorCornersFromLayout(result.uv);
     setDraft((current) => withCeilingHeight({
@@ -155,7 +144,7 @@ export function RoomBuilderModal({ scenes, initialDraft, title, onConfirm, onClo
   }
 
   function clearCorners() {
-    setDraft((current) => ({ ...current, corners: [], layoutRatio: null, imageUrl: scenes[sceneIndex].image_url }));
+    setDraft((current) => ({ ...current, corners: [], layoutRatio: null, imageUrl: current.sceneImageUrl }));
     setView("photo");
     setPickMode("corners");
     setHint(null);
@@ -188,31 +177,13 @@ export function RoomBuilderModal({ scenes, initialDraft, title, onConfirm, onClo
       <div className="flex items-center justify-between gap-4">
         <div className="min-w-0">
           <span className="font-mono text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">3D Room</span>
-          <h2 className="truncate section-title text-ink">3D 방 만들기</h2>
+          <h2 className="truncate section-title text-ink">3D 방 만들기 — {sceneLabel}</h2>
         </div>
         <button type="button" onClick={onClose} disabled={detecting} className="button button--outline shrink-0">
           <IconX size={18} stroke={2} aria-hidden />
           닫기
         </button>
       </div>
-
-      {scenes.length > 1 && (
-        <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
-          방을 만들 360° 사진
-          <select
-            value={sceneIndex}
-            disabled={detecting}
-            onChange={(event) => changeScene(Number(event.target.value))}
-            className={fieldInputClass}
-          >
-            {scenes.map((scene, index) => (
-              <option key={`${scene.image_url}-${index}`} value={index}>
-                {scene.name?.trim() || `장면 ${index + 1}`}
-              </option>
-            ))}
-          </select>
-        </label>
-      )}
 
       <div className="relative">
         <RoomStageCanvas

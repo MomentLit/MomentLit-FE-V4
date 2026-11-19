@@ -8,8 +8,8 @@ import { cn } from "@/shared/lib";
 // directly from the api module instead (entities files are read-only in this scope).
 import { createSpace, updateAvailability } from "@/entities/space/api";
 import { uploadImage } from "@/shared/api/upload";
-import { saveRoom } from "@/entities/room";
-import { toRoomRequest } from "@/widgets/room";
+import { createRoom } from "@/entities/room";
+import { roomPlacement, toRoomRequest } from "@/widgets/room";
 import { countPendingUploads, resolvePhotoUrls, useRevokePhotoItemsOnUnmount } from "@/shared/ui/MultiPhotoUpload";
 import { getErrorMessage } from "@/shared/api/error";
 import { useRequireAuth } from "@/widgets/auth";
@@ -61,7 +61,7 @@ export function RegistrationForm() {
    */
   const createdSpaceIdsRef = useRef(new Map<string, number>());
   const savedScheduleRef = useRef(new Set<string>());
-  /** 3D 방까지 저장한 구역 — 실패 후 다시 누르면 남은 것만 저장한다. */
+  /** 저장한 3D 방(`구역 id|장면 사진`) — 실패 후 다시 누르면 남은 것만 저장한다. */
   const savedRoomRef = useRef(new Set<string>());
 
   function onFieldChange<K extends keyof RegistrationFormState>(
@@ -211,9 +211,11 @@ export function RegistrationForm() {
           await updateAvailability(spaceId, toAvailabilitySlots(option.weeklySchedule));
           savedSchedule.add(option.id);
         }
-        if (option.room && !savedRoom.has(option.id)) {
-          await saveRoom(spaceId, toRoomRequest(option.room));
-          savedRoom.add(option.id);
+        for (const room of option.rooms) {
+          const key = `${option.id}|${room.sceneImageUrl}`;
+          if (savedRoom.has(key)) continue;
+          await createRoom(spaceId, toRoomRequest(room, roomPlacement(option.panoramaScenes, room.sceneImageUrl)));
+          savedRoom.add(key);
         }
       }
 

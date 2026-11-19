@@ -108,7 +108,7 @@ export class RoomStage {
   private readonly furnitureGroup: Three.Group;
   private readonly furnitureMaterials: Record<string, Three.MeshStandardMaterial>;
   private readonly resizeObserver: ResizeObserver;
-  private readonly clock: Three.Clock;
+  private readonly timer: Three.Timer;
   private ceilingMesh: Three.Mesh | null = null;
   private selectionBox: Three.BoxHelper | null = null;
   private texture: Three.Texture | null = null;
@@ -151,12 +151,12 @@ export class RoomStage {
     this.three = three;
     this.container = container;
     this.callbacks = callbacks;
-    this.clock = new three.Clock();
+    this.timer = new three.Timer();
 
     this.renderer = new three.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     this.renderer.shadowMap.enabled = true;
-    this.renderer.shadowMap.type = three.PCFSoftShadowMap;
+    this.renderer.shadowMap.type = three.PCFShadowMap;
     this.renderer.domElement.style.display = "block";
     this.renderer.domElement.style.touchAction = "none";
     container.appendChild(this.renderer.domElement);
@@ -330,6 +330,7 @@ export class RoomStage {
     this.roomMaterial.dispose();
     this.skyMaterial.dispose();
     this.texture?.dispose();
+    this.timer.dispose();
     this.renderer.dispose();
     canvas.remove();
   }
@@ -855,9 +856,10 @@ export class RoomStage {
     }
   }
 
-  private tick = () => {
+  private tick = (timestamp?: number) => {
     this.frame = requestAnimationFrame(this.tick);
-    const dt = Math.min(0.05, this.clock.getDelta());
+    this.timer.update(timestamp);
+    const dt = Math.min(0.05, this.timer.getDelta());
     if (this.view === "photo") {
       const cp = Math.cos(this.pitch);
       this.photoCamera.position.set(0, 0, 0);

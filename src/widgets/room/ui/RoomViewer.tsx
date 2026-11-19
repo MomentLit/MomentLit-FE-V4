@@ -218,7 +218,7 @@ function RoomViewerBody({ spaceId, title, room }: { spaceId: number; title: stri
             onFurnitureMove={handleMove}
             onPlace={handlePlace}
             onHint={setHint}
-            className="absolute inset-0"
+            className="h-full w-full"
           />
           {view === "plan" && (
             <RoomPlanView

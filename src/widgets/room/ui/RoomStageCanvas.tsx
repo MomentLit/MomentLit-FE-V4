@@ -8,7 +8,10 @@ const LOAD_ERROR_MESSAGE = "360° 사진을 불러오지 못했어요.";
 const NO_FURNITURE: readonly StageFurniture[] = [];
 
 /**
- * `RoomStage`(three.js)를 감싸는 캔버스. three.js가 `window`/WebGL에 의존해서 effect 안에서 필요할 때만 불러온다
+ * `RoomStage`(three.js)를 감싸는 캔버스. 안쪽이 모두 absolute라 `className`으로 높이를 꼭 정해야 한다
+ * (예: `h-[480px]`, 부모 높이가 정해져 있으면 `h-full`). `cn`은 클래스를 합치지 않으므로 `absolute`를 넘기면
+ * 기본 `relative`와 부딪혀 높이가 0이 된다.
+ * three.js가 `window`/WebGL에 의존해서 effect 안에서 필요할 때만 불러온다
  * (`PanoramaViewer`와 같은 방식). 콜백은 최신 것을 ref로 넘겨서 무대를 다시 만들지 않는다.
  */
 export function RoomStageCanvas({

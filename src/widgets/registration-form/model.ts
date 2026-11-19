@@ -202,8 +202,8 @@ export interface SpaceOptionState extends BookingRulesState {
    * `PanoramaUploadModal`, so `image_url` is the final S3 URL.
    */
   panoramaScenes: PanoramaTourScene[];
-  /** Optional — 360° 사진으로 만든 3D 방 초안. 공간을 만든 뒤 `PUT /spaces/{id}/room`으로 따로 저장한다. */
-  room: RoomDraft | null;
+  /** Optional — 360° 장면마다 만든 3D 방 초안. 공간을 만든 뒤 `POST /spaces/{id}/rooms`로 따로 저장한다. */
+  rooms: RoomDraft[];
   usageUnit: UsageUnit;
   pricePerUnit: string;
   /** "문의 바람" — 켜면 요금 대신 "가격 문의"로 노출하고 `pricePerUnit`은 보내지 않는다. */
@@ -253,7 +253,7 @@ export function createOptionState(base?: SpaceOptionState): SpaceOptionState {
     capacity: "",
     photos: [],
     panoramaScenes: [],
-    room: null,
+    rooms: [],
     // 새 구역은 보통 요금 체계·운영 시간이 비슷해서 지금 구역 값을 이어받는다 — 사진·이름은 구역마다 다르니 비운다.
     usageUnit: base?.usageUnit ?? "HOURLY",
     pricePerUnit: base?.pricePerUnit ?? "",

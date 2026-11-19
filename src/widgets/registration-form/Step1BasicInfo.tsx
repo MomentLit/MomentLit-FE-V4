@@ -3,7 +3,7 @@ import { useState } from "react";
 import { MAX_SPACE_PHOTOS, SPACE_HERO_ASPECT } from "@/entities/space";
 import { MultiPhotoUpload } from "@/shared/ui/MultiPhotoUpload";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
-import { RoomField } from "@/widgets/room";
+import { keepRoomsForScenes, RoomField } from "@/widgets/room";
 import { FormField, fieldInputClass } from "./FormField";
 import { CategoryPicker } from "./CategoryPicker";
 import { ToggleSwitch } from "./ToggleSwitch";
@@ -155,8 +155,8 @@ export function Step1BasicInfo({
           value={option.panoramaScenes}
           onChange={(scenes) => {
             onOptionChange("panoramaScenes", scenes);
-            // 360° 사진을 모두 지우면 그 사진으로 만든 3D 방도 뺀다.
-            if (scenes.length === 0) onOptionChange("room", null);
+            // 장면을 지우거나 사진을 바꾸면 그 장면으로 만든 3D 방도 뺀다.
+            onOptionChange("rooms", keepRoomsForScenes(option.rooms, scenes));
           }}
           title={title}
         />
@@ -165,8 +165,8 @@ export function Step1BasicInfo({
             <RoomField
               key={option.id}
               scenes={option.panoramaScenes}
-              value={option.room}
-              onChange={(room) => onOptionChange("room", room)}
+              value={option.rooms}
+              onChange={(rooms) => onOptionChange("rooms", rooms)}
               title={title}
             />
           </div>

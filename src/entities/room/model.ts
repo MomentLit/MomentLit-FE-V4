@@ -24,9 +24,16 @@ export interface RoomGeometry {
   corners: PanoramaUv[] | null;
 }
 
+/** 공간의 3D 방 하나 — 360° 장면마다 하나씩, 공간당 20개까지. */
 export interface Room {
+  room_id: number;
   space_id: number;
-  scene_id: number | null;
+  /** 방 이름 — 보통 장면 이름. */
+  name: string;
+  /** 3D 보기 탭 순서 — 보통 장면 순서. */
+  sort_order: number;
+  /** 이 방을 만든 360° 장면의 사진. 장면 id는 공간 수정 때 바뀔 수 있어 사진 URL로 장면과 짝짓는다. */
+  scene_image_url: string | null;
   source: RoomSource;
   /** 벽·바닥에 입힐 사진 — 자동 인식을 거쳤으면 수평을 맞춘 사진. */
   image_url: string | null;
@@ -38,8 +45,12 @@ export interface Room {
   updated_at: string;
 }
 
+export const MAX_ROOMS_PER_SPACE = 20;
+
 export interface RoomUpsertRequest {
-  scene_id?: number | null;
+  name: string;
+  sort_order: number;
+  scene_image_url: string | null;
   source: RoomSource;
   image_url: string;
   ceiling_height: number;
@@ -78,9 +89,10 @@ export interface FurnitureItem {
   rotation: number;
 }
 
-/** 로그인한 사용자가 이름 붙여 저장한 배치. 공간마다 20개까지. */
+/** 로그인한 사용자가 방마다 이름 붙여 저장한 배치. 방마다 20개까지. */
 export interface FurnitureLayout {
   layout_id: number;
+  room_id: number;
   space_id: number;
   name: string;
   items: FurnitureItem[];

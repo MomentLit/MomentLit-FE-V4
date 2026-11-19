@@ -13,7 +13,7 @@ import {
   IconView360,
   IconWalk,
 } from "@tabler/icons-react";
-import { fetchRoom, type Room } from "@/entities/room";
+import { fetchRooms, type Room } from "@/entities/room";
 import { fetchSpace } from "@/entities/space/api";
 import { cn } from "@/shared/lib";
 import { FURNITURE_CATALOG, findFurniture, normalizeRotation } from "../lib/furniture";
@@ -53,18 +53,28 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** `/spaces/{id}/room` — 공간의 3D 방을 화면 가득 보여 주고, 실제 크기 가구를 놓아 보고, 배치를 여러 개 저장한다. */
+/** 이 화면에서 그릴 수 있는 방 — 파노라마 사진과 촬영 높이가 있어야 한다. */
+function isViewable(room: Room) {
+  return Boolean(room.image_url) && room.camera_height != null;
+}
+
+/**
+ * `/spaces/{id}/room` — 공간의 3D 방(360° 장면마다 하나)을 화면 가득 보여 주고, 실제 크기 가구를 놓아 보고, 배치를 여러 개 저장한다.
+ * 방이 여러 개면 위쪽 탭으로 옮겨 다닌다. 가구 배치는 방마다 따로다.
+ */
 export function RoomViewer({ spaceId }: { spaceId: number }) {
-  const roomQuery = useQuery({ queryKey: ["space-room", spaceId], queryFn: () => fetchRoom(spaceId) });
+  const roomsQuery = useQuery({ queryKey: ["space-rooms", spaceId], queryFn: () => fetchRooms(spaceId) });
   const spaceQuery = useQuery({ queryKey: ["space", spaceId], queryFn: () => fetchSpace(spaceId) });
-  const room = roomQuery.data;
+  const rooms = (roomsQuery.data ?? []).filter(isViewable);
+  const [selectedRoomId, setSelectedRoomId] = useState<number | null>(null);
+  const room = rooms.find((item) => item.room_id === selectedRoomId) ?? rooms[0];
   const title = spaceQuery.data?.name ?? "공간";
 
-  const message = roomQuery.isPending
+  const message = roomsQuery.isPending
     ? "3D 방을 불러오는 중…"
-    : roomQuery.isError
+    : roomsQuery.isError
       ? "3D 방을 불러오지 못했어요."
-      : !room || !room.image_url || room.camera_height == null
+      : !room
         ? "이 공간에는 아직 3D 방이 없어요."
         : null;
 
@@ -76,7 +86,15 @@ export function RoomViewer({ spaceId }: { spaceId: number }) {
           <p className="flex flex-1 items-center justify-center p-10 text-sm text-soft">{message}</p>
         </>
       ) : (
-        <RoomViewerBody spaceId={spaceId} title={title} room={room} />
+        // 방을 바꾸면 무대·가구 배치를 새로 만든다(방마다 사진·크기·배치가 다르다).
+        <RoomViewerBody
+          key={room.room_id}
+          spaceId={spaceId}
+          title={title}
+          room={room}
+          rooms={rooms}
+          onRoomChange={setSelectedRoomId}
+        />
       )}
     </div>
   );
@@ -98,12 +116,37 @@ function ViewerHeader({ spaceId, title, children }: { spaceId: number; title: st
   );
 }
 
-function RoomViewerBody({ spaceId, title, room }: { spaceId: number; title: string; room: Room }) {
+function RoomTabs({ rooms, activeId, onChange }: { rooms: readonly Room[]; activeId: number; onChange: (roomId: number) => void }) {
+  if (rooms.length < 2) return null;
+  return (
+    <nav className="flex gap-1 overflow-x-auto border-b border-line px-4 py-2" aria-label="방">
+      {rooms.map((item) => (
+        <button
+          key={item.room_id}
+          type="button"
+          onClick={() => onChange(item.room_id)}
+          aria-current={item.room_id === activeId || undefined}
+          className={cn("button min-h-9 shrink-0 px-3 py-1.5", item.room_id === activeId ? "button--primary" : "button--outline")}
+        >
+          {item.name}
+        </button>
+      ))}
+    </nav>
+  );
+}
+
+function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
+  spaceId: number;
+  title: string;
+  room: Room;
+  rooms: readonly Room[];
+  onRoomChange: (roomId: number) => void;
+}) {
   const [view, setView] = useState<ViewerView>("miniature");
   const [selected, setSelected] = useState<number | null>(null);
   const [placingType, setPlacingType] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
-  const layouts = useFurnitureLayouts(spaceId);
+  const layouts = useFurnitureLayouts(spaceId, room.room_id);
   const { items, setItems } = layouts;
 
   const stageState = useMemo<RoomStageState>(() => ({
@@ -203,6 +246,7 @@ function RoomViewerBody({ spaceId, title, room }: { spaceId: number; title: stri
           ))}
         </div>
       </ViewerHeader>
+      <RoomTabs rooms={rooms} activeId={room.room_id} onChange={onRoomChange} />
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[58dvh] shrink-0 lg:h-auto lg:flex-1">
@@ -287,7 +331,7 @@ function RoomViewerBody({ spaceId, title, room }: { spaceId: number; title: stri
             <LayoutsPanel layouts={layouts} />
           </Section>
 
-          <Section title="방 정보">
+          <Section title={rooms.length > 1 ? `방 정보 — ${room.name}` : "방 정보"}>
             <p className="text-2xl font-bold text-ink">
               {area.toFixed(1)}㎡ <span className="text-base font-semibold text-soft">약 {toPyeong(area).toFixed(1)}평</span>
             </p>

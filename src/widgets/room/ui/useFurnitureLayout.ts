@@ -30,9 +30,9 @@ function isItem(value: unknown): value is FurnitureItem {
   return typeof item?.type === "string" && [item.x, item.z, item.rotation].every((v) => typeof v === "number" && Number.isFinite(v));
 }
 
-function readDraft(spaceId: number): LocalDraft | null {
+function readDraft(key: string): LocalDraft | null {
   try {
-    const raw = window.localStorage.getItem(STORAGE_PREFIX + spaceId);
+    const raw = window.localStorage.getItem(STORAGE_PREFIX + key);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as Partial<LocalDraft> | null;
     if (!parsed || !Array.isArray(parsed.items)) return null;
@@ -45,9 +45,9 @@ function readDraft(spaceId: number): LocalDraft | null {
   }
 }
 
-function writeDraft(spaceId: number, draft: LocalDraft) {
+function writeDraft(key: string, draft: LocalDraft) {
   try {
-    window.localStorage.setItem(STORAGE_PREFIX + spaceId, JSON.stringify(draft));
+    window.localStorage.setItem(STORAGE_PREFIX + key, JSON.stringify(draft));
   } catch {
     // 저장 공간이 막힌 브라우저(사생활 보호 모드 등) — 화면에서는 계속 쓸 수 있다.
   }
@@ -63,19 +63,20 @@ function sameItems(a: readonly FurnitureItem[], b: readonly FurnitureItem[]) {
 }
 
 /**
- * 3D 방 가구 배치 — 지금 편집 중인 배치(브라우저에 자동 보관)와, 로그인한 사용자가 이름 붙여 저장한 배치 목록(서버, 20개까지).
- * 저장된 배치를 불러와 고친 뒤 덮어쓰거나, 새 배치로 따로 저장할 수 있다.
+ * 3D 방 하나의 가구 배치 — 지금 편집 중인 배치(브라우저에 방마다 자동 보관)와, 로그인한 사용자가 이 방에 이름 붙여 저장한
+ * 배치 목록(서버, 방마다 20개까지). 저장된 배치를 불러와 고친 뒤 덮어쓰거나, 새 배치로 따로 저장할 수 있다.
  */
-export function useFurnitureLayouts(spaceId: number) {
+export function useFurnitureLayouts(spaceId: number, roomId: number) {
+  const draftKey = `${spaceId}:${roomId}`;
   const hydrated = useAuthStore((state) => state.hydrated);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
   const openAuthModal = useAuthStore((state) => state.openAuthModal);
   const queryClient = useQueryClient();
-  const queryKey = ["space-room-layouts", spaceId];
+  const queryKey = ["space-room-layouts", spaceId, roomId];
 
   const layoutsQuery = useQuery({
     queryKey,
-    queryFn: () => fetchMyFurnitureLayouts(spaceId),
+    queryFn: () => fetchMyFurnitureLayouts(spaceId, roomId),
     enabled: hydrated && isAuthenticated,
   });
   const layouts = isAuthenticated ? layoutsQuery.data ?? [] : [];
@@ -90,17 +91,17 @@ export function useFurnitureLayouts(spaceId: number) {
   useEffect(() => {
     if (initializedRef.current) return;
     initializedRef.current = true;
-    const draft = readDraft(spaceId);
+    const draft = readDraft(draftKey);
     queueMicrotask(() => {
       setItems(draft?.items ?? []);
       setActiveId(draft?.layoutId ?? null);
       setReady(true);
     });
-  }, [spaceId]);
+  }, [draftKey]);
 
   useEffect(() => {
-    if (ready) writeDraft(spaceId, { items, layoutId: activeId });
-  }, [ready, spaceId, items, activeId]);
+    if (ready) writeDraft(draftKey, { items, layoutId: activeId });
+  }, [ready, draftKey, items, activeId]);
 
   // 고치던 배치가 목록에 없으면(다른 기기에서 지웠거나 로그아웃) 새 배치로 본다.
   const active = layouts.find((layout) => layout.layout_id === activeId) ?? null;
@@ -144,7 +145,7 @@ export function useFurnitureLayouts(spaceId: number) {
   /** 지금 배치를 새 이름으로 저장한다. */
   function saveAsNew(name: string) {
     return run(async () => {
-      const created = await createMyFurnitureLayout(spaceId, name.trim(), normalize(items));
+      const created = await createMyFurnitureLayout(spaceId, roomId, name.trim(), normalize(items));
       setLayoutsCache((current) => [created, ...current]);
       setActiveId(created.layout_id);
       return created;
@@ -155,7 +156,7 @@ export function useFurnitureLayouts(spaceId: number) {
   function overwrite() {
     if (!active) return Promise.resolve(null);
     return run(async () => {
-      const updated = await updateMyFurnitureLayout(spaceId, active.layout_id, active.name, normalize(items));
+      const updated = await updateMyFurnitureLayout(spaceId, roomId, active.layout_id, active.name, normalize(items));
       setLayoutsCache((current) => [updated, ...current.filter((layout) => layout.layout_id !== updated.layout_id)]);
       return updated;
     });
@@ -163,7 +164,7 @@ export function useFurnitureLayouts(spaceId: number) {
 
   function rename(layout: FurnitureLayout, name: string) {
     return run(async () => {
-      const updated = await updateMyFurnitureLayout(spaceId, layout.layout_id, name.trim(), layout.items);
+      const updated = await updateMyFurnitureLayout(spaceId, roomId, layout.layout_id, name.trim(), layout.items);
       setLayoutsCache((current) => current.map((item) => (item.layout_id === updated.layout_id ? updated : item)));
       return updated;
     });
@@ -171,7 +172,7 @@ export function useFurnitureLayouts(spaceId: number) {
 
   function remove(layout: FurnitureLayout) {
     return run(async () => {
-      await deleteMyFurnitureLayout(spaceId, layout.layout_id);
+      await deleteMyFurnitureLayout(spaceId, roomId, layout.layout_id);
       setLayoutsCache((current) => current.filter((item) => item.layout_id !== layout.layout_id));
       // 지운 배치를 고치던 중이었으면 화면의 가구는 그대로 두고 "새 배치"로 바꾼다.
       if (layout.layout_id === activeId) setActiveId(null);

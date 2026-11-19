@@ -14,7 +14,7 @@ import { REGION_LABELS } from "@/entities/region";
 import { getSpacePhotoUrls, splitSpaceOptionName, type SpaceDetail } from "@/entities/space";
 import { PanoramaViewerModal, resolvePanoramaScenes } from "@/widgets/panorama";
 import { FurniturePlacementModal } from "@/widgets/furniture-placement";
-import { fetchRoom } from "@/entities/room";
+import { fetchRooms } from "@/entities/room";
 import { spaceMorphName, useMorphArrival } from "@/shared/hooks/useMorphLink";
 
 /** 사진이 여러 장일 때 다음 사진으로 넘어가는 간격. */
@@ -135,9 +135,9 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
   // 장면 기능 이전에 저장된 공간은 장면 목록이 비어 있어서 `panorama_url` 한 장으로 보여준다.
   const panoramaScenes = resolvePanoramaScenes(space.panorama_scenes, space.panorama_url);
   const hasPanorama = panoramaScenes.length > 0;
-  // 3D 방은 공간과 따로 저장돼서 따로 확인한다. 없으면(404) null.
-  const roomQuery = useQuery({ queryKey: ["space-room", space.space_id], queryFn: () => fetchRoom(space.space_id) });
-  const hasRoom = Boolean(roomQuery.data);
+  // 3D 방(장면마다 하나)은 공간과 따로 저장돼서 따로 확인한다. 없으면 빈 목록.
+  const roomsQuery = useQuery({ queryKey: ["space-rooms", space.space_id], queryFn: () => fetchRooms(space.space_id) });
+  const hasRoom = (roomsQuery.data?.length ?? 0) > 0;
 
   // 구역으로 묶인 공간이면 제목은 공통 이름만 쓰고, 구역 이름은 아래 탭과 제목 위 라벨로 보여준다.
   const { baseName, optionLabel } = splitSpaceOptionName(space.name);

@@ -30,7 +30,7 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
     return (
       <div className="flex flex-col gap-2">
         <p className="text-sm text-soft">
-          로그인하면 배치에 이름을 붙여 {MAX_FURNITURE_LAYOUTS}개까지 저장하고 언제든 다시 불러올 수 있어요.
+          로그인하면 방마다 배치에 이름을 붙여 {MAX_FURNITURE_LAYOUTS}개까지 저장하고 언제든 다시 불러올 수 있어요.
           지금 놓은 가구는 이 브라우저에 임시로 남아 있어요.
         </p>
         <button type="button" onClick={layouts.openLogin} className="button button--primary self-start">
@@ -116,7 +116,7 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
       </div>
 
       {layouts.limitReached && (
-        <p className="text-xs text-soft">배치는 {MAX_FURNITURE_LAYOUTS}개까지 저장할 수 있어요. 안 쓰는 배치를 지우거나 덮어써 주세요.</p>
+        <p className="text-xs text-soft">배치는 방마다 {MAX_FURNITURE_LAYOUTS}개까지 저장할 수 있어요. 안 쓰는 배치를 지우거나 덮어써 주세요.</p>
       )}
 
       {naming && (

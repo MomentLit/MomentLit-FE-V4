@@ -2,44 +2,46 @@
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/shared/lib";
-import type { Vec2 } from "../lib/geometry";
-import type { PickMode, RoomStage, RoomStageCallbacks, RoomStageState, RoomView } from "../lib/stage";
+import type { PickMode, RoomStage, RoomStageCallbacks, RoomStageState, RoomView, StageFurniture } from "../lib/stage";
 
 const LOAD_ERROR_MESSAGE = "360° 사진을 불러오지 못했어요.";
+const NO_FURNITURE: readonly StageFurniture[] = [];
 
 /**
  * `RoomStage`(three.js)를 감싸는 캔버스. three.js가 `window`/WebGL에 의존해서 effect 안에서 필요할 때만 불러온다
- * (`PanoramaViewer`와 같은 방식).
+ * (`PanoramaViewer`와 같은 방식). 콜백은 최신 것을 ref로 넘겨서 무대를 다시 만들지 않는다.
  */
 export function RoomStageCanvas({
   imageUrl,
   state,
   view,
-  pickMode,
-  onCornersChange,
-  onCeilingPick,
-  onHint,
+  pickMode = "none",
+  furnitureEditable = false,
+  placingType = null,
+  furniture = NO_FURNITURE,
+  selectedFurniture = null,
   className,
+  ...callbacks
 }: {
   imageUrl: string;
   state: RoomStageState;
   view: RoomView;
-  pickMode: PickMode;
-  onCornersChange?: (corners: Vec2[]) => void;
-  onCeilingPick?: (uv: Vec2) => void;
-  onHint?: (message: string) => void;
+  pickMode?: PickMode;
+  furnitureEditable?: boolean;
+  placingType?: string | null;
+  furniture?: readonly StageFurniture[];
+  selectedFurniture?: number | null;
   className?: string;
-}) {
+} & RoomStageCallbacks) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<RoomStage | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // 무대는 한 번만 만들고, 콜백은 최신 것을 ref로 넘긴다.
-  const callbacksRef = useRef<RoomStageCallbacks>({});
+  const callbacksRef = useRef<RoomStageCallbacks>(callbacks);
   useEffect(() => {
-    callbacksRef.current = { onCornersChange, onCeilingPick, onHint };
-  }, [onCornersChange, onCeilingPick, onHint]);
+    callbacksRef.current = callbacks;
+  });
 
   useEffect(() => {
     const container = containerRef.current;
@@ -54,6 +56,10 @@ export function RoomStageCanvas({
           onCornersChange: (corners) => callbacksRef.current.onCornersChange?.(corners),
           onCeilingPick: (uv) => callbacksRef.current.onCeilingPick?.(uv),
           onHint: (message) => callbacksRef.current.onHint?.(message),
+          onFurnitureSelect: (index) => callbacksRef.current.onFurnitureSelect?.(index),
+          onFurnitureMove: (index, x, z) => callbacksRef.current.onFurnitureMove?.(index, x, z),
+          onFurnitureDragEnd: () => callbacksRef.current.onFurnitureDragEnd?.(),
+          onPlace: (x, z) => callbacksRef.current.onPlace?.(x, z),
         });
         setStage(created);
       })
@@ -64,7 +70,6 @@ export function RoomStageCanvas({
     return () => {
       cancelled = true;
       created?.dispose();
-      setStage(null);
     };
   }, []);
 
@@ -89,8 +94,15 @@ export function RoomStageCanvas({
   }, [stage, imageUrl]);
 
   useEffect(() => {
-    stage?.setState(state);
-  }, [stage, state]);
+    if (!stage) return;
+    stage.setState(state);
+    // 높이가 바뀌면 가구 높이도 맞춰야 해서 다시 놓는다
+    stage.setFurniture(furniture, selectedFurniture);
+  }, [stage, state]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    stage?.setFurniture(furniture, selectedFurniture);
+  }, [stage, furniture, selectedFurniture]);
 
   useEffect(() => {
     stage?.setView(view);
@@ -99,6 +111,14 @@ export function RoomStageCanvas({
   useEffect(() => {
     stage?.setPickMode(pickMode);
   }, [stage, pickMode]);
+
+  useEffect(() => {
+    stage?.setFurnitureEditable(furnitureEditable);
+  }, [stage, furnitureEditable]);
+
+  useEffect(() => {
+    stage?.setPlacing(placingType);
+  }, [stage, placingType]);
 
   return (
     <div className={cn("relative overflow-hidden bg-[#2a2e31]", className)}>

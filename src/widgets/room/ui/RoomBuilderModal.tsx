@@ -7,7 +7,7 @@ import { Modal } from "@/shared/ui/Modal";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
 import type { PanoramaTourScene } from "@/widgets/panorama/model";
 import { floorCornersFromLayout, measureCeilingHeight, outerFromCorners, round, type Vec2 } from "../lib/geometry";
-import type { PickMode, RoomStageState, RoomView } from "../lib/stage";
+import { outerOfCorners, type PickMode, type RoomStageState, type RoomView } from "../lib/stage";
 import {
   createRoomDraft,
   MAX_CAMERA_HEIGHT,
@@ -97,7 +97,13 @@ export function RoomBuilderModal({ scenes, initialDraft, title, onConfirm, onClo
   const summary = useMemo(() => summarizeRoom(draft), [draft]);
   const validationError = validateRoomDraft(draft);
   const stageState = useMemo<RoomStageState>(
-    () => ({ corners: draft.corners, cameraHeight: draft.cameraHeight, ceilingHeight: draft.ceilingHeight }),
+    () => ({
+      outer: outerOfCorners(draft.corners, draft.cameraHeight),
+      corners: draft.corners,
+      inner: [],
+      cameraHeight: draft.cameraHeight,
+      ceilingHeight: draft.ceilingHeight,
+    }),
     [draft.corners, draft.cameraHeight, draft.ceilingHeight],
   );
 

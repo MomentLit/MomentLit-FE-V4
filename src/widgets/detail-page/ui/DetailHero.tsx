@@ -1,7 +1,8 @@
 "use client";
 
 import { useEffect, useState, ViewTransition } from "react";
-import { IconArmchair, IconChevronLeft, IconChevronRight, IconMaximize, IconView360, IconX } from "@tabler/icons-react";
+import { IconArmchair, IconChevronLeft, IconChevronRight, IconCube, IconMaximize, IconView360, IconX } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 
 import { Card } from "@/shared/ui";
 import { Modal } from "@/shared/ui/Modal";
@@ -12,6 +13,8 @@ import { REGION_LABELS } from "@/entities/region";
 import { getSpacePhotoUrls, splitSpaceOptionName, type SpaceDetail } from "@/entities/space";
 import { PanoramaViewerModal, resolvePanoramaScenes } from "@/widgets/panorama";
 import { FurniturePlacementModal } from "@/widgets/furniture-placement";
+import { fetchRoom } from "@/entities/room";
+import { RoomViewerModal } from "@/widgets/room";
 import { spaceMorphName, useMorphArrival } from "@/shared/hooks/useMorphLink";
 
 /** 사진이 여러 장일 때 다음 사진으로 넘어가는 간격. */
@@ -132,6 +135,10 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
   // 장면 기능 이전에 저장된 공간은 장면 목록이 비어 있어서 `panorama_url` 한 장으로 보여준다.
   const panoramaScenes = resolvePanoramaScenes(space.panorama_scenes, space.panorama_url);
   const hasPanorama = panoramaScenes.length > 0;
+  // 3D 방은 공간과 따로 저장돼서 따로 확인한다. 없으면(404) null.
+  const roomQuery = useQuery({ queryKey: ["space-room", space.space_id], queryFn: () => fetchRoom(space.space_id) });
+  const hasRoom = Boolean(roomQuery.data);
+  const [roomOpen, setRoomOpen] = useState(false);
 
   // 구역으로 묶인 공간이면 제목은 공통 이름만 쓰고, 구역 이름은 아래 탭과 제목 위 라벨로 보여준다.
   const { baseName, optionLabel } = splitSpaceOptionName(space.name);
@@ -236,16 +243,27 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
             </button>
           </div>
         )}
-        {hasPanorama && (
-          <button type="button" onClick={() => setPanoramaOpen(true)} className="button button--outline absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
-            <IconView360 size={18} stroke={2} aria-hidden />
-            360° 보기
-          </button>
+        {(hasPanorama || hasRoom) && (
+          <div className="absolute right-4 top-4 z-10 flex flex-wrap justify-end gap-2 sm:right-6 sm:top-6">
+            {hasRoom && (
+              <button type="button" onClick={() => setRoomOpen(true)} className="button button--outline">
+                <IconCube size={18} stroke={2} aria-hidden />
+                3D로 보기
+              </button>
+            )}
+            {hasPanorama && (
+              <button type="button" onClick={() => setPanoramaOpen(true)} className="button button--outline">
+                <IconView360 size={18} stroke={2} aria-hidden />
+                360° 보기
+              </button>
+            )}
+          </div>
         )}
         <span
           className={cn(
             "relative font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em]",
-            hasPanorama && "pr-32",
+            // 오른쪽 위 버튼(360° 보기·3D로 보기)과 겹치지 않게
+            hasPanorama && hasRoom ? "pr-64" : (hasPanorama || hasRoom) && "pr-32",
             hasPhoto && "text-white",
           )}
         >
@@ -274,6 +292,9 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
       )}
       {arrangeIndex !== null && photos[arrangeIndex] && (
         <FurniturePlacementModal photoSrc={parsePhotoUrl(photos[arrangeIndex]).src} title={space.name} onClose={() => setArrangeIndex(null)} />
+      )}
+      {roomOpen && hasRoom && (
+        <RoomViewerModal spaceId={space.space_id} title={space.name} onClose={() => setRoomOpen(false)} />
       )}
       {panoramaOpen && hasPanorama && (
         <PanoramaViewerModal scenes={panoramaScenes} title={space.name} onClose={() => setPanoramaOpen(false)} />

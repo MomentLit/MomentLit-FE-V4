@@ -1,49 +1,66 @@
 import type * as Three from "three";
 import type { OrbitControls as OrbitControlsType } from "three/examples/jsm/controls/OrbitControls.js";
+import { findFurniture } from "./furniture";
 import {
   centroid,
   directionToUv,
   floorPointFromUv,
+  pointInPolygon,
   signedArea,
   wallLengths,
   type Vec2,
   type Vec3,
 } from "./geometry";
+import { eyeHeight, RUN_SPEED, startPosition, step, WALK_SPEED, canStand, type WalkArea } from "./walk";
 
 /**
  * 파노라마 방 3D 무대 — 렌더러·카메라·포인터를 React 밖에서 관리한다(프로토타입 panorama-room.html 이식).
  *
  * 좌표: 사진을 찍은 눈 위치가 원점, 바닥은 y = -촬영 높이, 천장은 y = 천장 - 촬영 높이.
  * 벽·바닥·천장은 셰이더로 "그 점을 카메라에서 본 방향의 사진 픽셀"을 칠한다 — 사진 시점에서는 사진과 똑같이 보이고,
- * 미니어처 시점에서는 사진이 벽에 붙은 모형이 된다.
+ * 미니어처·1인칭에서는 사진이 벽에 붙은 모형이 된다.
  */
 
 type ThreeModule = typeof Three;
 type OrbitControlsClass = new (camera: Three.Camera, element: HTMLElement) => OrbitControlsType;
 
-export type RoomView = "photo" | "miniature";
-/** 사진 시점에서 누르기의 의미 — 바닥 모서리 찍기 / 천장 모서리 찍기(높이 재기) / 둘러보기만. */
+export type RoomView = "photo" | "miniature" | "walk";
+/** 사진 시점에서 누르기의 의미 — 바닥 모서리 찍기 / 천장 모서리 찍기(높이 재기) / 없음. */
 export type PickMode = "corners" | "ceiling" | "none";
 
+export interface StageFurniture {
+  type: string;
+  x: number;
+  z: number;
+  rotation: number;
+}
+
 export interface RoomStageState {
+  /** 바닥 다각형(m). */
+  outer: readonly Vec2[];
+  /** 편집할 바닥 모서리의 사진 좌표 — 방 만들기 화면만. `outer`와 순서가 같다. */
   corners: readonly Vec2[];
+  inner: readonly (readonly [Vec2, Vec2])[];
   cameraHeight: number;
   ceilingHeight: number;
 }
 
 export interface RoomStageCallbacks {
-  /** 모서리를 추가하거나 끌어서 옮겼을 때. */
   onCornersChange?: (corners: Vec2[]) => void;
-  /** 천장 모드에서 누른 사진 좌표. */
   onCeilingPick?: (uv: Vec2) => void;
-  /** 사용자에게 보여 줄 짧은 안내(잘못 누름 등). */
   onHint?: (message: string) => void;
+  onFurnitureSelect?: (index: number | null) => void;
+  onFurnitureMove?: (index: number, x: number, z: number) => void;
+  /** 끌기를 마쳤을 때 — 실행 취소 기록 등에 쓴다. */
+  onFurnitureDragEnd?: () => void;
+  onPlace?: (x: number, z: number) => void;
 }
 
 const TAPE = 0xf2bc2e;
 const MARKER_PICK_PX = 22;
 const DRAG_THRESHOLD_PX = 5;
 const STAGE_BACKGROUND = 0xd9dcd6;
+const WALK_KEYS = new Set(["KeyW", "KeyA", "KeyS", "KeyD", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "ShiftLeft", "ShiftRight"]);
 
 const VERTEX_SHADER = `
 varying vec3 vWorld;
@@ -66,6 +83,10 @@ void main() {
   gl_FragColor = vec4(texture2D(panorama, uv).rgb, 1.0);
 }`;
 
+function isTypingTarget(target: EventTarget | null) {
+  return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName));
+}
+
 export class RoomStage {
   private readonly three: ThreeModule;
   private readonly container: HTMLElement;
@@ -74,42 +95,68 @@ export class RoomStage {
   private readonly scene: Three.Scene;
   private readonly photoCamera: Three.PerspectiveCamera;
   private readonly miniatureCamera: Three.PerspectiveCamera;
+  private readonly walkCamera: Three.PerspectiveCamera;
   private readonly controls: OrbitControlsType;
   private readonly raycaster: Three.Raycaster;
   private readonly roomMaterial: Three.ShaderMaterial;
   private readonly skyMaterial: Three.ShaderMaterial;
   private readonly sky: Three.Mesh;
+  private readonly sun: Three.DirectionalLight;
   private readonly roomGroup: Three.Group;
   private readonly markerGroup: Three.Group;
   private readonly labelGroup: Three.Group;
+  private readonly furnitureGroup: Three.Group;
+  private readonly furnitureMaterials: Record<string, Three.MeshStandardMaterial>;
   private readonly resizeObserver: ResizeObserver;
+  private readonly clock: Three.Clock;
   private ceilingMesh: Three.Mesh | null = null;
+  private selectionBox: Three.BoxHelper | null = null;
   private texture: Three.Texture | null = null;
   private frame = 0;
   private disposed = false;
 
-  private state: RoomStageState = { corners: [], cameraHeight: 1.5, ceilingHeight: 2.4 };
+  private state: RoomStageState = { outer: [], corners: [], inner: [], cameraHeight: 1.5, ceilingHeight: 2.4 };
   private view: RoomView = "photo";
-  private pickMode: PickMode = "corners";
+  private pickMode: PickMode = "none";
+  private furnitureEditable = false;
+  private placingType: string | null = null;
+  private furniture: StageFurniture[] = [];
+  /** `furniture`와 같은 순서의 메시. */
+  private furnitureObjects: (Three.Group | undefined)[] = [];
+  private selectedFurniture: number | null = null;
   private yaw = 0;
   private pitch = -0.3;
   private miniaturePlaced = false;
+  private readonly walk = {
+    position: [0, 0] as Vec2,
+    yaw: 0,
+    pitch: 0,
+    keys: new Set<string>(),
+    target: null as Vec2 | null,
+    needsReset: true,
+  };
   private pointer: {
     x: number;
     y: number;
     yaw: number;
     pitch: number;
+    walkYaw: number;
+    walkPitch: number;
     moved: boolean;
     corner: number;
+    drag: { index: number; offset: Vec2 } | null;
   } | null = null;
 
   constructor(three: ThreeModule, OrbitControls: OrbitControlsClass, container: HTMLElement, callbacks: RoomStageCallbacks = {}) {
     this.three = three;
     this.container = container;
     this.callbacks = callbacks;
+    this.clock = new three.Clock();
 
     this.renderer = new three.WebGLRenderer({ antialias: true });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = three.PCFSoftShadowMap;
     this.renderer.domElement.style.display = "block";
     this.renderer.domElement.style.touchAction = "none";
     container.appendChild(this.renderer.domElement);
@@ -117,6 +164,7 @@ export class RoomStage {
     this.scene = new three.Scene();
     this.photoCamera = new three.PerspectiveCamera(75, 1, 0.01, 200);
     this.miniatureCamera = new three.PerspectiveCamera(45, 1, 0.05, 200);
+    this.walkCamera = new three.PerspectiveCamera(70, 1, 0.05, 200);
     this.raycaster = new three.Raycaster();
 
     const uniforms = { panorama: { value: null as Three.Texture | null }, eye: { value: new three.Vector3() } };
@@ -133,10 +181,30 @@ export class RoomStage {
     this.sky.visible = false;
     this.scene.add(this.sky);
 
+    // 가구용 조명 — 벽·바닥은 사진을 그대로 칠해서 조명을 받지 않는다.
+    this.scene.add(new three.HemisphereLight(0xffffff, 0x8a8778, 1.8));
+    this.sun = new three.DirectionalLight(0xffffff, 2.2);
+    this.sun.castShadow = true;
+    this.sun.shadow.mapSize.set(2048, 2048);
+    Object.assign(this.sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 0.5, far: 30 });
+    this.sun.shadow.bias = -0.0005;
+    this.scene.add(this.sun, this.sun.target);
+
+    this.furnitureMaterials = {
+      fabric: new three.MeshStandardMaterial({ color: 0x6f7b88, roughness: 0.92 }),
+      cushion: new three.MeshStandardMaterial({ color: 0x7f8b98, roughness: 0.95 }),
+      wood: new three.MeshStandardMaterial({ color: 0x9c7350, roughness: 0.7 }),
+      white: new three.MeshStandardMaterial({ color: 0xe9e7e1, roughness: 0.6 }),
+      dark: new three.MeshStandardMaterial({ color: 0x34393e, roughness: 0.45, metalness: 0.2 }),
+      leaf: new three.MeshStandardMaterial({ color: 0x4f7a4a, roughness: 0.85 }),
+      pot: new three.MeshStandardMaterial({ color: 0xc8b9a6, roughness: 0.8 }),
+    };
+
     this.roomGroup = new three.Group();
     this.markerGroup = new three.Group();
     this.labelGroup = new three.Group();
-    this.scene.add(this.roomGroup, this.markerGroup, this.labelGroup);
+    this.furnitureGroup = new three.Group();
+    this.scene.add(this.roomGroup, this.markerGroup, this.labelGroup, this.furnitureGroup);
 
     this.controls = new OrbitControls(this.miniatureCamera, this.renderer.domElement);
     this.controls.enableDamping = true;
@@ -149,6 +217,9 @@ export class RoomStage {
     canvas.addEventListener("pointerup", this.handlePointerUp);
     canvas.addEventListener("pointercancel", this.handlePointerCancel);
     canvas.addEventListener("wheel", this.handleWheel, { passive: false });
+    window.addEventListener("keydown", this.handleKeyDown);
+    window.addEventListener("keyup", this.handleKeyUp);
+    window.addEventListener("blur", this.handleBlur);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -182,13 +253,56 @@ export class RoomStage {
   }
 
   setView(view: RoomView) {
-    if (view === "miniature" && this.state.corners.length < 3) return;
+    if (view !== "photo" && this.state.outer.length < 3) return;
+    const previous = this.view;
     this.view = view;
+    if (view === "walk" && (this.walk.needsReset || previous !== "walk")) this.resetWalk();
+    this.walk.keys.clear();
+    this.walk.target = null;
     this.applyView();
   }
 
   setPickMode(mode: PickMode) {
     this.pickMode = mode;
+  }
+
+  /** 가구를 고르고 끌고 놓을 수 있게 할지. */
+  setFurnitureEditable(editable: boolean) {
+    this.furnitureEditable = editable;
+  }
+
+  /** 다음 바닥 클릭에 놓을 가구 종류(null이면 놓기 안 함). */
+  setPlacing(type: string | null) {
+    this.placingType = type;
+  }
+
+  /** 가구 목록을 화면에 맞춘다. 같은 자리의 같은 종류는 메시를 다시 만들지 않고 위치·회전만 바꾼다(끌기 중 매 프레임 호출됨). */
+  setFurniture(items: readonly StageFurniture[], selected: number | null) {
+    const floorY = -this.state.cameraHeight;
+    items.forEach((item, index) => {
+      let object = this.furnitureObjects[index];
+      if (object && object.userData.type !== item.type) {
+        this.disposeObject(object);
+        this.furnitureGroup.remove(object);
+        object = undefined;
+      }
+      if (!object) {
+        object = this.buildFurniture(item.type);
+        this.furnitureGroup.add(object);
+        this.furnitureObjects[index] = object;
+      }
+      object.userData.index = index;
+      object.position.set(item.x, floorY, item.z);
+      object.rotation.y = item.rotation;
+    });
+    for (const extra of this.furnitureObjects.splice(items.length)) {
+      if (!extra) continue;
+      this.disposeObject(extra);
+      this.furnitureGroup.remove(extra);
+    }
+    this.furniture = items.map((item) => ({ ...item }));
+    this.selectedFurniture = selected;
+    this.updateSelectionBox();
   }
 
   dispose() {
@@ -201,10 +315,17 @@ export class RoomStage {
     canvas.removeEventListener("pointerup", this.handlePointerUp);
     canvas.removeEventListener("pointercancel", this.handlePointerCancel);
     canvas.removeEventListener("wheel", this.handleWheel);
+    window.removeEventListener("keydown", this.handleKeyDown);
+    window.removeEventListener("keyup", this.handleKeyUp);
+    window.removeEventListener("blur", this.handleBlur);
     this.controls.dispose();
     this.clearGroup(this.roomGroup);
     this.clearGroup(this.markerGroup);
     this.clearGroup(this.labelGroup);
+    this.clearGroup(this.furnitureGroup);
+    this.furnitureObjects = [];
+    this.removeSelectionBox();
+    Object.values(this.furnitureMaterials).forEach((material) => material.dispose());
     this.sky.geometry.dispose();
     this.roomMaterial.dispose();
     this.skyMaterial.dispose();
@@ -213,54 +334,53 @@ export class RoomStage {
     canvas.remove();
   }
 
-  // ---------- 장면 만들기 ----------
+  // ---------- 방 만들기 ----------
 
-  private floorPoints(): Vec2[] {
-    const points: Vec2[] = [];
-    for (const corner of this.state.corners) {
-      const point = floorPointFromUv(corner, this.state.cameraHeight);
-      if (point) points.push(point);
-    }
-    return points;
+  private walkArea(): WalkArea {
+    return { outer: this.state.outer, inner: this.state.inner };
   }
 
   private rebuild() {
     const three = this.three;
-    const { cameraHeight, ceilingHeight } = this.state;
+    const { outer: points, cameraHeight, ceilingHeight } = this.state;
     const floorY = -cameraHeight;
     const ceilingY = ceilingHeight - cameraHeight;
-    const points = this.floorPoints();
 
     this.clearGroup(this.markerGroup);
     this.clearGroup(this.roomGroup);
     this.clearGroup(this.labelGroup);
     this.ceilingMesh = null;
-
-    // 모서리 표시(사진 시점)
-    const sphere = new three.SphereGeometry(0.045, 16, 12);
-    const markerMaterial = new three.MeshBasicMaterial({ color: TAPE, depthTest: false });
-    points.forEach(([x, z], i) => {
-      const marker = new three.Mesh(sphere, markerMaterial);
-      marker.position.set(x, floorY, z);
-      marker.renderOrder = 5;
-      this.markerGroup.add(marker);
-      const label = this.makeLabel(String(i + 1), false);
-      label.position.set(x, floorY + 0.16, z);
-      this.markerGroup.add(label);
+    this.furnitureObjects.forEach((object) => {
+      if (object) object.position.y = floorY;
     });
-    if (points.length > 1) {
-      const line = points.map(([x, z]) => new three.Vector3(x, floorY, z));
-      if (points.length > 2) line.push(line[0].clone());
-      const outline = new three.Line(
-        new three.BufferGeometry().setFromPoints(line),
-        new three.LineBasicMaterial({ color: TAPE, depthTest: false, transparent: true }),
-      );
-      outline.renderOrder = 4;
-      this.markerGroup.add(outline);
+
+    // 편집할 모서리 표시(사진 시점)
+    if (this.state.corners.length > 0) {
+      const sphere = new three.SphereGeometry(0.045, 16, 12);
+      const markerMaterial = new three.MeshBasicMaterial({ color: TAPE, depthTest: false });
+      points.forEach(([x, z], i) => {
+        const marker = new three.Mesh(sphere, markerMaterial);
+        marker.position.set(x, floorY, z);
+        marker.renderOrder = 5;
+        this.markerGroup.add(marker);
+        const label = this.makeLabel(String(i + 1), false);
+        label.position.set(x, floorY + 0.16, z);
+        this.markerGroup.add(label);
+      });
+      if (points.length > 1) {
+        const line = points.map(([x, z]) => new three.Vector3(x, floorY, z));
+        if (points.length > 2) line.push(line[0].clone());
+        const outline = new three.Line(
+          new three.BufferGeometry().setFromPoints(line),
+          new three.LineBasicMaterial({ color: TAPE, depthTest: false, transparent: true }),
+        );
+        outline.renderOrder = 4;
+        this.markerGroup.add(outline);
+      }
     }
 
     if (points.length < 3 || ceilingY <= 0.05) {
-      if (this.view === "miniature") {
+      if (this.view !== "photo") {
         this.view = "photo";
         this.applyView();
       }
@@ -272,6 +392,11 @@ export class RoomStage {
     floorGeometry.rotateX(-Math.PI / 2);
     floorGeometry.translate(0, floorY, 0);
     this.roomGroup.add(new three.Mesh(floorGeometry, this.roomMaterial));
+    // 가구 그림자만 받는 투명 바닥
+    const shadow = new three.Mesh(floorGeometry.clone(), new three.ShadowMaterial({ opacity: 0.3 }));
+    shadow.position.y = 0.003;
+    shadow.receiveShadow = true;
+    this.roomGroup.add(shadow);
 
     const ceilingGeometry = new three.ShapeGeometry(new three.Shape(points.map(([x, z]) => new three.Vector2(x, z))));
     ceilingGeometry.rotateX(Math.PI / 2);
@@ -296,19 +421,30 @@ export class RoomStage {
       this.labelGroup.add(label);
     });
 
+    // 안쪽 벽: 두께 10cm 상자
+    const innerMaterial = new three.MeshStandardMaterial({ color: 0xdcd9d1, roughness: 0.9 });
+    for (const [a, b] of this.state.inner) {
+      const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
+      if (length < 0.05) continue;
+      const wall = new three.Mesh(new three.BoxGeometry(length + 0.1, ceilingY - floorY, 0.1), innerMaterial);
+      wall.position.set((a[0] + b[0]) / 2, (floorY + ceilingY) / 2, (a[1] + b[1]) / 2);
+      wall.rotation.y = -Math.atan2(b[1] - a[1], b[0] - a[0]);
+      wall.castShadow = wall.receiveShadow = true;
+      this.roomGroup.add(wall);
+    }
+
+    const [cx, cz] = centroid(points);
+    this.sun.position.set(cx + 1.5, floorY + 6, cz + 2);
+    this.sun.target.position.set(cx, floorY, cz);
     if (!this.miniaturePlaced) {
-      this.placeMiniatureCamera(points, floorY);
+      const span = Math.max(...points.map(([x, z]) => Math.hypot(x - cx, z - cz)));
+      this.miniatureCamera.position.set(cx + span * 0.4, floorY + span * 1.6 + 2.5, cz + span * 1.5 + 1.5);
+      this.controls.target.set(cx, floorY + 0.4, cz);
+      this.controls.update();
       this.miniaturePlaced = true;
     }
+    if (!canStand(this.walk.position, this.walkArea())) this.walk.needsReset = true;
     this.applyView();
-  }
-
-  private placeMiniatureCamera(points: Vec2[], floorY: number) {
-    const [cx, cz] = centroid(points);
-    const span = Math.max(...points.map(([x, z]) => Math.hypot(x - cx, z - cz)));
-    this.miniatureCamera.position.set(cx + span * 0.4, floorY + span * 1.6 + 2.5, cz + span * 1.5 + 1.5);
-    this.controls.target.set(cx, floorY + 0.4, cz);
-    this.controls.update();
   }
 
   private makeLabel(text: string, dark: boolean): Three.Sprite {
@@ -337,45 +473,223 @@ export class RoomStage {
     return sprite;
   }
 
-  private clearGroup(group: Three.Group) {
-    group.traverse((object) => {
-      const mesh = object as Three.Mesh;
+  // ---------- 가구 모양(실제 크기, m) ----------
+
+  private box(group: Three.Group, w: number, h: number, d: number, x: number, y: number, z: number, material: Three.Material) {
+    const mesh = new this.three.Mesh(new this.three.BoxGeometry(w, h, d), material);
+    mesh.position.set(x, y + h / 2, z);
+    mesh.castShadow = mesh.receiveShadow = true;
+    group.add(mesh);
+  }
+
+  private legs(group: Three.Group, w: number, d: number, h: number, s: number) {
+    for (const sx of [-1, 1]) {
+      for (const sz of [-1, 1]) this.box(group, s, h, s, sx * (w / 2 - s), 0, sz * (d / 2 - s), this.furnitureMaterials.wood);
+    }
+  }
+
+  private buildFurniture(type: string): Three.Group {
+    const three = this.three;
+    const m = this.furnitureMaterials;
+    const g = new three.Group();
+    g.userData.type = type;
+    const b = this.box.bind(this, g);
+    switch (type) {
+      case "sofa-3":
+        b(2.1, 0.42, 0.9, 0, 0, 0, m.fabric); b(2.1, 0.5, 0.2, 0, 0.42, -0.35, m.fabric);
+        b(0.18, 0.64, 0.9, -0.96, 0, 0, m.fabric); b(0.18, 0.64, 0.9, 0.96, 0, 0, m.fabric);
+        b(0.86, 0.12, 0.66, -0.44, 0.42, 0.08, m.cushion); b(0.86, 0.12, 0.66, 0.44, 0.42, 0.08, m.cushion);
+        break;
+      case "bed-queen":
+        b(1.6, 0.3, 2.1, 0, 0, 0, m.wood); b(1.52, 0.22, 2.0, 0, 0.3, 0.03, m.white);
+        b(1.6, 1.0, 0.08, 0, 0, -1.01, m.wood); b(0.6, 0.12, 0.4, -0.38, 0.52, -0.72, m.white); b(0.6, 0.12, 0.4, 0.38, 0.52, -0.72, m.white);
+        break;
+      case "desk":
+        b(1.2, 0.04, 0.6, 0, 0.71, 0, m.wood); this.legs(g, 1.2, 0.6, 0.71, 0.05);
+        break;
+      case "chair":
+        b(0.45, 0.05, 0.45, 0, 0.43, 0, m.wood); this.legs(g, 0.45, 0.45, 0.43, 0.04); b(0.45, 0.45, 0.04, 0, 0.48, -0.205, m.wood);
+        break;
+      case "table-4":
+        b(1.4, 0.04, 0.8, 0, 0.71, 0, m.white); this.legs(g, 1.4, 0.8, 0.71, 0.06);
+        break;
+      case "wardrobe":
+        b(1.2, 2.0, 0.6, 0, 0, 0, m.white); b(0.01, 1.9, 0.01, 0, 0.05, 0.302, m.dark);
+        b(0.02, 0.25, 0.03, -0.05, 0.9, 0.31, m.dark); b(0.02, 0.25, 0.03, 0.05, 0.9, 0.31, m.dark);
+        break;
+      case "tv-stand":
+        b(1.8, 0.45, 0.4, 0, 0, 0, m.wood); b(0.3, 0.03, 0.18, 0, 0.45, 0, m.dark); b(1.23, 0.71, 0.04, 0, 0.5, 0, m.dark);
+        break;
+      case "plant": {
+        const pot = new three.Mesh(new three.CylinderGeometry(0.2, 0.15, 0.4, 24), m.pot);
+        pot.position.y = 0.2;
+        pot.castShadow = true;
+        g.add(pot);
+        const leaf = new three.Mesh(new three.SphereGeometry(0.32, 24, 16), m.leaf);
+        leaf.position.y = 0.75;
+        leaf.scale.y = 1.3;
+        leaf.castShadow = true;
+        g.add(leaf);
+        break;
+      }
+      default: {
+        // 모르는 종류 — 목록 크기가 있으면 그 크기의 상자
+        const def = findFurniture(type);
+        b(def?.width ?? 0.5, 0.5, def?.depth ?? 0.5, 0, 0, 0, m.white);
+      }
+    }
+    return g;
+  }
+
+  private updateSelectionBox() {
+    const target = this.selectedFurniture !== null ? this.furnitureObjects[this.selectedFurniture] : undefined;
+    if (!target) {
+      this.removeSelectionBox();
+      return;
+    }
+    if (!this.selectionBox) {
+      this.selectionBox = new this.three.BoxHelper(target, TAPE);
+      (this.selectionBox.material as Three.Material).depthTest = false;
+      this.selectionBox.renderOrder = 6;
+      this.scene.add(this.selectionBox);
+    }
+    this.selectionBox.setFromObject(target);
+  }
+
+  private removeSelectionBox() {
+    if (!this.selectionBox) return;
+    this.scene.remove(this.selectionBox);
+    this.selectionBox.geometry.dispose();
+    (this.selectionBox.material as Three.Material).dispose();
+    this.selectionBox = null;
+  }
+
+  private disposeObject(object: Three.Object3D) {
+    object.traverse((child) => {
+      const mesh = child as Three.Mesh;
       mesh.geometry?.dispose();
       const material = mesh.material as Three.Material | Three.Material[] | undefined;
       for (const m of Array.isArray(material) ? material : material ? [material] : []) {
-        if (m === this.roomMaterial) continue;
+        // 공유 재질(사진 셰이더, 가구 재질)은 무대를 닫을 때 한 번에 정리한다.
+        if (m === this.roomMaterial || Object.values(this.furnitureMaterials).includes(m as Three.MeshStandardMaterial)) continue;
         (m as Three.SpriteMaterial).map?.dispose();
         m.dispose();
       }
     });
+  }
+
+  private clearGroup(group: Three.Group) {
+    this.disposeObject(group);
     group.clear();
   }
 
   private applyView() {
-    const photo = this.view === "photo";
-    this.sky.visible = photo && !!this.texture;
-    if (this.ceilingMesh) this.ceilingMesh.visible = photo;
-    this.markerGroup.visible = photo;
-    this.labelGroup.visible = !photo;
-    this.controls.enabled = !photo;
-    this.scene.background = photo ? null : new this.three.Color(STAGE_BACKGROUND);
+    const view = this.view;
+    this.sky.visible = view === "photo" && !!this.texture;
+    if (this.ceilingMesh) this.ceilingMesh.visible = view !== "miniature";
+    this.markerGroup.visible = view === "photo";
+    this.labelGroup.visible = view === "miniature";
+    this.controls.enabled = view === "miniature";
+    this.scene.background = view === "photo" ? null : new this.three.Color(STAGE_BACKGROUND);
+    this.renderer.domElement.style.cursor = view === "walk" ? "crosshair" : "";
   }
+
+  // ---------- 1인칭 ----------
+
+  private resetWalk() {
+    // 파노라마 방은 사진을 찍은 자리(원점)에서 시작한다.
+    const start = startPosition(this.walkArea(), [0, 0]);
+    if (start) this.walk.position = start;
+    this.walk.yaw = 0;
+    this.walk.pitch = 0;
+    this.walk.target = null;
+    this.walk.needsReset = false;
+  }
+
+  private updateWalk(dt: number) {
+    const walk = this.walk;
+    const keys = walk.keys;
+    const fx = -Math.sin(walk.yaw);
+    const fz = Math.cos(walk.yaw);
+    let mx = 0;
+    let mz = 0;
+    if (keys.has("KeyW") || keys.has("ArrowUp")) { mx += fx; mz += fz; }
+    if (keys.has("KeyS") || keys.has("ArrowDown")) { mx -= fx; mz -= fz; }
+    if (keys.has("KeyD") || keys.has("ArrowRight")) { mx -= fz; mz += fx; }
+    if (keys.has("KeyA") || keys.has("ArrowLeft")) { mx += fz; mz -= fx; }
+    const distance = (keys.has("ShiftLeft") || keys.has("ShiftRight") ? RUN_SPEED : WALK_SPEED) * dt;
+    const area = this.walkArea();
+
+    if (mx || mz) {
+      walk.target = null;
+      const length = Math.hypot(mx, mz);
+      walk.position = step(walk.position, (mx / length) * distance, (mz / length) * distance, area) ?? walk.position;
+    } else if (walk.target) {
+      const dx = walk.target[0] - walk.position[0];
+      const dz = walk.target[1] - walk.position[1];
+      const d = Math.hypot(dx, dz);
+      const next = d < 0.05 ? null : step(walk.position, (dx / d) * Math.min(d, distance), (dz / d) * Math.min(d, distance), area);
+      if (next) walk.position = next;
+      else walk.target = null;
+    }
+
+    const eye = -this.state.cameraHeight + eyeHeight(this.state.ceilingHeight);
+    const cp = Math.cos(walk.pitch);
+    const [x, z] = walk.position;
+    this.walkCamera.position.set(x, eye, z);
+    this.walkCamera.lookAt(x - Math.sin(walk.yaw) * cp, eye + Math.sin(walk.pitch), z + Math.cos(walk.yaw) * cp);
+  }
+
+  private handleKeyDown = (event: KeyboardEvent) => {
+    if (this.view !== "walk" || isTypingTarget(event.target) || !WALK_KEYS.has(event.code)) return;
+    this.walk.keys.add(event.code);
+    event.preventDefault();
+  };
+
+  private handleKeyUp = (event: KeyboardEvent) => {
+    this.walk.keys.delete(event.code);
+  };
+
+  private handleBlur = () => {
+    this.walk.keys.clear();
+  };
 
   // ---------- 포인터 ----------
 
   private activeCamera() {
-    return this.view === "photo" ? this.photoCamera : this.miniatureCamera;
+    if (this.view === "photo") return this.photoCamera;
+    return this.view === "walk" ? this.walkCamera : this.miniatureCamera;
   }
 
-  private directionAt(event: PointerEvent): Vec3 {
+  private setRay(event: PointerEvent) {
     const rect = this.renderer.domElement.getBoundingClientRect();
     const ndc = new this.three.Vector2(
       ((event.clientX - rect.left) / rect.width) * 2 - 1,
       -((event.clientY - rect.top) / rect.height) * 2 + 1,
     );
     this.raycaster.setFromCamera(ndc, this.activeCamera());
+  }
+
+  private directionAt(event: PointerEvent): Vec3 {
+    this.setRay(event);
     const d = this.raycaster.ray.direction.normalize();
     return [d.x, d.y, d.z];
+  }
+
+  private floorHit(event: PointerEvent): Vec2 | null {
+    this.setRay(event);
+    const plane = new this.three.Plane(new this.three.Vector3(0, 1, 0), this.state.cameraHeight);
+    const point = this.raycaster.ray.intersectPlane(plane, new this.three.Vector3());
+    return point ? [point.x, point.z] : null;
+  }
+
+  private furnitureAt(event: PointerEvent): number | null {
+    this.setRay(event);
+    const hits = this.raycaster.intersectObjects(this.furnitureGroup.children, true);
+    if (!hits.length) return null;
+    let object: Three.Object3D = hits[0].object;
+    while (object.parent && object.parent !== this.furnitureGroup) object = object.parent;
+    return typeof object.userData.index === "number" ? object.userData.index : null;
   }
 
   /** 화면에서 손가락·마우스 가까이 있는 모서리 번호. 없으면 -1. */
@@ -384,10 +698,8 @@ export class RoomStage {
     const floorY = -this.state.cameraHeight;
     let best = -1;
     let bestDistance = MARKER_PICK_PX;
-    this.state.corners.forEach((corner, i) => {
-      const point = floorPointFromUv(corner, this.state.cameraHeight);
-      if (!point) return;
-      const v = new this.three.Vector3(point[0], floorY, point[1]).project(this.photoCamera);
+    this.state.outer.forEach(([x, z], i) => {
+      const v = new this.three.Vector3(x, floorY, z).project(this.photoCamera);
       if (v.z > 1) return;
       const sx = ((v.x + 1) / 2) * rect.width + rect.left;
       const sy = ((1 - v.y) / 2) * rect.height + rect.top;
@@ -401,8 +713,31 @@ export class RoomStage {
   }
 
   private handlePointerDown = (event: PointerEvent) => {
-    const corner = this.view === "photo" && this.pickMode === "corners" ? this.cornerNear(event) : -1;
-    this.pointer = { x: event.clientX, y: event.clientY, yaw: this.yaw, pitch: this.pitch, moved: false, corner };
+    const corner = this.view === "photo" && this.pickMode === "corners" && this.state.corners.length > 0 ? this.cornerNear(event) : -1;
+    let drag: { index: number; offset: Vec2 } | null = null;
+
+    if (corner < 0 && this.furnitureEditable && this.view !== "walk" && !this.placingType) {
+      const index = this.furnitureAt(event);
+      if (index !== null) {
+        this.callbacks.onFurnitureSelect?.(index);
+        const hit = this.floorHit(event);
+        const item = this.furniture[index];
+        if (hit && item) drag = { index, offset: [item.x - hit[0], item.z - hit[1]] };
+        this.controls.enabled = false;
+      }
+    }
+
+    this.pointer = {
+      x: event.clientX,
+      y: event.clientY,
+      yaw: this.yaw,
+      pitch: this.pitch,
+      walkYaw: this.walk.yaw,
+      walkPitch: this.walk.pitch,
+      moved: false,
+      corner,
+      drag,
+    };
     this.renderer.domElement.setPointerCapture(event.pointerId);
   };
 
@@ -412,9 +747,19 @@ export class RoomStage {
     const dx = event.clientX - pointer.x;
     const dy = event.clientY - pointer.y;
     if (Math.hypot(dx, dy) > DRAG_THRESHOLD_PX) pointer.moved = true;
-    if (!pointer.moved || this.view !== "photo") return;
+    if (!pointer.moved) return;
 
-    if (pointer.corner >= 0) {
+    if (pointer.drag) {
+      const hit = this.floorHit(event);
+      if (hit) {
+        const x = hit[0] + pointer.drag.offset[0];
+        const z = hit[1] + pointer.drag.offset[1];
+        if (pointInPolygon([x, z], this.state.outer)) this.callbacks.onFurnitureMove?.(pointer.drag.index, x, z);
+      }
+      return;
+    }
+
+    if (this.view === "photo" && pointer.corner >= 0) {
       const direction = this.directionAt(event);
       if (direction[1] < -0.03) {
         const corners = this.state.corners.map((c) => [c[0], c[1]] as Vec2);
@@ -424,37 +769,76 @@ export class RoomStage {
       return;
     }
 
-    const k = (this.photoCamera.fov * Math.PI) / 180 / this.renderer.domElement.clientHeight;
-    this.yaw = pointer.yaw - dx * k;
-    this.pitch = Math.max(-1.5, Math.min(1.5, pointer.pitch + dy * k));
+    if (this.view === "walk") {
+      const k = (this.walkCamera.fov * Math.PI) / 180 / this.renderer.domElement.clientHeight;
+      this.walk.yaw = pointer.walkYaw - dx * k;
+      this.walk.pitch = Math.max(-1.3, Math.min(1.3, pointer.walkPitch + dy * k));
+    } else if (this.view === "photo") {
+      const k = (this.photoCamera.fov * Math.PI) / 180 / this.renderer.domElement.clientHeight;
+      this.yaw = pointer.yaw - dx * k;
+      this.pitch = Math.max(-1.5, Math.min(1.5, pointer.pitch + dy * k));
+    }
   };
 
   private handlePointerUp = (event: PointerEvent) => {
     const pointer = this.pointer;
     this.pointer = null;
-    if (!pointer || pointer.moved || pointer.corner >= 0 || this.view !== "photo" || !this.texture) return;
+    this.controls.enabled = this.view === "miniature";
+    if (!pointer) return;
+    if (pointer.drag) {
+      if (pointer.moved) this.callbacks.onFurnitureDragEnd?.();
+      return;
+    }
+    if (pointer.moved || pointer.corner >= 0) return;
+    this.handleClick(event);
+  };
 
-    const direction = this.directionAt(event);
-    if (this.pickMode === "corners") {
-      if (direction[1] > -0.03) {
-        this.callbacks.onHint?.("바닥과 벽이 만나는 모서리를 눌러 주세요.");
+  private handleClick(event: PointerEvent) {
+    if (this.view === "walk") {
+      const hit = this.floorHit(event);
+      if (hit && canStand(hit, this.walkArea())) this.walk.target = hit;
+      else this.callbacks.onHint?.("그곳으로는 갈 수 없어요.");
+      return;
+    }
+
+    if (this.placingType) {
+      const hit = this.floorHit(event);
+      if (!hit || !pointInPolygon(hit, this.state.outer)) {
+        this.callbacks.onHint?.("방 안쪽 바닥을 눌러 주세요.");
         return;
       }
-      this.callbacks.onCornersChange?.([...this.state.corners.map((c) => [c[0], c[1]] as Vec2), directionToUv(direction)]);
-    } else if (this.pickMode === "ceiling") {
-      this.callbacks.onCeilingPick?.(directionToUv(direction));
+      this.callbacks.onPlace?.(hit[0], hit[1]);
+      return;
     }
-  };
+
+    if (this.view === "photo" && this.texture && this.pickMode !== "none") {
+      const direction = this.directionAt(event);
+      if (this.pickMode === "corners") {
+        if (direction[1] > -0.03) {
+          this.callbacks.onHint?.("바닥과 벽이 만나는 모서리를 눌러 주세요.");
+          return;
+        }
+        this.callbacks.onCornersChange?.([...this.state.corners.map((c) => [c[0], c[1]] as Vec2), directionToUv(direction)]);
+      } else {
+        this.callbacks.onCeilingPick?.(directionToUv(direction));
+      }
+      return;
+    }
+
+    if (this.furnitureEditable) this.callbacks.onFurnitureSelect?.(null);
+  }
 
   private handlePointerCancel = () => {
     this.pointer = null;
+    this.controls.enabled = this.view === "miniature";
   };
 
   private handleWheel = (event: WheelEvent) => {
-    if (this.view !== "photo") return;
+    if (this.view === "miniature") return;
     event.preventDefault();
-    this.photoCamera.fov = Math.max(30, Math.min(100, this.photoCamera.fov + event.deltaY * 0.03));
-    this.photoCamera.updateProjectionMatrix();
+    const camera = this.activeCamera();
+    camera.fov = Math.max(30, Math.min(100, camera.fov + event.deltaY * 0.03));
+    camera.updateProjectionMatrix();
   };
 
   // ---------- 그리기 ----------
@@ -465,7 +849,7 @@ export class RoomStage {
     this.renderer.setSize(width, height, false);
     this.renderer.domElement.style.width = "100%";
     this.renderer.domElement.style.height = "100%";
-    for (const camera of [this.photoCamera, this.miniatureCamera]) {
+    for (const camera of [this.photoCamera, this.miniatureCamera, this.walkCamera]) {
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
     }
@@ -473,13 +857,26 @@ export class RoomStage {
 
   private tick = () => {
     this.frame = requestAnimationFrame(this.tick);
+    const dt = Math.min(0.05, this.clock.getDelta());
     if (this.view === "photo") {
       const cp = Math.cos(this.pitch);
       this.photoCamera.position.set(0, 0, 0);
       this.photoCamera.lookAt(-Math.sin(this.yaw) * cp, Math.sin(this.pitch), Math.cos(this.yaw) * cp);
+    } else if (this.view === "walk") {
+      this.updateWalk(dt);
     } else {
       this.controls.update();
     }
     this.renderer.render(this.scene, this.activeCamera());
   };
+}
+
+/** 방 만들기 화면 — 모서리 사진 좌표에서 바닥 다각형을 계산한다(바닥이 아닌 점은 건너뛴다). */
+export function outerOfCorners(corners: readonly Vec2[], cameraHeight: number): Vec2[] {
+  const points: Vec2[] = [];
+  for (const corner of corners) {
+    const point = floorPointFromUv(corner, cameraHeight);
+    if (point) points.push(point);
+  }
+  return points;
 }

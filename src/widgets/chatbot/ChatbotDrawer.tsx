@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import { Bot, ChevronDown, Send, Sparkles, X } from "lucide-react";
 import { streamChatbotReply, type ChatbotSpaceCard } from "@/entities/chatbot";
 import { useAuthStore } from "@/entities/auth";
-import { PRICE_INQUIRY_LABEL } from "@/entities/space";
+import { formatPriceAmount } from "@/entities/space";
 import { cn } from "@/shared/lib";
 
 type Corner = "tl" | "tr" | "bl" | "br";
@@ -82,9 +82,10 @@ function isStoredMessage(value: unknown): value is ChatMessage {
   );
 }
 
-function formatPrice(price: number | null): string {
-  if (price == null) return PRICE_INQUIRY_LABEL;
-  return `${new Intl.NumberFormat("ko-KR").format(price)}원 / 시간`;
+function formatPrice(space: ChatbotSpaceCard): string {
+  const amount = formatPriceAmount(space.price_inquiry ? null : space.price_per_hour);
+  if (space.price_inquiry || space.price_per_hour == null) return amount;
+  return `${amount} / ${space.usage_unit === "DAILY" ? "일" : "시간"}`;
 }
 
 function SpaceCards({ spaces }: { spaces: ChatbotSpaceCard[] }) {
@@ -105,7 +106,12 @@ function SpaceCards({ spaces }: { spaces: ChatbotSpaceCard[] }) {
           <span className="min-w-0 p-2">
             <b className="block truncate text-xs text-ink">{space.name}</b>
             <span className="mt-0.5 block truncate text-[0.68rem] text-soft">{space.address}</span>
-            <span className="mt-0.5 block text-[0.68rem] font-semibold text-ink">{formatPrice(space.price_per_hour)}</span>
+            {space.option_label && (
+              <span className="mt-0.5 block text-[0.68rem] text-soft">
+                조건에 맞는 구역 {space.option_count ?? 1}개 · {space.option_label} 기준
+              </span>
+            )}
+            <span className="mt-0.5 block text-[0.68rem] font-semibold text-ink">{formatPrice(space)}</span>
           </span>
         </Link>
       ))}

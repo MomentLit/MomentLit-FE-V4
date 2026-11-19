@@ -34,17 +34,29 @@ export async function deleteRoom(spaceId: number): Promise<void> {
   await apiClient.delete(`/spaces/${spaceId}/room`);
 }
 
-/** 내가 저장한 가구 배치. 저장한 적 없으면 null. */
-export async function fetchMyFurnitureLayout(spaceId: number): Promise<FurnitureLayout | null> {
-  const { data } = await apiClient.get<ApiResponse<FurnitureLayout | null>>(`/spaces/${spaceId}/room/my-layout`);
+/** 내가 이 공간에 저장한 배치들, 최근에 고친 것부터. */
+export async function fetchMyFurnitureLayouts(spaceId: number): Promise<FurnitureLayout[]> {
+  const { data } = await apiClient.get<ApiResponse<FurnitureLayout[]>>(`/spaces/${spaceId}/room/layouts`);
   return data.data;
 }
 
-export async function saveMyFurnitureLayout(spaceId: number, items: FurnitureItem[]): Promise<FurnitureLayout> {
-  const { data } = await apiClient.put<ApiResponse<FurnitureLayout>>(`/spaces/${spaceId}/room/my-layout`, { items });
+/** 새 배치로 저장. 이미 20개면 400. */
+export async function createMyFurnitureLayout(spaceId: number, name: string, items: FurnitureItem[]): Promise<FurnitureLayout> {
+  const { data } = await apiClient.post<ApiResponse<FurnitureLayout>>(`/spaces/${spaceId}/room/layouts`, { name, items });
   return data.data;
 }
 
-export async function deleteMyFurnitureLayout(spaceId: number): Promise<void> {
-  await apiClient.delete(`/spaces/${spaceId}/room/my-layout`);
+/** 내 배치 덮어쓰기(이름·가구). */
+export async function updateMyFurnitureLayout(
+  spaceId: number,
+  layoutId: number,
+  name: string,
+  items: FurnitureItem[],
+): Promise<FurnitureLayout> {
+  const { data } = await apiClient.put<ApiResponse<FurnitureLayout>>(`/spaces/${spaceId}/room/layouts/${layoutId}`, { name, items });
+  return data.data;
+}
+
+export async function deleteMyFurnitureLayout(spaceId: number, layoutId: number): Promise<void> {
+  await apiClient.delete(`/spaces/${spaceId}/room/layouts/${layoutId}`);
 }

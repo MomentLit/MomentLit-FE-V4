@@ -3,6 +3,7 @@
 import { useEffect, useState, ViewTransition } from "react";
 import { IconArmchair, IconChevronLeft, IconChevronRight, IconCube, IconMaximize, IconView360, IconX } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 
 import { Card } from "@/shared/ui";
 import { Modal } from "@/shared/ui/Modal";
@@ -14,7 +15,6 @@ import { getSpacePhotoUrls, splitSpaceOptionName, type SpaceDetail } from "@/ent
 import { PanoramaViewerModal, resolvePanoramaScenes } from "@/widgets/panorama";
 import { FurniturePlacementModal } from "@/widgets/furniture-placement";
 import { fetchRoom } from "@/entities/room";
-import { RoomViewerModal } from "@/widgets/room";
 import { spaceMorphName, useMorphArrival } from "@/shared/hooks/useMorphLink";
 
 /** 사진이 여러 장일 때 다음 사진으로 넘어가는 간격. */
@@ -138,7 +138,6 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
   // 3D 방은 공간과 따로 저장돼서 따로 확인한다. 없으면(404) null.
   const roomQuery = useQuery({ queryKey: ["space-room", space.space_id], queryFn: () => fetchRoom(space.space_id) });
   const hasRoom = Boolean(roomQuery.data);
-  const [roomOpen, setRoomOpen] = useState(false);
 
   // 구역으로 묶인 공간이면 제목은 공통 이름만 쓰고, 구역 이름은 아래 탭과 제목 위 라벨로 보여준다.
   const { baseName, optionLabel } = splitSpaceOptionName(space.name);
@@ -246,10 +245,10 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
         {(hasPanorama || hasRoom) && (
           <div className="absolute right-4 top-4 z-10 flex flex-wrap justify-end gap-2 sm:right-6 sm:top-6">
             {hasRoom && (
-              <button type="button" onClick={() => setRoomOpen(true)} className="button button--outline">
+              <Link href={`/spaces/${space.space_id}/room`} className="button button--outline">
                 <IconCube size={18} stroke={2} aria-hidden />
                 3D로 보기
-              </button>
+              </Link>
             )}
             {hasPanorama && (
               <button type="button" onClick={() => setPanoramaOpen(true)} className="button button--outline">
@@ -292,9 +291,6 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
       )}
       {arrangeIndex !== null && photos[arrangeIndex] && (
         <FurniturePlacementModal photoSrc={parsePhotoUrl(photos[arrangeIndex]).src} title={space.name} onClose={() => setArrangeIndex(null)} />
-      )}
-      {roomOpen && hasRoom && (
-        <RoomViewerModal spaceId={space.space_id} title={space.name} onClose={() => setRoomOpen(false)} />
       )}
       {panoramaOpen && hasPanorama && (
         <PanoramaViewerModal scenes={panoramaScenes} title={space.name} onClose={() => setPanoramaOpen(false)} />

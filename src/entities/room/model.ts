@@ -78,8 +78,13 @@ export interface FurnitureItem {
   rotation: number;
 }
 
+/** 로그인한 사용자가 이름 붙여 저장한 배치. 공간마다 20개까지. */
 export interface FurnitureLayout {
+  layout_id: number;
   space_id: number;
+  name: string;
   items: FurnitureItem[];
   updated_at: string;
 }
+
+export const MAX_FURNITURE_LAYOUTS = 20;

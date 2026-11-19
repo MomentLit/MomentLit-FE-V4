@@ -8,6 +8,8 @@ import { cn } from "@/shared/lib";
 // directly from the api module instead (entities files are read-only in this scope).
 import { createSpace, updateAvailability } from "@/entities/space/api";
 import { uploadImage } from "@/shared/api/upload";
+import { saveRoom } from "@/entities/room";
+import { toRoomRequest } from "@/widgets/room";
 import { countPendingUploads, resolvePhotoUrls, useRevokePhotoItemsOnUnmount } from "@/shared/ui/MultiPhotoUpload";
 import { getErrorMessage } from "@/shared/api/error";
 import { useRequireAuth } from "@/widgets/auth";
@@ -59,6 +61,8 @@ export function RegistrationForm() {
    */
   const createdSpaceIdsRef = useRef(new Map<string, number>());
   const savedScheduleRef = useRef(new Set<string>());
+  /** 3D 방까지 저장한 구역 — 실패 후 다시 누르면 남은 것만 저장한다. */
+  const savedRoomRef = useRef(new Set<string>());
 
   function onFieldChange<K extends keyof RegistrationFormState>(
     key: K,
@@ -183,6 +187,7 @@ export function RegistrationForm() {
     setSubmitting(true);
     const created = createdSpaceIdsRef.current;
     const savedSchedule = savedScheduleRef.current;
+    const savedRoom = savedRoomRef.current;
     // 아직 등록 안 된 구역의 새 사진만 센다 — 실패 후 다시 누르면 남은 구역 것만 올린다.
     const total = state.options
       .filter((option) => !created.has(option.id))
@@ -205,6 +210,10 @@ export function RegistrationForm() {
         if (usesWeeklySchedule(state) && !savedSchedule.has(option.id)) {
           await updateAvailability(spaceId, toAvailabilitySlots(option.weeklySchedule));
           savedSchedule.add(option.id);
+        }
+        if (option.room && !savedRoom.has(option.id)) {
+          await saveRoom(spaceId, toRoomRequest(option.room));
+          savedRoom.add(option.id);
         }
       }
 

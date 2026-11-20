@@ -107,7 +107,7 @@ function ViewerHeader({ spaceId, title, children }: { spaceId: number; title: st
       <Link href={`/spaces/${spaceId}`} aria-label="공간으로 돌아가기" className="button button--outline button--sm button--icon">
         <IconArrowLeft size={16} stroke={2} aria-hidden />
       </Link>
-      <div className="min-w-0 flex-1">
+      <div className="min-w-[120px] flex-1">
         <span className="block font-mono text-[0.62rem] font-medium uppercase leading-none tracking-[0.18em] text-soft">3D Room</span>
         <h1 className="truncate text-base font-bold leading-tight text-ink">{title}</h1>
       </div>
@@ -231,7 +231,13 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
   return (
     <>
       <ViewerHeader spaceId={spaceId} title={title}>
-        <ViewSwitch options={VIEWS} value={view} onChange={changeView} />
+        {/* 좁은 화면에선 제목이 찌그러지지 않게 다음 줄로 내려 폭을 채운다 */}
+        <ViewSwitch
+          options={VIEWS}
+          value={view}
+          onChange={changeView}
+          className="w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
+        />
       </ViewerHeader>
       <RoomTabs rooms={rooms} activeId={room.room_id} onChange={onRoomChange} />
 

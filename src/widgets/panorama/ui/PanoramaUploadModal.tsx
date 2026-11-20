@@ -246,10 +246,32 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
             />
           </label>
           {phoneSource && (
+            // 휴대폰 파노라마는 위아래가 잘려 있어 — 우리 '360° 사진 찍기'(10장 → 2:1 360° 사진)를 먼저 권한다
+            <div className="flex flex-wrap items-center gap-3 border-l-4 border-ink bg-wash px-4 py-3">
+              <p className="min-w-0 flex-1 text-sm text-ink">
+                <span className="font-semibold">휴대폰 파노라마 사진이에요.</span> 위아래가 담기지 않아 둘러볼 때 회색 빈 곳이 크게 보이고,
+                3D 방 자동 인식도 잘 안 돼요. 휴대폰으로 10장을 찍으면 위아래까지 채운 360° 사진을 만들어 드려요.
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setPhoneSource(null);
+                  setPanoramaFile(null);
+                  setLocalPreviewUrl(null);
+                  goTo("CAPTURE");
+                }}
+                disabled={busy}
+                className="button button--primary shrink-0"
+              >
+                <IconCamera size={16} stroke={2} aria-hidden />
+                360° 사진 찍기로 가기
+              </button>
+            </div>
+          )}
+          {phoneSource && (
             <div className="flex flex-col gap-3 border border-line p-4">
               <p className="text-sm text-ink">
-                휴대폰 파노라마 사진이에요. 찍은 각도에 맞게 펼치면 360° 사진처럼 둘러볼 수 있어요.
-                사진에 담기지 않은 위아래는 회색으로 채워져요.
+                이 사진을 그대로 쓰려면, 찍은 각도에 맞게 펼쳐 주세요. 사진에 담기지 않은 위아래는 회색으로 채워져요.
               </p>
               <label className="flex flex-col gap-1 text-sm font-semibold text-ink">
                 찍은 가로 각도 — {phoneFov}°

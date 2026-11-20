@@ -130,14 +130,16 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
     });
   }, [spaceQuery.data, spaceId]);
 
-  // 3D 방은 서버에 저장된 장면 기준으로 만든다(만들기 페이지가 그 순서로 연다).
-  const savedPanoramaScenes = spaceQuery.data
-    ? resolvePanoramaScenes(spaceQuery.data.panorama_scenes, spaceQuery.data.panorama_url)
-    : [];
-  const scenesUnsaved = !isSamePanoramaScenes(panoramaScenes, savedPanoramaScenes);
-
-  async function handleSubmit(event: FormEvent) {
+  function handleSubmit(event: FormEvent) {
     event.preventDefault();
+    void saveSpace(`/spaces/${spaceId}`);
+  }
+
+  /**
+   * 검증하고 저장한 뒤 `redirectTo`로 간다. 실패하면 머문 채 오류를 보여 준다.
+   * 3D 방 만들기로 갈 때도 이걸 써서, 고친 내용(방금 추가한 360° 장면 포함)을 먼저 저장한다.
+   */
+  async function saveSpace(redirectTo: string) {
     setError(null);
 
     if (!name.trim() || !description.trim()) {
@@ -233,7 +235,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       await Promise.all(targetIds.map((id) => queryClient.invalidateQueries({ queryKey: ["space", id] })));
       await queryClient.invalidateQueries({ queryKey: ["spaces", "me"] });
       if (editingAsAdmin) await queryClient.invalidateQueries({ queryKey: ["admin", "spaces"] });
-      router.push(`/spaces/${spaceId}`);
+      router.push(redirectTo);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
       setUploadProgress(null);
@@ -378,7 +380,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           saveHint
         />
 
-        {(savedPanoramaScenes.length > 0 || panoramaScenes.length > 0) && roomsQuery.isSuccess && (
+        {panoramaScenes.length > 0 && roomsQuery.isSuccess && (
           <section className="flex flex-col gap-3 border border-line p-4 sm:col-span-2 sm:p-5">
             <div className="flex items-center gap-2">
               <IconCube size={20} stroke={1.8} className="shrink-0 text-ink" aria-hidden />
@@ -386,14 +388,16 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
             </div>
             <p className="text-xs text-soft">
               360° 장면마다 실제 크기의 3D 방을 만들면, 손님이 미니어처·1인칭으로 둘러보고 가구를 놓아 볼 수 있어요.
-              3D 방은 만드는 페이지에서 저장하는 즉시 반영돼요 — 이 화면에서 고친 다른 내용은 이동하기 전에 저장해 주세요.
+              방금 추가한 장면도 바로 만들 수 있어요 — 누르면 지금까지 고친 내용을 저장하고 3D 방 만들기로 넘어가요.
             </p>
+            {/* 지금 화면의 장면 기준 — 만들기 페이지는 저장된 장면 순서로 열리므로, 열기 전에 저장한다 */}
             <RoomSceneList
               spaceId={spaceId}
-              scenes={savedPanoramaScenes}
+              scenes={panoramaScenes}
               rooms={roomsQuery.data}
               returnTo="edit"
-              locked={scenesUnsaved ? "360° 장면을 바꿨어요. 아래 '저장하기'를 누른 뒤 3D 방을 만들거나 고칠 수 있어요." : null}
+              busy={submitting}
+              onOpen={(href) => void saveSpace(href)}
             />
           </section>
         )}

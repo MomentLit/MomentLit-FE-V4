@@ -26,13 +26,20 @@ export function roomReturnHref(spaceId: number, returnTo: RoomReturnTo) {
  * 공간 수정 화면과 3D 방 관리 페이지가 같이 쓴다. `scenes`는 서버에 저장된 장면이어야 한다(방 만들기 페이지가 그 순서로 연다).
  * `locked`면 목록만 보여 주고 고칠 수 없게 한다(예: 공간 수정에서 장면을 바꾸고 아직 저장하지 않았을 때).
  */
-export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null }: {
+export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null, busy = false, onOpen }: {
   spaceId: number;
   scenes: readonly PanoramaTourScene[];
   rooms: readonly Room[];
   returnTo: RoomReturnTo;
   /** 잠근 이유(보여 줄 문구). null이면 잠그지 않는다. */
   locked?: string | null;
+  /** 저장 중 등으로 잠시 누를 수 없게 할 때. */
+  busy?: boolean;
+  /**
+   * 만들기·고치기를 누르면 링크로 바로 가지 않고 이걸 부른다 — 공간 수정처럼 먼저 저장해야 할 때.
+   * 없으면 그냥 링크로 간다.
+   */
+  onOpen?: (href: string) => void;
 }) {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState<number | null>(null);
@@ -43,7 +50,7 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null 
   // 장면을 지운 뒤 남은 방 — 공간 수정 저장 때 정리되지만, 그 전이면 여기서 뺄 수 있게 보여 준다
   const orphanRooms = rooms.filter((room) => !room.scene_image_url || !sceneUrls.has(room.scene_image_url));
   const limitReached = rooms.length >= MAX_ROOMS_PER_SPACE;
-  const disabled = locked !== null;
+  const disabled = locked !== null || busy;
 
   async function remove(room: Room) {
     setDeleting(room.room_id);
@@ -87,7 +94,11 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null 
           </>
         ) : (
           <>
-            {editHref && !disabled && (room || canCreate) ? (
+            {editHref && !disabled && (room || canCreate) && onOpen ? (
+              <button type="button" onClick={() => onOpen(editHref)} className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
+                {room ? "고치기" : "3D 방 만들기"}
+              </button>
+            ) : editHref && !disabled && (room || canCreate) ? (
               <Link href={editHref} className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
                 {room ? "고치기" : "3D 방 만들기"}
               </Link>

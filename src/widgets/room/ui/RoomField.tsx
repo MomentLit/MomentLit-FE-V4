@@ -55,12 +55,13 @@ export function RoomField({ scenes, value, onChange, title, disabled = false, sa
                     : "아직 3D 방이 없어요"}
                 </span>
               </div>
-              {/* 줄마다 같은 자리·같은 폭 — 방이 없는 줄도 빼기 칸을 비워 둬서 버튼이 줄을 맞춘다 */}
+              {/* 줄마다 같은 자리·같은 폭 — 방이 없는 줄도 빼기 칸을 비워 둬서 버튼이 줄을 맞춘다.
+                  바로 위 360° 장면 칸과 같은 기본 크기(44px)를 쓴다. */}
               <button
                 type="button"
                 disabled={disabled || (!room && limitReached)}
                 onClick={() => setEditing(scene.image_url)}
-                className={cn("button button--sm w-[120px]", room ? "button--outline" : "button--primary")}
+                className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}
               >
                 {room ? "고치기" : "3D 방 만들기"}
               </button>
@@ -70,9 +71,9 @@ export function RoomField({ scenes, value, onChange, title, disabled = false, sa
                 onClick={() => onChange(setRoomForScene(value, scene.image_url, null))}
                 aria-label={`${name} 3D 방 빼기`}
                 title="3D 방 빼기"
-                className={cn("button button--outline button--sm button--icon", !room && "invisible")}
+                className={cn("button button--outline w-11 px-0", !room && "invisible")}
               >
-                <IconTrash size={15} stroke={2} aria-hidden />
+                <IconTrash size={16} stroke={2} aria-hidden />
               </button>
             </li>
           );

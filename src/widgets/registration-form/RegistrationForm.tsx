@@ -8,8 +8,6 @@ import { cn } from "@/shared/lib";
 // directly from the api module instead (entities files are read-only in this scope).
 import { createSpace, updateAvailability } from "@/entities/space/api";
 import { uploadImage } from "@/shared/api/upload";
-import { createRoom } from "@/entities/room";
-import { roomPlacement, toRoomRequest } from "@/widgets/room";
 import { countPendingUploads, resolvePhotoUrls, useRevokePhotoItemsOnUnmount } from "@/shared/ui/MultiPhotoUpload";
 import { getErrorMessage } from "@/shared/api/error";
 import { useRequireAuth } from "@/widgets/auth";
@@ -61,8 +59,6 @@ export function RegistrationForm() {
    */
   const createdSpaceIdsRef = useRef(new Map<string, number>());
   const savedScheduleRef = useRef(new Set<string>());
-  /** 저장한 3D 방(`구역 id|장면 사진`) — 실패 후 다시 누르면 남은 것만 저장한다. */
-  const savedRoomRef = useRef(new Set<string>());
 
   function onFieldChange<K extends keyof RegistrationFormState>(
     key: K,
@@ -187,7 +183,6 @@ export function RegistrationForm() {
     setSubmitting(true);
     const created = createdSpaceIdsRef.current;
     const savedSchedule = savedScheduleRef.current;
-    const savedRoom = savedRoomRef.current;
     // 아직 등록 안 된 구역의 새 사진만 센다 — 실패 후 다시 누르면 남은 구역 것만 올린다.
     const total = state.options
       .filter((option) => !created.has(option.id))
@@ -211,15 +206,13 @@ export function RegistrationForm() {
           await updateAvailability(spaceId, toAvailabilitySlots(option.weeklySchedule));
           savedSchedule.add(option.id);
         }
-        for (const room of option.rooms) {
-          const key = `${option.id}|${room.sceneImageUrl}`;
-          if (savedRoom.has(key)) continue;
-          await createRoom(spaceId, toRoomRequest(room, roomPlacement(option.panoramaScenes, room.sceneImageUrl)));
-          savedRoom.add(key);
-        }
       }
 
-      router.push(`/spaces/${created.get(state.options[0].id)}`);
+      // 360° 장면이 있으면 바로 3D 방 만들기로 이어 간다(첫 구역 기준 — 다른 구역은 각 공간의 3D 방 관리에서).
+      const firstSpaceId = created.get(state.options[0].id);
+      router.push(state.options[0].panoramaScenes.length > 0 && !isDraft
+        ? `/spaces/${firstSpaceId}/rooms?new=1`
+        : `/spaces/${firstSpaceId}`);
     } catch (error) {
       const message = getErrorMessage(error);
       if (state.options.length > 1) {

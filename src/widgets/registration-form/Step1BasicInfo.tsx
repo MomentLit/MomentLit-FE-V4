@@ -3,7 +3,7 @@ import { useState } from "react";
 import { MAX_SPACE_PHOTOS, SPACE_HERO_ASPECT } from "@/entities/space";
 import { MultiPhotoUpload } from "@/shared/ui/MultiPhotoUpload";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
-import { keepRoomsForScenes, RoomField } from "@/widgets/room";
+import { IconCube } from "@tabler/icons-react";
 import { FormField, fieldInputClass } from "./FormField";
 import { CategoryPicker } from "./CategoryPicker";
 import { ToggleSwitch } from "./ToggleSwitch";
@@ -153,23 +153,14 @@ export function Step1BasicInfo({
         <PanoramaPhotoField
           key={option.id}
           value={option.panoramaScenes}
-          onChange={(scenes) => {
-            onOptionChange("panoramaScenes", scenes);
-            // 장면을 지우거나 사진을 바꾸면 그 장면으로 만든 3D 방도 뺀다.
-            onOptionChange("rooms", keepRoomsForScenes(option.rooms, scenes));
-          }}
+          onChange={(scenes) => onOptionChange("panoramaScenes", scenes)}
           title={title}
         />
         {option.panoramaScenes.length > 0 && (
-          <div className="sm:col-span-2">
-            <RoomField
-              key={option.id}
-              scenes={option.panoramaScenes}
-              value={option.rooms}
-              onChange={(rooms) => onOptionChange("rooms", rooms)}
-              title={title}
-            />
-          </div>
+          <p className="flex items-center gap-2 text-xs text-soft sm:col-span-2">
+            <IconCube size={16} stroke={1.8} className="shrink-0 text-ink" aria-hidden />
+            공간을 등록하면 360° 장면마다 실제 크기의 3D 방을 만들 수 있어요. 등록을 마치면 바로 안내해 드려요.
+          </p>
         )}
       </OptionTabs>
     </div>

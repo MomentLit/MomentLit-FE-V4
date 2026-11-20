@@ -9,6 +9,7 @@ import {
   type PhotoItem,
 } from "@/shared/ui/MultiPhotoUpload";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import { IconCube } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/widgets/auth";
@@ -42,8 +43,8 @@ import {
   type BookingRulesState,
 } from "@/widgets/registration-form/model";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
-import { createRoom, deleteRoom, fetchRooms, updateRoom } from "@/entities/room";
-import { keepRoomsForScenes, planRoomSaves, RoomField, roomToDraft, type RoomDraft } from "@/widgets/room";
+import { deleteRoom, fetchRooms, updateRoom } from "@/entities/room";
+import { planRoomSaves, RoomSceneList, roomToDraft, type RoomDraft } from "@/widgets/room";
 import {
   isSamePanoramaScenes,
   resolvePanoramaScenes,
@@ -98,8 +99,6 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   // 재조회될 때마다 다시 채우면 저장하지 않은 수정 내용이 서버 값으로 덮어써진다.
   const initializedSpaceIdRef = useRef<number | null>(null);
   const [panoramaScenes, setPanoramaScenes] = useState<PanoramaTourScene[]>([]);
-  const [rooms, setRooms] = useState<RoomDraft[]>([]);
-  const initializedRoomSpaceIdRef = useRef<number | null>(null);
   const [bookingType, setBookingType] = useState<BookingType>("INTERNAL");
   const [externalBookingUrl, setExternalBookingUrl] = useState("");
   const [bookingRules, setBookingRules] = useState<BookingRulesState>(createInitialBookingRules);
@@ -131,27 +130,16 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
     });
   }, [spaceQuery.data, spaceId]);
 
-  useEffect(() => {
-    if (!roomsQuery.isSuccess || initializedRoomSpaceIdRef.current === spaceId) return;
-    initializedRoomSpaceIdRef.current = spaceId;
-    const saved = roomsQuery.data;
-    queueMicrotask(() => setRooms(saved.map(roomToDraft).filter((draft): draft is RoomDraft => draft !== null)));
-  }, [roomsQuery.isSuccess, roomsQuery.data, spaceId]);
-
-  function handlePanoramaScenesChange(scenes: PanoramaTourScene[]) {
-    setPanoramaScenes(scenes);
-    // 장면을 지우거나 사진을 바꾸면 그 장면으로 만든 3D 방도 뺀다.
-    setRooms((current) => keepRoomsForScenes(current, scenes));
+  function handleSubmit(event: FormEvent) {
+    event.preventDefault();
+    void saveSpace(`/spaces/${spaceId}`);
   }
 
-  const roomsChanged = (() => {
-    if (!roomsQuery.isSuccess) return false;
-    const plan = planRoomSaves(rooms, roomsQuery.data, panoramaScenes);
-    return plan.create.length + plan.update.length + plan.remove.length > 0;
-  })();
-
-  async function handleSubmit(event: FormEvent) {
-    event.preventDefault();
+  /**
+   * 검증하고 저장한 뒤 `redirectTo`로 간다. 실패하면 머문 채 오류를 보여 준다.
+   * 3D 방 만들기로 갈 때도 이걸 써서, 고친 내용(방금 추가한 360° 장면 포함)을 먼저 저장한다.
+   */
+  async function saveSpace(redirectTo: string) {
     setError(null);
 
     if (!name.trim() || !description.trim()) {
@@ -228,11 +216,16 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         ...(bookingType === "EXTERNAL" ? {} : toBookingRulesRequest(bookingRules, usageUnit, "update")),
       });
 
+      // 3D 방은 만들기 페이지에서 바로 저장된다. 여기서는 장면을 바꾼 만큼만 맞춘다 —
+      // 장면 이름·순서가 바뀌면 방 이름·순서도 바꾸고, 지운(또는 사진을 바꾼) 장면의 방은 지운다.
       if (roomsQuery.isSuccess) {
-        const plan = planRoomSaves(rooms, roomsQuery.data, panoramaScenes);
+        const keptScenes = new Set(panoramaScenes.map((scene) => scene.image_url));
+        const drafts = roomsQuery.data
+          .map(roomToDraft)
+          .filter((draft): draft is RoomDraft => draft !== null && keptScenes.has(draft.sceneImageUrl));
+        const plan = planRoomSaves(drafts, roomsQuery.data, panoramaScenes);
         for (const roomId of plan.remove) await deleteRoom(spaceId, roomId);
         for (const { roomId, request } of plan.update) await updateRoom(spaceId, roomId, request);
-        for (const request of plan.create) await createRoom(spaceId, request);
         if (plan.remove.length + plan.update.length + plan.create.length > 0) {
           await queryClient.invalidateQueries({ queryKey: ["space-rooms", spaceId] });
         }
@@ -242,7 +235,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       await Promise.all(targetIds.map((id) => queryClient.invalidateQueries({ queryKey: ["space", id] })));
       await queryClient.invalidateQueries({ queryKey: ["spaces", "me"] });
       if (editingAsAdmin) await queryClient.invalidateQueries({ queryKey: ["admin", "spaces"] });
-      router.push(`/spaces/${spaceId}`);
+      router.push(redirectTo);
     } catch (submitError) {
       setError(getErrorMessage(submitError));
       setUploadProgress(null);
@@ -381,23 +374,32 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
 
         <PanoramaPhotoField
           value={panoramaScenes}
-          onChange={handlePanoramaScenesChange}
+          onChange={setPanoramaScenes}
           title={name.trim() || "공간"}
           disabled={submitting}
           saveHint
         />
 
         {panoramaScenes.length > 0 && roomsQuery.isSuccess && (
-          <div className="sm:col-span-2">
-            <RoomField
+          <section className="flex flex-col gap-3 border border-line p-4 sm:col-span-2 sm:p-5">
+            <div className="flex items-center gap-2">
+              <IconCube size={20} stroke={1.8} className="shrink-0 text-ink" aria-hidden />
+              <span className="text-[0.95rem] font-bold text-ink">3D 방 (선택)</span>
+            </div>
+            <p className="text-xs text-soft">
+              360° 장면마다 실제 크기의 3D 방을 만들면, 손님이 미니어처·1인칭으로 둘러보고 가구를 놓아 볼 수 있어요.
+              방금 추가한 장면도 바로 만들 수 있어요 — 누르면 지금까지 고친 내용을 저장하고 3D 방 만들기로 넘어가요.
+            </p>
+            {/* 지금 화면의 장면 기준 — 만들기 페이지는 저장된 장면 순서로 열리므로, 열기 전에 저장한다 */}
+            <RoomSceneList
+              spaceId={spaceId}
               scenes={panoramaScenes}
-              value={rooms}
-              onChange={setRooms}
-              title={name.trim() || "공간"}
-              disabled={submitting}
-              saveHint={roomsChanged}
+              rooms={roomsQuery.data}
+              returnTo="edit"
+              busy={submitting}
+              onOpen={(href) => void saveSpace(href)}
             />
-          </div>
+          </section>
         )}
 
         {error && (

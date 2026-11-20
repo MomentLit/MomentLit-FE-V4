@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, type FormEvent } from "react";
-import { IconDeviceFloppy, IconPencil, IconPlus, IconTrash } from "@tabler/icons-react";
+import { IconDeviceFloppy, IconPencil, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { MAX_FURNITURE_LAYOUTS, type FurnitureLayout } from "@/entities/room";
 import { cn } from "@/shared/lib";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
@@ -93,10 +93,11 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
           type="button"
           onClick={requestNew}
           disabled={layouts.busy}
+          title="놓은 가구를 모두 빼고 새 배치로 시작해요(저장한 배치는 그대로 남아요)"
           className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-soft underline-offset-2 hover:text-ink hover:underline disabled:opacity-50"
         >
-          <IconPlus size={13} stroke={2} aria-hidden />
-          빈 방에서 시작
+          <IconRefresh size={13} stroke={2} aria-hidden />
+          초기화
         </button>
       </div>
 
@@ -154,10 +155,12 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
         <div role="alert" className="flex flex-col gap-2 border-l-4 border-coral bg-wash p-3 text-sm text-ink">
           {pending.kind === "delete"
             ? `‘${pending.layout.name}’ 배치를 지울까요? 되돌릴 수 없어요.`
-            : "지금 배치를 저장하지 않았어요. 바꾸면 저장 안 된 가구 배치가 사라져요."}
+            : pending.kind === "new"
+              ? "초기화하면 놓은 가구가 모두 빠지고, 저장하지 않은 배치는 사라져요. 저장한 배치는 그대로 남아요."
+              : "지금 배치를 저장하지 않았어요. 바꾸면 저장 안 된 가구 배치가 사라져요."}
           <div className="flex gap-2">
             <button type="button" onClick={() => void confirmPending()} disabled={layouts.busy} className="button button--danger button--sm">
-              {pending.kind === "delete" ? "지우기" : pending.kind === "load" ? `‘${pending.layout.name}’ 불러오기` : "빈 방에서 시작"}
+              {pending.kind === "delete" ? "지우기" : pending.kind === "load" ? `‘${pending.layout.name}’ 불러오기` : "초기화"}
             </button>
             <button type="button" onClick={() => setPending(null)} className="button button--outline button--sm">취소</button>
           </div>

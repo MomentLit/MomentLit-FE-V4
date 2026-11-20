@@ -135,7 +135,7 @@ export function useFurnitureLayouts(spaceId: number, roomId: number) {
     setError(null);
   }
 
-  /** 빈 방에서 새 배치를 시작한다. */
+  /** 초기화 — 가구를 모두 빼고 새 배치로 시작한다(저장한 배치는 그대로). */
   function startNew() {
     setItems([]);
     setActiveId(null);

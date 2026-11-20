@@ -15,6 +15,7 @@ import { getSpacePhotoUrls, splitSpaceOptionName, type SpaceDetail } from "@/ent
 import { PanoramaViewerModal, resolvePanoramaScenes } from "@/widgets/panorama";
 import { FurniturePlacementModal } from "@/widgets/furniture-placement";
 import { fetchRooms } from "@/entities/room";
+import { useAuthStore } from "@/entities/auth";
 import { spaceMorphName, useMorphArrival } from "@/shared/hooks/useMorphLink";
 
 /** 사진이 여러 장일 때 다음 사진으로 넘어가는 간격. */
@@ -138,6 +139,11 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
   // 3D 방(장면마다 하나)은 공간과 따로 저장돼서 따로 확인한다. 없으면 빈 목록.
   const roomsQuery = useQuery({ queryKey: ["space-rooms", space.space_id], queryFn: () => fetchRooms(space.space_id) });
   const hasRoom = (roomsQuery.data?.length ?? 0) > 0;
+  // 호스트(또는 관리자)에게는 360° 장면만 있고 3D 방이 없을 때 만들기로 가는 버튼을 보여 준다
+  const user = useAuthStore((state) => state.user);
+  const canManageRooms = Boolean(user && (user.role === "ADMIN" || user.id === space.host_id));
+  const canMakeRoom = !hasRoom && hasPanorama && canManageRooms && roomsQuery.isSuccess;
+  const showRoomButton = hasRoom || canMakeRoom;
 
   // 구역으로 묶인 공간이면 제목은 공통 이름만 쓰고, 구역 이름은 아래 탭과 제목 위 라벨로 보여준다.
   const { baseName, optionLabel } = splitSpaceOptionName(space.name);
@@ -242,8 +248,14 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
             </button>
           </div>
         )}
-        {(hasPanorama || hasRoom) && (
+        {(hasPanorama || showRoomButton) && (
           <div className="absolute right-4 top-4 z-10 flex flex-wrap justify-end gap-2 sm:right-6 sm:top-6">
+            {canMakeRoom && (
+              <Link href={`/spaces/${space.space_id}/rooms`} className="button button--outline">
+                <IconCube size={18} stroke={2} aria-hidden />
+                3D 방 만들기
+              </Link>
+            )}
             {hasRoom && (
               <Link href={`/spaces/${space.space_id}/room`} className="button button--outline">
                 <IconCube size={18} stroke={2} aria-hidden />
@@ -262,7 +274,7 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
           className={cn(
             "relative font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em]",
             // 오른쪽 위 버튼(360° 보기·3D로 보기)과 겹치지 않게
-            hasPanorama && hasRoom ? "pr-64" : (hasPanorama || hasRoom) && "pr-32",
+            hasPanorama && showRoomButton ? "pr-64" : (hasPanorama || showRoomButton) && "pr-32",
             hasPhoto && "text-white",
           )}
         >

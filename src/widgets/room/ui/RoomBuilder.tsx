@@ -298,7 +298,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
               inner={summary.inner}
               onChange={handlePlanChange}
               ceilingHeight={draft.ceilingHeight}
-              modes={["none", "inner", "point"]}
+              modes={["none", "wall", "point"]}
               actions={actions}
               className="absolute inset-0"
             />
@@ -331,7 +331,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
               <RailButton
                 label="도면에서 다듬기"
                 caption="도면"
-                hint="위에서 본 도면으로 벽 길이를 고치고, 안쪽 벽과 점을 더해요."
+                hint="위에서 본 도면으로 벽 길이를 고치고, ‘벽’으로 칸막이를, ‘점 추가’로 점을 더해요."
                 icon={IconLayoutBoard}
                 highlight={currentStep === -1 && !planVisited}
                 disabled={busy || !summary}
@@ -433,7 +433,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
                 <li>도구는 화면 왼쪽 막대에 있어요. 마우스를 올리면 설명이 보이고, ‘추천’이 붙은 도구가 지금 쓰면 좋은 도구예요.</li>
                 <li>‘자동으로 모서리 찾기’를 누르거나, 사진 시점에서 바닥과 벽이 만나는 모서리를 차례대로 눌러요. 찍은 점은 끌어서 옮겨요.</li>
                 <li>‘천장 재기’로 바닥 모서리 바로 위의 천장 모서리를 누르면 천장 높이가 맞춰져요.</li>
-                <li>‘도면’에서는 벽을 눌러 길이(mm)를 고치고, ‘점 추가’로 원하는 자리에 점을 넣고, ‘안쪽 벽’으로 칸막이를 그려요.</li>
+                <li>‘도면’에서는 벽을 눌러 길이(mm)를 고치고, ‘점 추가’로 원하는 자리에 점을 넣고, ‘벽’으로 칸막이(안쪽 벽)를 그려요.</li>
               </ul>
             </Section>
           </aside>

@@ -43,9 +43,10 @@ export interface PlanShape {
 }
 
 /**
- * 편집 도구 — "none" 고르기·끌기 / 바깥벽 모서리 찍기 / 안쪽 벽 이어 그리기 / 선 위에 점 넣기 / 축척 기준 두 점 찍기.
+ * 편집 도구 — "none" 고르기·끌기 / "wall" 벽 그리기(바깥벽이 아직 안 닫혔으면 바깥벽, 닫혔으면 안쪽 벽) /
+ * 바깥벽 모서리 찍기 / 안쪽 벽 이어 그리기 / 선 위에 점 넣기 / 축척 기준 두 점 찍기.
  */
-export type PlanDrawMode = "none" | "outer" | "inner" | "point" | "scale";
+export type PlanDrawMode = "none" | "wall" | "outer" | "inner" | "point" | "scale";
 
 /** 왼쪽 도구 막대의 동작 버튼(자동 인식·되돌리기 등 — 도구를 바꾸지 않고 한 번 실행). */
 export interface PlanTool {
@@ -65,6 +66,12 @@ export interface PlanTool {
 
 const MODE_TOOLS: Record<PlanDrawMode, { label: string; caption: string; hint: string; icon: ToolIcon }> = {
   none: { label: "고르기·옮기기", caption: "고르기", hint: "벽을 눌러 길이를 고치고, 점을 끌어 옮겨요. 빈 곳을 끌면 화면이 움직여요.", icon: IconPointer },
+  wall: {
+    label: "벽 그리기",
+    caption: "벽",
+    hint: "누르는 점마다 벽이 이어져요. 바깥벽부터 그리고 첫 점을 다시 누르면 닫혀요. 닫은 뒤엔 안쪽 벽이 그려져요. Esc로 끊어요.",
+    icon: IconLine,
+  },
   outer: { label: "바깥벽 그리기", caption: "바깥벽", hint: "모서리를 차례로 눌러요. 첫 점을 다시 누르면 닫혀요.", icon: IconBorderOuter },
   inner: { label: "안쪽 벽 그리기", caption: "안쪽 벽", hint: "누르는 점마다 벽이 이어져요. Esc로 끊어요.", icon: IconLine },
   point: { label: "선 위에 점 추가", caption: "점 추가", hint: "벽 위 원하는 자리를 누르면 점이 생겨요. 바로 끌어서 옮길 수 있어요.", icon: IconCirclePlus },
@@ -193,7 +200,9 @@ export function PlanEditor({
   const [scalePoints, setScalePoints] = useState<Vec2[]>([]);
   const [hover, setHover] = useState<Vec2 | null>(null);
   const [localMode, setLocalMode] = useState<PlanDrawMode>("none");
-  const drawMode = controlledMode ?? localMode;
+  // 고른 도구(막대에 켜지는 것)와 실제로 그리는 것 — '벽'은 바깥벽이 닫히기 전엔 바깥벽, 닫힌 뒤엔 안쪽 벽을 그린다
+  const toolMode = controlledMode ?? localMode;
+  const drawMode: PlanDrawMode = toolMode === "wall" ? (closed ? "inner" : "outer") : toolMode;
   function changeMode(next: PlanDrawMode) {
     if (onDrawModeChange) onDrawModeChange(next);
     else setLocalMode(next);
@@ -865,10 +874,10 @@ export function PlanEditor({
               caption={MODE_TOOLS[mode].caption}
               hint={MODE_TOOLS[mode].hint}
               icon={MODE_TOOLS[mode].icon}
-              active={drawMode === mode}
+              active={toolMode === mode}
               highlight={highlightMode === mode}
               disabled={mode === "outer" && closed}
-              onClick={() => changeMode(drawMode === mode && mode !== "none" ? "none" : mode)}
+              onClick={() => changeMode(toolMode === mode && mode !== "none" ? "none" : mode)}
             />
           ))}
           {actions.length > 0 && <RailDivider />}
@@ -935,11 +944,15 @@ export function PlanEditor({
           {drawMode === "outer"
             ? closed ? "바깥벽이 닫혔어요."
               : outerPaused ? "끊었어요. 첫 점이나 마지막 점을 눌러 거기서 이어 그려요 (Esc로 그리기 끝내기)"
-                : outer.length === 0 ? "바깥벽 모서리를 차례로 누르세요"
+                : outer.length === 0 ? (toolMode === "wall" ? "바깥벽부터 그려요 — 방 모서리를 차례로 누르세요" : "바깥벽 모서리를 차례로 누르세요")
                   : outer.length < 3 ? `다음 모서리를 누르세요 (${outer.length}개 · Esc로 끊기)`
                     : `계속 찍거나 첫 점을 눌러 닫으세요 (${outer.length}개 · Esc로 끊기)`
             : drawMode === "inner"
-              ? pending ? "다음 점을 누르면 이어서 벽이 생겨요 (Esc로 끊기)" : "안쪽 벽이 시작할 점을 누르세요 — 기존 점·벽에 붙어요 (Esc로 그리기 끝내기)"
+              ? pending
+                ? "다음 점을 누르면 이어서 벽이 생겨요 (Esc로 끊기)"
+                : toolMode === "wall"
+                  ? "안쪽 벽(칸막이)이 시작할 점을 누르세요 — 기존 점·벽에 붙어요 (Esc로 그리기 끝내기)"
+                  : "안쪽 벽이 시작할 점을 누르세요 — 기존 점·벽에 붙어요 (Esc로 그리기 끝내기)"
               : drawMode === "point"
                 ? "벽(선) 위 원하는 자리를 누르면 점이 생겨요. 점은 바로 끌어서 옮길 수 있어요 (Esc로 끝내기)"
                 : drawMode === "scale"

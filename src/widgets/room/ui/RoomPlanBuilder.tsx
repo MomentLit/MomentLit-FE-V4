@@ -59,7 +59,7 @@ function readImageSize(file: File): Promise<{ width: number; height: number }> {
 
 /**
  * 도면 이미지로 3D 방을 만드는 화면(`/spaces/{id}/rooms/plan`, 사이드바 없는 전체 화면).
- * 1) 도면 올리기 → 2) 기준 길이 두 점 + mm로 축척 맞추기(또는 건너뛰고 나중에 벽 길이로) → 3) 바깥벽·안쪽 벽 그리기,
+ * 1) 도면 올리기 → 2) 기준 길이 두 점 + mm로 축척 맞추기(또는 건너뛰고 나중에 벽 길이로) → 3) '벽' 도구로 바깥벽(닫히면 이어서 안쪽 벽) 그리기,
  * 벽 길이·점 고치기 → 4) 천장 높이·바닥에 도면 깔기 → 5) 미니어처·1인칭으로 확인 후 저장.
  */
 export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, backLabel, onSave }: {
@@ -217,7 +217,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
       return;
     }
     setScaleLine(null);
-    setDrawMode(draft && draft.outer.length > 0 ? "none" : "outer");
+    setDrawMode(draft && draft.outer.length > 0 ? "none" : "wall");
     setMessage("축척은 나중에 맞춰도 돼요 — 벽을 고르고 실제 길이를 넣으면 그 길이로 도면 전체 축척이 맞춰져요.");
   }
 
@@ -233,7 +233,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
     change({ ...draft, outer: [], inner: [], closed: false }, true);
     setEditorVersion((version) => version + 1);
     setView("plan");
-    setDrawMode("outer");
+    setDrawMode("wall");
   }
 
   async function handleSave() {
@@ -292,13 +292,13 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
     {
       label: "바깥벽",
       done: Boolean(draft?.closed),
-      how: "왼쪽 ‘자동 인식’으로 벽을 그리거나, ‘바깥벽’ 도구로 모서리를 차례로 눌러 첫 점에서 닫아요.",
+      how: "왼쪽 ‘자동 인식’으로 벽을 그리거나, ‘벽’ 도구로 방 모서리를 차례로 눌러 첫 점에서 닫아요.",
     },
     {
       label: "안쪽 벽·다듬기",
       done: Boolean(draft && draft.inner.length > 0),
       optional: true,
-      how: "‘안쪽 벽’으로 칸막이를 그리고, 벽을 눌러 길이를 고쳐요.",
+      how: "바깥벽을 닫은 뒤 ‘벽’ 도구로 누르면 안쪽 벽(칸막이)이 그려져요. 벽을 눌러 길이도 고쳐요.",
     },
   ];
   // 도구 막대 옆 칸 — 축척 재기 중일 때만
@@ -403,7 +403,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
                   closed={draft.closed}
                   drawMode={drawMode}
                   onDrawModeChange={changeDrawMode}
-                  modes={["none", "outer", "inner", "point", "scale"]}
+                  modes={["none", "wall", "point", "scale"]}
                   actions={tools}
                   highlightMode={draft && !draft.calibrated && drawMode !== "scale" ? "scale" : null}
                   panel={scalePanel}
@@ -413,9 +413,10 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
                   onChange={({ outer, inner }: PlanShape) => change({ ...draft, outer, inner })}
                   onClose={() => {
                     change({ ...draft, closed: true });
-                    setDrawMode("none");
+                    // '벽' 도구는 그대로 — 닫은 뒤엔 이어서 안쪽 벽을 그린다
+                    if (drawMode !== "wall") setDrawMode("none");
                     setMessage(draft.calibrated
-                      ? "바깥벽을 닫았어요. 안쪽 벽을 그리거나 미니어처로 확인해 보세요."
+                      ? "바깥벽을 닫았어요. 이어서 누르면 안쪽 벽(칸막이)이 그려져요. 다 그렸으면 Esc."
                       : "바깥벽을 닫았어요. 길이를 아는 벽을 눌러 mm로 넣으면 축척이 맞춰져요.");
                   }}
                   onScaleLine={handleScaleLine}
@@ -520,8 +521,8 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
             <Section title="그리는 법" defaultOpen={false}>
               <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-soft">
                 <li>도구는 도면 왼쪽 막대에 있어요. 마우스를 올리면 설명이 보이고, ‘추천’이 붙은 도구가 지금 쓰면 좋은 도구예요.</li>
-                <li>바깥벽·안쪽 벽은 점을 찍을 때마다 앞 점과 이어져요. <b className="font-semibold text-ink">Esc</b>로 선을 끊고, 한 번 더 누르면 그리기가 끝나요.</li>
-                <li>바깥벽은 첫 점을 다시 누르면 닫혀요. 끊긴 뒤엔 첫 점·마지막 점에서 다시 이어요.</li>
+                <li>‘벽’ 도구 하나로 그려요. 점을 찍을 때마다 앞 점과 벽으로 이어지고, <b className="font-semibold text-ink">Esc</b>로 선을 끊고, 한 번 더 누르면 그리기가 끝나요.</li>
+                <li>처음엔 바깥벽이 그려지고, 첫 점을 다시 누르면 닫혀요. 닫은 뒤에 누르는 점은 안쪽 벽(칸막이)이 돼요.</li>
                 <li>‘선 위에 점 추가’로 벽의 원하는 자리를 누르면 점이 생기고, 바로 끌어서 옮길 수 있어요.</li>
                 <li>벽을 고르고 숫자를 치면 길이(mm)가 바뀌어요. 문 틈은 안쪽 벽을 끊어서 비워 두세요.</li>
               </ul>

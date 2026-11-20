@@ -40,6 +40,11 @@ export interface RoomDraft {
    * 수동으로 찍었거나 저장된 방을 다시 열면 없다.
    */
   layoutRatio: { z0: number; z1: number } | null;
+  /**
+   * 안쪽 벽(도면에서 그린 칸막이). 촬영 높이를 1로 본 바닥 좌표 — 바깥벽(모서리 사진 좌표)처럼 촬영 높이를 바꾸면
+   * 같은 비율로 커지고 작아진다. 실제 m는 `summarizeRoom().inner`.
+   */
+  inner: [Vec2, Vec2][];
 }
 
 /** 장면 사진으로 새 방 초안을 만든다. 처음에는 그 사진에 모서리를 찍는다. */
@@ -52,6 +57,7 @@ export function createRoomDraft(sceneImageUrl: string): RoomDraft {
     ceilingHeight: DEFAULT_CEILING_HEIGHT,
     cameraHeight: DEFAULT_CAMERA_HEIGHT,
     layoutRatio: null,
+    inner: [],
   };
 }
 
@@ -73,6 +79,8 @@ export function withCameraHeight(draft: RoomDraft, cameraHeight: number): RoomDr
 
 export interface RoomSummary {
   outer: Vec2[];
+  /** 안쪽 벽(m). */
+  inner: [Vec2, Vec2][];
   areaM2: number;
   areaPyeong: number;
   wallLengths: number[];
@@ -84,7 +92,9 @@ export function summarizeRoom(draft: RoomDraft): RoomSummary | null {
   const outer = outerFromCorners(draft.corners, draft.cameraHeight);
   if (!outer) return null;
   const areaM2 = polygonArea(outer);
-  return { outer, areaM2, areaPyeong: toPyeong(areaM2), wallLengths: wallLengths(outer) };
+  const k = draft.cameraHeight;
+  const inner = draft.inner.map(([a, b]) => [[a[0] * k, a[1] * k], [b[0] * k, b[1] * k]] as [Vec2, Vec2]);
+  return { outer, inner, areaM2, areaPyeong: toPyeong(areaM2), wallLengths: wallLengths(outer) };
 }
 
 /** 저장할 수 없는 이유. 저장할 수 있으면 null. */
@@ -117,7 +127,7 @@ export function toRoomRequest(draft: RoomDraft, placement: { name: string; sortO
     camera_height: draft.cameraHeight,
     geometry: {
       outer: summary.outer.map(([x, z]) => [round(x), round(z)]),
-      inner: [],
+      inner: summary.inner.map(([a, b]) => [[round(a[0]), round(a[1])], [round(b[0]), round(b[1])]]),
       camera: [0, 0],
       yaw: 0,
       corners: draft.corners.map(([u, v]) => [round(u, 5), round(v, 5)]),
@@ -136,7 +146,16 @@ export function roomToDraft(room: Room): RoomDraft | null {
     ceilingHeight: room.ceiling_height,
     cameraHeight: room.camera_height,
     layoutRatio: null,
+    inner: (room.geometry.inner ?? []).map(([a, b]) => [
+      [a[0] / room.camera_height!, a[1] / room.camera_height!],
+      [b[0] / room.camera_height!, b[1] / room.camera_height!],
+    ] as [Vec2, Vec2]),
   };
+}
+
+/** 도면에서 그린 안쪽 벽(m) → 초안에 넣을 값(촬영 높이 1 기준). */
+export function innerToRelative(inner: readonly (readonly [Vec2, Vec2])[], cameraHeight: number): [Vec2, Vec2][] {
+  return inner.map(([a, b]) => [[a[0] / cameraHeight, a[1] / cameraHeight], [b[0] / cameraHeight, b[1] / cameraHeight]]);
 }
 
 export function isSameRoomDraft(a: RoomDraft | null, b: RoomDraft | null): boolean {
@@ -148,7 +167,8 @@ export function isSameRoomDraft(a: RoomDraft | null, b: RoomDraft | null): boole
     a.imageUrl === b.imageUrl &&
     a.ceilingHeight === b.ceilingHeight &&
     a.cameraHeight === b.cameraHeight &&
-    JSON.stringify(a.corners) === JSON.stringify(b.corners)
+    JSON.stringify(a.corners) === JSON.stringify(b.corners) &&
+    JSON.stringify(a.inner) === JSON.stringify(b.inner)
   );
 }
 

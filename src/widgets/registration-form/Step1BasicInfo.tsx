@@ -3,6 +3,7 @@ import { useState } from "react";
 import { MAX_SPACE_PHOTOS, SPACE_HERO_ASPECT } from "@/entities/space";
 import { MultiPhotoUpload } from "@/shared/ui/MultiPhotoUpload";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
+import { keepRoomsForScenes, RoomField } from "@/widgets/room";
 import { FormField, fieldInputClass } from "./FormField";
 import { CategoryPicker } from "./CategoryPicker";
 import { ToggleSwitch } from "./ToggleSwitch";
@@ -32,6 +33,7 @@ export function Step1BasicInfo({
   const option = optionTabs.options[optionTabs.activeIndex];
   const multiple = optionTabs.options.length > 1;
   const separate = usesSeparateDescriptions(state);
+  const title = [state.name.trim() || "새 공간", multiple ? option.label.trim() : ""].filter(Boolean).join(" · ");
 
   return (
     <div className="grid grid-cols-1 gap-4.5 sm:grid-cols-2">
@@ -151,9 +153,24 @@ export function Step1BasicInfo({
         <PanoramaPhotoField
           key={option.id}
           value={option.panoramaScenes}
-          onChange={(scenes) => onOptionChange("panoramaScenes", scenes)}
-          title={[state.name.trim() || "새 공간", multiple ? option.label.trim() : ""].filter(Boolean).join(" · ")}
+          onChange={(scenes) => {
+            onOptionChange("panoramaScenes", scenes);
+            // 장면을 지우거나 사진을 바꾸면 그 장면으로 만든 3D 방도 뺀다.
+            onOptionChange("rooms", keepRoomsForScenes(option.rooms, scenes));
+          }}
+          title={title}
         />
+        {option.panoramaScenes.length > 0 && (
+          <div className="sm:col-span-2">
+            <RoomField
+              key={option.id}
+              scenes={option.panoramaScenes}
+              value={option.rooms}
+              onChange={(rooms) => onOptionChange("rooms", rooms)}
+              title={title}
+            />
+          </div>
+        )}
       </OptionTabs>
     </div>
   );

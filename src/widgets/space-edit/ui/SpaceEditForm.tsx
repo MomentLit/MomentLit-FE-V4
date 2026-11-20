@@ -42,6 +42,8 @@ import {
   type BookingRulesState,
 } from "@/widgets/registration-form/model";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
+import { createRoom, deleteRoom, fetchRooms, updateRoom } from "@/entities/room";
+import { keepRoomsForScenes, planRoomSaves, RoomField, roomToDraft, type RoomDraft } from "@/widgets/room";
 import {
   isSamePanoramaScenes,
   resolvePanoramaScenes,
@@ -76,6 +78,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
     enabled: Boolean(spaceQuery.data),
   });
   const siblingIds = siblingsQuery.data ?? [];
+  // 3D 방은 공간과 따로 저장된다. 불러오지 못했으면 칸을 숨겨서, 모르는 채로 지우거나 덮어쓰지 않게 한다.
+  const roomsQuery = useQuery({ queryKey: ["space-rooms", spaceId], queryFn: () => fetchRooms(spaceId), enabled: ready });
 
   const [name, setName] = useState("");
   const [category, setCategory] = useState<SpaceCategory>("POPUP_STORE");
@@ -94,6 +98,8 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   // 재조회될 때마다 다시 채우면 저장하지 않은 수정 내용이 서버 값으로 덮어써진다.
   const initializedSpaceIdRef = useRef<number | null>(null);
   const [panoramaScenes, setPanoramaScenes] = useState<PanoramaTourScene[]>([]);
+  const [rooms, setRooms] = useState<RoomDraft[]>([]);
+  const initializedRoomSpaceIdRef = useRef<number | null>(null);
   const [bookingType, setBookingType] = useState<BookingType>("INTERNAL");
   const [externalBookingUrl, setExternalBookingUrl] = useState("");
   const [bookingRules, setBookingRules] = useState<BookingRulesState>(createInitialBookingRules);
@@ -124,6 +130,25 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setBookingRules(bookingRulesFromSpace(space));
     });
   }, [spaceQuery.data, spaceId]);
+
+  useEffect(() => {
+    if (!roomsQuery.isSuccess || initializedRoomSpaceIdRef.current === spaceId) return;
+    initializedRoomSpaceIdRef.current = spaceId;
+    const saved = roomsQuery.data;
+    queueMicrotask(() => setRooms(saved.map(roomToDraft).filter((draft): draft is RoomDraft => draft !== null)));
+  }, [roomsQuery.isSuccess, roomsQuery.data, spaceId]);
+
+  function handlePanoramaScenesChange(scenes: PanoramaTourScene[]) {
+    setPanoramaScenes(scenes);
+    // 장면을 지우거나 사진을 바꾸면 그 장면으로 만든 3D 방도 뺀다.
+    setRooms((current) => keepRoomsForScenes(current, scenes));
+  }
+
+  const roomsChanged = (() => {
+    if (!roomsQuery.isSuccess) return false;
+    const plan = planRoomSaves(rooms, roomsQuery.data, panoramaScenes);
+    return plan.create.length + plan.update.length + plan.remove.length > 0;
+  })();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -202,6 +227,16 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         // 외부 예약 공간은 예약 규칙 칸을 숨기므로 건드리지 않는다.
         ...(bookingType === "EXTERNAL" ? {} : toBookingRulesRequest(bookingRules, usageUnit, "update")),
       });
+
+      if (roomsQuery.isSuccess) {
+        const plan = planRoomSaves(rooms, roomsQuery.data, panoramaScenes);
+        for (const roomId of plan.remove) await deleteRoom(spaceId, roomId);
+        for (const { roomId, request } of plan.update) await updateRoom(spaceId, roomId, request);
+        for (const request of plan.create) await createRoom(spaceId, request);
+        if (plan.remove.length + plan.update.length + plan.create.length > 0) {
+          await queryClient.invalidateQueries({ queryKey: ["space-rooms", spaceId] });
+        }
+      }
 
       await queryClient.invalidateQueries({ queryKey: ["space", spaceId] });
       await Promise.all(targetIds.map((id) => queryClient.invalidateQueries({ queryKey: ["space", id] })));
@@ -346,11 +381,24 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
 
         <PanoramaPhotoField
           value={panoramaScenes}
-          onChange={setPanoramaScenes}
+          onChange={handlePanoramaScenesChange}
           title={name.trim() || "공간"}
           disabled={submitting}
           saveHint
         />
+
+        {panoramaScenes.length > 0 && roomsQuery.isSuccess && (
+          <div className="sm:col-span-2">
+            <RoomField
+              scenes={panoramaScenes}
+              value={rooms}
+              onChange={setRooms}
+              title={name.trim() || "공간"}
+              disabled={submitting}
+              saveHint={roomsChanged}
+            />
+          </div>
+        )}
 
         {error && (
           <p className="shadow-[inset_3px_0_0_var(--coral)] bg-wash px-4.5 py-3 text-[0.88rem] text-coral sm:col-span-2">

@@ -22,6 +22,7 @@ import {
 } from "../model";
 import { PlanEditor, type PlanShape } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
+import { ViewSwitch } from "./ViewSwitch";
 import { useLayoutDetection } from "./useLayoutDetection";
 
 /** 높이 입력 — 타이핑 중엔 자유롭게 두고, 칸을 벗어나거나 Enter를 누를 때 범위 안으로 맞춰 반영한다. */
@@ -216,9 +217,8 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
           <span className="font-mono text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">3D Room</span>
           <h2 className="truncate section-title text-ink">3D 방 만들기 — {sceneLabel}</h2>
         </div>
-        <button type="button" onClick={onClose} disabled={detecting} className="button button--outline shrink-0">
-          <IconX size={18} stroke={2} aria-hidden />
-          닫기
+        <button type="button" onClick={onClose} disabled={detecting} aria-label="닫기" className="button button--outline button--sm button--icon shrink-0">
+          <IconX size={16} stroke={2} aria-hidden />
         </button>
       </div>
 
@@ -241,71 +241,53 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
             className="absolute inset-0"
           />
         )}
-        <div className="absolute right-3 top-3 flex gap-1" role="group" aria-label="시점">
-          <button
-            type="button"
-            onClick={() => setView("photo")}
-            aria-pressed={view === "photo"}
-            className={cn("button min-h-9 px-3 py-1.5", view === "photo" ? "button--primary" : "button--outline")}
-          >
-            <IconView360 size={16} stroke={2} aria-hidden />
-            사진 시점
-          </button>
-          <button
-            type="button"
-            onClick={() => setView("miniature")}
-            disabled={!summary}
-            aria-pressed={view === "miniature"}
-            className={cn("button min-h-9 px-3 py-1.5", view === "miniature" ? "button--primary" : "button--outline")}
-          >
-            <IconCube size={16} stroke={2} aria-hidden />
-            미니어처
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setView("plan");
-              setPickMode("corners");
-            }}
-            disabled={!summary}
-            aria-pressed={view === "plan"}
-            className={cn("button min-h-9 px-3 py-1.5", view === "plan" ? "button--primary" : "button--outline")}
-          >
-            <IconLayoutBoard size={16} stroke={2} aria-hidden />
-            도면
-          </button>
-        </div>
+        <ViewSwitch
+          options={[
+            { id: "photo", label: "사진 시점", icon: IconView360 },
+            { id: "miniature", label: "미니어처", icon: IconCube, disabled: !summary },
+            { id: "plan", label: "도면", icon: IconLayoutBoard, disabled: !summary },
+          ]}
+          value={view}
+          onChange={(next) => {
+            setView(next);
+            if (next !== "photo") setPickMode("corners");
+          }}
+          floating
+          className="absolute right-3 top-3"
+        />
       </div>
 
-      <p className="text-sm text-soft" aria-live="polite">
+      <p className="min-h-5 text-sm text-soft" aria-live="polite">
         {detection.state.status === "running"
           ? detection.state.queued ? "차례를 기다리는 중이에요…" : "사진에서 방 모서리를 찾는 중이에요. 10초쯤 걸려요."
           : detection.state.status === "failed" ? detection.state.message : hint ?? guide}
       </p>
 
       <div className="flex flex-wrap items-center gap-2" role="toolbar" aria-label="모서리 편집">
-        <button type="button" onClick={handleDetect} disabled={detecting} className="button button--outline">
-          <IconSparkles size={18} stroke={2} aria-hidden />
-          {detecting ? "찾는 중…" : "자동으로 모서리 찾기"}
+        <button type="button" onClick={handleDetect} disabled={detecting} className="button button--primary button--sm min-w-[148px]">
+          <IconSparkles size={15} stroke={2} aria-hidden />
+          {detecting ? "찾는 중…" : "자동으로 찾기"}
         </button>
-        <span className="mx-1 h-6 w-px bg-line" aria-hidden />
-        <button type="button" onClick={undo} disabled={detecting || !canUndo} className="button button--outline">
-          <IconArrowBackUp size={18} stroke={2} aria-hidden />
+        <span className="mx-1 h-5 w-px bg-line" aria-hidden />
+        <button type="button" onClick={undo} disabled={detecting || !canUndo} className="button button--outline button--sm">
+          <IconArrowBackUp size={15} stroke={2} aria-hidden />
           되돌리기
         </button>
-        <button type="button" onClick={clearCorners} disabled={detecting || draft.corners.length === 0} className="button button--outline">
-          <IconRefresh size={18} stroke={2} aria-hidden />
+        <button type="button" onClick={clearCorners} disabled={detecting || draft.corners.length === 0} className="button button--outline button--sm">
+          <IconRefresh size={15} stroke={2} aria-hidden />
           처음부터
         </button>
+        {/* 켜고 끄는 버튼 — 문구는 그대로 두고 눌린 상태만 바꿔 폭이 변하지 않게 */}
         <button
           type="button"
           onClick={toggleCeilingMeasure}
           disabled={detecting || draft.corners.length === 0}
           aria-pressed={pickMode === "ceiling"}
-          className={cn("button", pickMode === "ceiling" ? "button--primary" : "button--outline")}
+          title="사진에서 천장 모서리를 눌러 천장 높이를 재요"
+          className={cn("button button--sm", pickMode === "ceiling" ? "button--primary" : "button--outline")}
         >
-          <IconRuler2 size={18} stroke={2} aria-hidden />
-          {pickMode === "ceiling" ? "재기 그만두기" : "천장 모서리를 눌러 재기"}
+          <IconRuler2 size={15} stroke={2} aria-hidden />
+          천장 높이 재기
         </button>
       </div>
 
@@ -358,8 +340,10 @@ export function RoomBuilderModal({ scene, sceneLabel, initialDraft, title, onCon
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center justify-end gap-2">
-        {validationError && draft.corners.length >= 3 && <span className="mr-auto text-sm text-soft">{validationError}</span>}
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t border-line pt-4">
+        <span className="mr-auto min-h-5 text-sm text-soft" aria-live="polite">
+          {validationError && draft.corners.length >= 3 ? validationError : ""}
+        </span>
         <button type="button" onClick={onClose} disabled={detecting} className="button button--outline">취소</button>
         <button
           type="button"

@@ -288,6 +288,21 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 .button--light { border-color: white; background: white; color: var(--ink); }
 .button--light:hover { background: transparent; color: white; }
 .button:disabled { cursor: not-allowed; opacity: .5; }
+/* 작은 버튼 — 도구 막대·패널 안에서. 같은 줄에는 같은 크기만 둔다. --icon은 아이콘만 있는 정사각형. */
+.button--sm { min-height: 36px; gap: 6px; padding: 6px 12px; font-size: .8125rem; }
+.button--icon { width: 36px; padding-inline: 0; }
+/* 붙어 있는 선택(시점 전환 등) — 칸을 나눠 쓰고 고른 칸만 잉크 바탕이라, 항목이 바뀌어도 크기가 그대로다. */
+.segmented { display: inline-flex; border: 1px solid var(--line-2); background: white; }
+.segmented__item { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 6px; padding: 6px 12px; font-size: .8125rem; font-weight: 700; line-height: 1.4; white-space: nowrap; color: var(--soft); transition: background-color 160ms, color 160ms; }
+.segmented__item + .segmented__item { border-left: 1px solid var(--line); }
+.segmented__item:hover:not(:disabled) { background: var(--wash); color: var(--ink); }
+.segmented__item[aria-pressed="true"] { background: var(--ink); color: white; }
+.segmented__item:disabled { cursor: not-allowed; opacity: .4; }
+/* 밑줄 탭 — 같은 화면 안에서 대상(방 등)을 바꿀 때. 버튼처럼 테두리를 두르지 않아 가볍다. */
+.tabs { display: flex; gap: 4px; overflow-x: auto; }
+.tabs__item { flex-shrink: 0; border-bottom: 2px solid transparent; padding: 10px 12px; font-size: .875rem; font-weight: 600; white-space: nowrap; color: var(--soft); transition: color 160ms, border-color 160ms; }
+.tabs__item:hover { color: var(--ink); }
+.tabs__item[aria-current="true"] { border-bottom-color: var(--ink); color: var(--ink); }
 .landing-top .button { min-height: 46px; padding: 11px 20px; font-size: .95rem; }
 .landing-page > section, .landing-page > footer, .landing-top, .landing-explore, .landing-page > div > section { padding-inline: max(20px, calc((100% - 1280px) / 2)); }
 @media (prefers-reduced-motion: reduce) {

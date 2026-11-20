@@ -1,7 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { IconCube } from "@tabler/icons-react";
+import { IconCube, IconTrash } from "@tabler/icons-react";
+import { cn } from "@/shared/lib";
 import { MAX_ROOMS_PER_SPACE } from "@/entities/room";
 import type { PanoramaTourScene } from "@/widgets/panorama/model";
 import { roomPlacement, setRoomForScene, summarizeRoom, type RoomDraft } from "../model";
@@ -45,7 +46,7 @@ export function RoomField({ scenes, value, onChange, title, disabled = false, sa
           const summary = room ? summarizeRoom(room) : null;
           const { name } = roomPlacement(scenes, scene.image_url);
           return (
-            <li key={`${scene.image_url}-${index}`} className="flex flex-wrap items-center gap-2 p-3">
+            <li key={`${scene.image_url}-${index}`} className="flex items-center gap-2 py-2.5 pl-3 pr-2">
               <div className="min-w-0 flex-1">
                 <span className="block truncate text-sm font-semibold text-ink">{name}</span>
                 <span className="block text-xs text-soft">
@@ -54,24 +55,26 @@ export function RoomField({ scenes, value, onChange, title, disabled = false, sa
                     : "아직 3D 방이 없어요"}
                 </span>
               </div>
+              {/* 줄마다 같은 자리·같은 폭 — 방이 없는 줄도 빼기 칸을 비워 둬서 버튼이 줄을 맞춘다.
+                  바로 위 360° 장면 칸과 같은 기본 크기(44px)를 쓴다. */}
               <button
                 type="button"
                 disabled={disabled || (!room && limitReached)}
                 onClick={() => setEditing(scene.image_url)}
-                className="button button--outline"
+                className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}
               >
                 {room ? "고치기" : "3D 방 만들기"}
               </button>
-              {room && (
-                <button
-                  type="button"
-                  disabled={disabled}
-                  onClick={() => onChange(setRoomForScene(value, scene.image_url, null))}
-                  className="button button--danger"
-                >
-                  빼기
-                </button>
-              )}
+              <button
+                type="button"
+                disabled={disabled || !room}
+                onClick={() => onChange(setRoomForScene(value, scene.image_url, null))}
+                aria-label={`${name} 3D 방 빼기`}
+                title="3D 방 빼기"
+                className={cn("button button--outline w-11 px-0", !room && "invisible")}
+              >
+                <IconTrash size={16} stroke={2} aria-hidden />
+              </button>
             </li>
           );
         })}

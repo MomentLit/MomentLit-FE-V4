@@ -251,21 +251,21 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
         {(hasPanorama || showRoomButton) && (
           <div className="absolute right-4 top-4 z-10 flex flex-wrap justify-end gap-2 sm:right-6 sm:top-6">
             {canMakeRoom && (
-              <Link href={`/spaces/${space.space_id}/rooms`} className="button button--outline">
+              <Link href={`/spaces/${space.space_id}/rooms`} aria-label="3D 방 만들기" title="3D 방 만들기" className="button button--outline">
                 <IconCube size={18} stroke={2} aria-hidden />
-                3D 방 만들기
+                <span className="hidden sm:inline">3D 방 만들기</span>
               </Link>
             )}
             {hasRoom && (
-              <Link href={`/spaces/${space.space_id}/room`} className="button button--outline">
+              <Link href={`/spaces/${space.space_id}/room`} aria-label="3D로 보기" title="3D로 보기" className="button button--outline">
                 <IconCube size={18} stroke={2} aria-hidden />
-                3D로 보기
+                <span className="hidden sm:inline">3D로 보기</span>
               </Link>
             )}
             {hasPanorama && (
-              <button type="button" onClick={() => setPanoramaOpen(true)} className="button button--outline">
+              <button type="button" onClick={() => setPanoramaOpen(true)} aria-label="360° 보기" title="360° 보기" className="button button--outline">
                 <IconView360 size={18} stroke={2} aria-hidden />
-                360° 보기
+                <span className="hidden sm:inline">360° 보기</span>
               </button>
             )}
           </div>
@@ -273,8 +273,8 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
         <span
           className={cn(
             "relative font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em]",
-            // 오른쪽 위 버튼(360° 보기·3D로 보기)과 겹치지 않게
-            hasPanorama && showRoomButton ? "pr-64" : (hasPanorama || showRoomButton) && "pr-32",
+            // 오른쪽 위 버튼(360° 보기·3D로 보기)과 겹치지 않게 — 좁은 화면에선 버튼이 아이콘만 보인다
+            hasPanorama && showRoomButton ? "pr-32 sm:pr-64" : (hasPanorama || showRoomButton) && "pr-16 sm:pr-32",
             hasPhoto && "text-white",
           )}
         >

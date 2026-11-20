@@ -20,6 +20,7 @@ import { FURNITURE_CATALOG, findFurniture, normalizeRotation } from "../lib/furn
 import { polygonArea, toPyeong, wallLengths } from "../lib/geometry";
 import type { RoomStageState, RoomView } from "../lib/stage";
 import { roomPlanFloorImage } from "../planModel";
+import { PanelSection as Section, PanelToggleButton } from "./EditorChrome";
 import { LayoutsPanel } from "./LayoutsPanel";
 import { RoomPlanView } from "./RoomPlanView";
 import { RoomStageCanvas } from "./RoomStageCanvas";
@@ -44,15 +45,6 @@ const VIEW_GUIDE: Record<ViewerView, string> = {
 
 function isTypingTarget(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName));
-}
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3 border-b border-line p-4 last:border-b-0">
-      <h2 className="text-sm font-bold text-ink">{title}</h2>
-      {children}
-    </section>
-  );
 }
 
 /** 이 화면에서 그릴 수 있는 방 — 파노라마 방은 사진과 촬영 높이, 도면 방은 도면 정보가 있어야 한다. */
@@ -150,6 +142,8 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
   const [hint, setHint] = useState<string | null>(null);
   const layouts = useFurnitureLayouts(spaceId, room.room_id);
   const { items, setItems } = layouts;
+  // 오른쪽 정보 칸 — 접으면 3D 화면을 넓게 쓴다
+  const [panelOpen, setPanelOpen] = useState(true);
   // 도면으로 만든 방은 사진이 없어 사진 시점이 없고, 벽은 무늬 없는 색·바닥엔 도면(호스트가 켰으면)을 깐다
   const isPlan = room.source === "PLAN";
   const floorImage = isPlan && room.geometry.plan?.show_floor ? roomPlanFloorImage(room) : null;
@@ -248,13 +242,16 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
           options={views}
           value={view}
           onChange={changeView}
-          className="w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
+          className="order-3 w-full sm:order-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
         />
+        <div className="order-2 sm:order-3">
+          <PanelToggleButton open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} />
+        </div>
       </ViewerHeader>
       <RoomTabs rooms={rooms} activeId={room.room_id} onChange={onRoomChange} />
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="relative h-[58dvh] shrink-0 lg:h-auto lg:flex-1">
+        <div className={cn("relative shrink-0 lg:h-auto lg:flex-1", panelOpen ? "h-[58dvh]" : "min-h-0 flex-1")}>
           <RoomStageCanvas
             imageUrl={isPlan ? null : room.image_url!}
             state={stageState}
@@ -315,8 +312,9 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
           </p>
         </div>
 
-        <aside className="flex flex-col overflow-y-auto border-line lg:w-[360px] lg:shrink-0 lg:border-l">
-          <Section title="가구 놓기">
+        {panelOpen && (
+        <aside className="flex flex-col overflow-y-auto border-line lg:w-[340px] lg:shrink-0 lg:border-l">
+          <Section title="가구 놓기" summary={items.length > 0 ? `${items.length}개 놓음` : undefined}>
             <div className="grid grid-cols-2 gap-2" role="toolbar" aria-label="가구 목록">
               {FURNITURE_CATALOG.map((def) => (
                 <button
@@ -337,11 +335,11 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
             </p>
           </Section>
 
-          <Section title="내 배치">
+          <Section title="내 배치" summary={layouts.active ? `‘${layouts.active.name}’${layouts.dirty ? " · 저장 안 됨" : ""}` : layouts.dirty ? "새 배치 · 저장 안 됨" : undefined}>
             <LayoutsPanel layouts={layouts} />
           </Section>
 
-          <Section title={rooms.length > 1 ? `방 정보 — ${room.name}` : "방 정보"}>
+          <Section title={rooms.length > 1 ? `방 정보 — ${room.name}` : "방 정보"} summary={`${area.toFixed(1)}㎡ · 약 ${toPyeong(area).toFixed(1)}평`}>
             <p className="text-2xl font-bold text-ink">
               {area.toFixed(1)}㎡ <span className="text-base font-semibold text-soft">약 {toPyeong(area).toFixed(1)}평</span>
             </p>
@@ -356,6 +354,7 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
             </ul>
           </Section>
         </aside>
+        )}
       </div>
     </>
   );

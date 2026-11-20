@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from "react";
 import {
   IconArrowsMaximize,
   IconBorderOuter,
@@ -9,7 +9,6 @@ import {
   IconPointer,
   IconRuler2,
   IconTrash,
-  type IconProps,
 } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
@@ -23,6 +22,7 @@ import {
   snapPoint,
   type Segment,
 } from "../lib/planEdit";
+import { RailButton, RailDivider, ToolRail, type ToolIcon } from "./EditorChrome";
 
 type Selection =
   | { kind: "outer"; index: number }
@@ -47,8 +47,6 @@ export interface PlanShape {
  */
 export type PlanDrawMode = "none" | "outer" | "inner" | "point" | "scale";
 
-type ToolIcon = ComponentType<IconProps>;
-
 /** 왼쪽 도구 막대의 동작 버튼(자동 인식·되돌리기 등 — 도구를 바꾸지 않고 한 번 실행). */
 export interface PlanTool {
   id: string;
@@ -67,33 +65,6 @@ const MODE_TOOLS: Record<PlanDrawMode, { label: string; icon: ToolIcon }> = {
   scale: { label: "기준 길이 재기", icon: IconRuler2 },
 };
 
-/** 도구 막대 버튼 — 아이콘만 보이고, 마우스를 올리면 오른쪽에 이름이 뜬다. */
-function RailButton({ label, icon: Icon, active = false, disabled = false, onClick }: {
-  label: string;
-  icon: ToolIcon;
-  active?: boolean;
-  disabled?: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      aria-label={label}
-      aria-pressed={active}
-      className={cn(
-        "group relative flex size-9 items-center justify-center transition-colors disabled:cursor-not-allowed disabled:opacity-35",
-        active ? "bg-ink text-white" : "text-ink hover:bg-wash",
-      )}
-    >
-      <Icon size={18} stroke={1.8} aria-hidden />
-      <span className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 hidden -translate-y-1/2 whitespace-nowrap bg-ink px-2 py-1 text-xs font-medium text-white group-hover:block group-focus-visible:block">
-        {label}
-      </span>
-    </button>
-  );
-}
 
 /** 바닥 평면(m)에 깔 도면 이미지. */
 export interface PlanBackground {
@@ -108,6 +79,9 @@ export interface PlanBackground {
 const CLOSE_PX = 12;
 /** 안쪽 벽 끝을 기존 점·바깥벽에 붙이는 거리(px). */
 const STICK_PX = 12;
+
+/** 화면 맞춤 때 왼쪽 도구 막대 몫으로 비워 두는 폭(px). */
+const RAIL_RESERVE_PX = 56;
 
 /** 화면에서 끌기·스냅 허용 거리(px). */
 const SNAP_PX = 8;
@@ -244,12 +218,22 @@ export function PlanEditor({
   // 처음 그릴 때 화면 비율에 맞춰 방이 꽉 차게
   const fit = useCallback(() => {
     const svg = svgRef.current;
-    const aspect = svg && svg.clientHeight > 0 ? svg.clientWidth / svg.clientHeight : 1.6;
+    const width = svg?.clientWidth ?? 0;
+    const height = svg?.clientHeight ?? 0;
+    // 왼쪽 도구 막대 자리를 비우고 나머지 폭에 맞춘다(좁은 화면에서 막대가 벽을 가리지 않게)
+    const usable = width - RAIL_RESERVE_PX;
+    const aspect = height > 0 && usable > 0 ? usable / height : 1.6;
     // 바깥벽이 아직 없으면 도면 이미지 전체가 보이게
     const target: Vec2[] = outer.length >= 2 || !background
       ? outer.map((p) => [p[0], p[1]])
       : [[background.x, background.z], [background.x + background.width, background.z + background.height]];
-    setView(fitView(target, aspect));
+    const fitted = fitView(target, aspect);
+    if (!(usable > 0)) {
+      setView(fitted);
+      return;
+    }
+    const w = (fitted.w * width) / usable;
+    setView({ ...fitted, x: fitted.x - (w - fitted.w), w });
   }, [outer, background]);
   const fittedRef = useRef(false);
   useEffect(() => {
@@ -864,7 +848,7 @@ export function PlanEditor({
         )}
 
         {/* 왼쪽 도구 막대 — 도구(고르기·그리기·점 추가·축척), 동작(자동 인식·되돌리기 등), 화면 맞춤 */}
-        <div role="toolbar" aria-label="도면 편집 도구" aria-orientation="vertical" className="absolute left-3 top-3 flex flex-col border border-line bg-white shadow-[0_2px_10px_rgba(21,23,28,.12)]">
+        <ToolRail label="도면 편집 도구">
           {modes.map((mode) => (
             <RailButton
               key={mode}
@@ -875,7 +859,7 @@ export function PlanEditor({
               onClick={() => changeMode(drawMode === mode && mode !== "none" ? "none" : mode)}
             />
           ))}
-          {actions.length > 0 && <span className="mx-1.5 my-1 h-px bg-line" aria-hidden />}
+          {actions.length > 0 && <RailDivider />}
           {actions.map((action) => (
             <RailButton
               key={action.id}
@@ -885,9 +869,9 @@ export function PlanEditor({
               onClick={action.onClick}
             />
           ))}
-          <span className="mx-1.5 my-1 h-px bg-line" aria-hidden />
+          <RailDivider />
           <RailButton label="화면 맞춤" icon={IconArrowsMaximize} onClick={fit} />
-        </div>
+        </ToolRail>
 
         {/* 도구 막대 옆 — 고른 벽·점 고치기, 또는 부모가 넘긴 칸(축척 입력 등) */}
         {current && selectionTitle ? (
@@ -931,8 +915,8 @@ export function PlanEditor({
         ) : null}
       </div>
 
-      <div className="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-t border-line px-3">
-        <span className="truncate text-sm text-soft">
+      <div className="flex min-h-11 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-t border-line px-3 py-2">
+        <span className="line-clamp-2 min-w-0 flex-1 text-sm text-soft">
           {drawMode === "outer"
             ? closed ? "바깥벽이 닫혔어요."
               : outerPaused ? "끊었어요. 첫 점이나 마지막 점을 눌러 거기서 이어 그려요 (Esc로 그리기 끝내기)"
@@ -947,7 +931,7 @@ export function PlanEditor({
                   ? scalePoints.length < 2 ? `치수가 적힌 구간의 양 끝을 누르세요 (${scalePoints.length}/2)` : "실제 길이를 mm로 넣어 주세요"
                   : "벽을 누르면 길이(mm)를 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요."}
         </span>
-        {message && <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-soft" aria-live="polite">{message}</span>}
+        {message && <span className="shrink-0 text-xs text-soft" aria-live="polite">{message}</span>}
       </div>
     </div>
   );

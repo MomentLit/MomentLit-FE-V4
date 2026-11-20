@@ -45,7 +45,7 @@ export function RoomManager({ spaceId, justCreated = false }: { spaceId: number;
       {justCreated && (
         <div className="flex flex-wrap items-center gap-3 border-l-4 border-ink bg-wash px-4.5 py-3.5">
           <p className="min-w-0 flex-1 text-sm text-ink">
-            공간을 등록했어요. 360° 장면마다 3D 방을 만들면 손님이 미니어처·1인칭으로 둘러보고 가구를 놓아 볼 수 있어요.
+            공간을 등록했어요. 360° 장면이나 평면 도면으로 3D 방을 만들면 손님이 둘러보고 가구를 놓아 볼 수 있어요.
           </p>
           <Link href={`/spaces/${spaceId}`} className="inline-flex items-center gap-1 text-sm font-semibold text-soft hover:text-ink">
             나중에 할게요

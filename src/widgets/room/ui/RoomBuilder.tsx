@@ -1,9 +1,19 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState } from "react";
 import { getErrorMessage } from "@/shared/api";
 import Link from "next/link";
-import { IconArrowBackUp, IconArrowLeft, IconCube, IconLayoutBoard, IconRefresh, IconRuler2, IconSparkles, IconView360 } from "@tabler/icons-react";
+import {
+  IconArrowBackUp,
+  IconArrowLeft,
+  IconCube,
+  IconEraser,
+  IconLayoutBoard,
+  IconRuler2,
+  IconVectorTriangle,
+  IconView360,
+  IconWand,
+} from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
 import type { PanoramaTourScene } from "@/widgets/panorama/model";
 import { directionToUv, floorCornersFromLayout, measureCeilingHeight, outerFromCorners, round, type Vec2 } from "../lib/geometry";
@@ -21,19 +31,11 @@ import {
   type RoomDraft,
 } from "../model";
 import { HeightField } from "./HeightField";
-import { PlanEditor, type PlanShape } from "./PlanEditor";
+import { PanelSection as Section, PanelToggleButton, RailButton, RailDivider, ToolRail } from "./EditorChrome";
+import { PlanEditor, type PlanShape, type PlanTool } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { ViewSwitch } from "./ViewSwitch";
 import { useLayoutDetection } from "./useLayoutDetection";
-
-function Section({ title, children }: { title: string; children: ReactNode }) {
-  return (
-    <section className="flex flex-col gap-3 border-b border-line p-4">
-      <h2 className="text-sm font-bold text-ink">{title}</h2>
-      {children}
-    </section>
-  );
-}
 
 /**
  * 호스트가 360° 장면 하나로 실제 크기의 3D 방을 만드는 화면(`/spaces/{id}/rooms/edit`, 사이드바 없는 전체 화면).
@@ -65,6 +67,8 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
   const [canUndo, setCanUndo] = useState(false);
   const [pickMode, setPickMode] = useState<PickMode>("corners");
   const [hint, setHint] = useState<string | null>(null);
+  // 오른쪽 정보 칸 — 접으면 사진·미니어처를 넓게 쓴다
+  const [panelOpen, setPanelOpen] = useState(true);
   const detection = useLayoutDetection();
   const detecting = detection.state.status === "running";
 
@@ -171,7 +175,9 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
     : pickMode === "ceiling"
     ? "천장과 벽이 만나는 모서리를 눌러 주세요."
     : draft.corners.length < 3
-      ? `바닥과 벽이 만나는 모서리를 차례대로 눌러 주세요 (${draft.corners.length}개). 찍은 점은 끌어서 옮길 수 있어요.`
+      ? draft.corners.length === 0
+        ? "바닥과 벽이 만나는 모서리를 차례대로 누르거나, 왼쪽 도구의 ‘자동으로 모서리 찾기’를 눌러 보세요."
+        : `바닥 모서리를 계속 눌러 주세요 (${draft.corners.length}개). 찍은 점은 끌어서 옮길 수 있어요.`
       : `모서리 ${draft.corners.length}개 — 미니어처로 방 모양을 확인해 보세요.`;
 
   async function handleSave() {
@@ -181,11 +187,26 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
       await onSave(draft);
     } catch (error) {
       setSaveError(getErrorMessage(error));
+      setPanelOpen(true);
       setSaving(false);
     }
   }
 
   const busy = detecting || saving;
+  // 한 번 실행하는 동작 — 사진·미니어처에선 왼쪽 도구 막대, 도면 보기에선 도면 편집기 도구 막대에 넣는다
+  const actions: PlanTool[] = [
+    {
+      id: "detect",
+      label: draft.corners.length > 0 ? "모서리 다시 자동으로 찾기" : "자동으로 모서리 찾기",
+      icon: IconWand,
+      onClick: () => void handleDetect(),
+      disabled: saving,
+      busy: detecting,
+    },
+    { id: "undo", label: "되돌리기", icon: IconArrowBackUp, onClick: undo, disabled: busy || !canUndo },
+    { id: "clear", label: "모서리 처음부터", icon: IconEraser, onClick: clearCorners, disabled: busy || draft.corners.length === 0 },
+  ];
+  const statusText = saveError ?? (validationError && draft.corners.length >= 3 ? validationError : null);
   const status = detection.state.status === "running"
     ? detection.state.queued ? "차례를 기다리는 중이에요…" : "사진에서 방 모서리를 찾는 중이에요. 10초쯤 걸려요."
     : detection.state.status === "failed" ? detection.state.message : hint ?? guide;
@@ -211,12 +232,25 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
             setView(next);
             if (next !== "photo") setPickMode("corners");
           }}
-          className="w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
+          className="order-3 w-full sm:order-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
         />
+        {/* 좁은 화면에선 제목 줄 오른쪽에, 시점 바꾸기는 다음 줄 전체 폭으로 */}
+        <div className="order-2 flex items-center gap-2 sm:order-3">
+          <PanelToggleButton open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} />
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={busy || validationError !== null}
+            title={validationError ?? undefined}
+            className="button button--primary button--sm"
+          >
+            {saving ? "저장 중…" : "저장"}
+          </button>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="relative h-[55dvh] shrink-0 lg:h-auto lg:flex-1">
+        <div className={cn("relative shrink-0 lg:h-auto lg:flex-1", panelOpen ? "h-[55dvh]" : "min-h-0 flex-1")}>
           <RoomStageCanvas
             imageUrl={draft.imageUrl}
             state={stageState}
@@ -232,8 +266,40 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
               outer={summary.outer}
               onChange={handlePlanChange}
               ceilingHeight={draft.ceilingHeight}
+              actions={actions}
               className="absolute inset-0"
             />
+          )}
+          {view !== "plan" && (
+            <ToolRail label="모서리 편집 도구">
+              <RailButton
+                label="바닥 모서리 찍기"
+                icon={IconVectorTriangle}
+                active={view === "photo" && pickMode === "corners"}
+                disabled={busy}
+                onClick={() => {
+                  setView("photo");
+                  setPickMode("corners");
+                  setHint(null);
+                }}
+              />
+              <RailButton
+                label="천장 재기"
+                icon={IconRuler2}
+                active={view === "photo" && pickMode === "ceiling"}
+                disabled={busy || draft.corners.length === 0}
+                onClick={toggleCeilingMeasure}
+              />
+              <RailDivider />
+              <RailButton
+                label={detecting ? "모서리 찾는 중…" : draft.corners.length > 0 ? "모서리 다시 자동으로 찾기" : "자동으로 모서리 찾기"}
+                icon={IconWand}
+                disabled={busy}
+                onClick={() => void handleDetect()}
+              />
+              <RailButton label="되돌리기" icon={IconArrowBackUp} disabled={busy || !canUndo} onClick={undo} />
+              <RailButton label="모서리 처음부터" icon={IconEraser} disabled={busy || draft.corners.length === 0} onClick={clearCorners} />
+            </ToolRail>
           )}
           {view !== "plan" && (
             <p
@@ -245,42 +311,16 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
           )}
         </div>
 
-        <aside className="flex min-h-0 flex-col border-line lg:w-[360px] lg:shrink-0 lg:border-l">
-          <div className="flex-1 overflow-y-auto">
-            <Section title="바닥 모서리">
-              <button type="button" onClick={handleDetect} disabled={busy} className="button button--primary button--sm w-full">
-                <IconSparkles size={15} stroke={2} aria-hidden />
-                {detecting ? "찾는 중…" : "자동으로 모서리 찾기"}
-              </button>
-              <div className="grid grid-cols-3 gap-2" role="toolbar" aria-label="모서리 편집">
-                <button type="button" onClick={undo} disabled={busy || !canUndo} className="button button--outline button--sm">
-                  <IconArrowBackUp size={15} stroke={2} aria-hidden />
-                  되돌리기
-                </button>
-                <button type="button" onClick={clearCorners} disabled={busy || draft.corners.length === 0} className="button button--outline button--sm">
-                  <IconRefresh size={15} stroke={2} aria-hidden />
-                  처음부터
-                </button>
-                {/* 켜고 끄는 버튼 — 문구는 그대로 두고 눌린 상태만 바꿔 폭이 변하지 않게 */}
-                <button
-                  type="button"
-                  onClick={toggleCeilingMeasure}
-                  disabled={busy || draft.corners.length === 0}
-                  aria-pressed={pickMode === "ceiling"}
-                  title="사진에서 천장 모서리를 눌러 천장 높이를 재요"
-                  className={cn("button button--sm", pickMode === "ceiling" ? "button--primary" : "button--outline")}
-                >
-                  <IconRuler2 size={15} stroke={2} aria-hidden />
-                  천장 재기
-                </button>
+        {panelOpen && (
+          <aside className="flex min-h-0 flex-col overflow-y-auto border-line lg:w-[340px] lg:shrink-0 lg:border-l">
+            {(statusText || view === "plan") && (
+              <div className="flex flex-col gap-1 border-b border-line bg-wash px-4 py-3 text-sm" aria-live="polite">
+                {view === "plan" && <p className="text-ink">{status}</p>}
+                {statusText && <p className={saveError ? "text-coral" : "text-soft"}>{saveError ? statusText : `저장하려면 — ${statusText}`}</p>}
               </div>
-              {/* 사진 위 안내와 겹치지 않게 — 도면 시점(사진 위 안내가 없을 때)만 지금 상태를, 그 밖엔 사용법을 보여 준다 */}
-              <p className="min-h-10 text-xs leading-relaxed text-soft" aria-live="polite">
-                {view === "plan" ? status : "사진 시점에서 바닥과 벽이 만나는 모서리를 차례대로 누르거나 자동으로 찾아요. 찍은 점은 끌어서 옮기고, 도면에서 벽 길이를 수치로 고칠 수 있어요."}
-              </p>
-            </Section>
+            )}
 
-            <Section title="높이">
+            <Section title="높이" summary={`천장 ${draft.ceilingHeight.toFixed(2)}m · 촬영 ${draft.cameraHeight.toFixed(2)}m`}>
               <div className="flex gap-3">
                 <HeightField
                   label="천장 높이"
@@ -306,7 +346,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
               </p>
             </Section>
 
-            <Section title="방 정보">
+            <Section title="방 정보" summary={summary ? `${summary.areaM2.toFixed(1)}㎡ · 약 ${summary.areaPyeong.toFixed(1)}평` : undefined}>
               {summary ? (
                 <>
                   <p className="text-2xl font-bold text-ink">
@@ -326,23 +366,17 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
                 <p className="text-sm text-soft">바닥 모서리를 3개 이상 찍으면 면적과 벽 길이가 나와요.</p>
               )}
             </Section>
-          </div>
 
-          {/* 저장 — 패널 아래에 붙여 늘 보이게 */}
-          <div className="flex flex-col gap-2 border-t border-line p-4">
-            <p className="min-h-5 text-sm text-soft" aria-live="polite">
-              {saveError ?? (validationError && draft.corners.length >= 3 ? validationError : "")}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Link href={backHref} className={cn("button button--outline", busy && "pointer-events-none opacity-50")}>
-                취소
-              </Link>
-              <button type="button" onClick={() => void handleSave()} disabled={busy || validationError !== null} className="button button--primary">
-                {saving ? "저장 중…" : "저장"}
-              </button>
-            </div>
-          </div>
-        </aside>
+            <Section title="만드는 법" defaultOpen={false}>
+              <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-soft">
+                <li>도구는 화면 왼쪽 막대에 있어요. 마우스를 올리면 이름이 보여요.</li>
+                <li>‘자동으로 모서리 찾기’를 누르거나, 사진 시점에서 바닥과 벽이 만나는 모서리를 차례대로 눌러요. 찍은 점은 끌어서 옮겨요.</li>
+                <li>‘천장 재기’로 바닥 모서리 바로 위의 천장 모서리를 누르면 천장 높이가 맞춰져요.</li>
+                <li>도면 보기에서는 벽을 눌러 길이(mm)를 고치고, 점을 끌거나 ‘선 위에 점 추가’로 모양을 다듬어요.</li>
+              </ul>
+            </Section>
+          </aside>
+        )}
       </div>
     </div>
   );

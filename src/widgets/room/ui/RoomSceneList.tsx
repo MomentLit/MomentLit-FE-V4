@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useQueryClient } from "@tanstack/react-query";
-import { IconTrash } from "@tabler/icons-react";
+import { IconPlus, IconTrash } from "@tabler/icons-react";
 import { deleteRoom, MAX_ROOMS_PER_SPACE, type Room } from "@/entities/room";
 import { getErrorMessage } from "@/shared/api";
 import { cn } from "@/shared/lib";
@@ -81,28 +81,33 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
       <li key={key} className="flex min-h-16 items-center gap-2 py-2.5 pl-4 pr-3">
         <div className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-ink">{label}</span>
-          <span className="block text-xs text-soft">
+          {/* 항목 단위로만 줄을 바꾼다(좁은 화면에서 "천장 / 2.40m"처럼 끊기지 않게) */}
+          <span className="flex flex-wrap gap-x-1 text-xs text-soft">
             {room
-              ? summary
-                ? `${summary.areaM2.toFixed(1)}㎡ · 약 ${summary.areaPyeong.toFixed(1)}평 · 천장 ${room.ceiling_height.toFixed(2)}m`
-                : `${room.area_m2.toFixed(1)}㎡ · 약 ${room.area_pyeong.toFixed(1)}평 · 천장 ${room.ceiling_height.toFixed(2)}m`
+              ? [
+                `${(summary?.areaM2 ?? room.area_m2).toFixed(1)}㎡`,
+                `약 ${(summary?.areaPyeong ?? room.area_pyeong).toFixed(1)}평`,
+                `천장 ${room.ceiling_height.toFixed(2)}m`,
+              ].map((item, index) => (
+                <span key={item} className="whitespace-nowrap">{index > 0 && "· "}{item}</span>
+              ))
               : "아직 3D 방이 없어요"}
           </span>
         </div>
         {editHref && !disabled && (room || canCreate) && onOpen ? (
-          <button type="button" onClick={() => onOpen(editHref)} className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
+          <button type="button" onClick={() => onOpen(editHref)} className={cn("button w-28 shrink-0 whitespace-nowrap sm:w-32", room ? "button--outline" : "button--primary")}>
             {room ? "고치기" : "3D 방 만들기"}
           </button>
         ) : editHref && !disabled && (room || canCreate) ? (
-          <Link href={editHref} className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
+          <Link href={editHref} className={cn("button w-28 shrink-0 whitespace-nowrap sm:w-32", room ? "button--outline" : "button--primary")}>
             {room ? "고치기" : "3D 방 만들기"}
           </Link>
         ) : editHref ? (
-          <button type="button" disabled className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
+          <button type="button" disabled className={cn("button w-28 shrink-0 whitespace-nowrap sm:w-32", room ? "button--outline" : "button--primary")}>
             {room ? "고치기" : "3D 방 만들기"}
           </button>
         ) : (
-          <span className="w-[128px]" aria-hidden />
+          <span className="w-28 shrink-0 whitespace-nowrap sm:w-32" aria-hidden />
         )}
         {/* 줄마다 같은 자리 — 방이 없는 줄도 빼기 칸을 비워 둔다 */}
         <button
@@ -123,19 +128,21 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
     );
   }
 
+  // 만든 방 수 — 첫 제목 줄 오른쪽에
+  const counter = <span className="shrink-0 text-xs text-soft">3D 방 {rooms.length}/{MAX_ROOMS_PER_SPACE}</span>;
+
   return (
-    <div className="flex flex-col gap-3">
-      <div className="flex items-baseline justify-between">
-        <span className="text-xs text-soft">360° 장면이나 평면 도면으로 실제 크기의 3D 방을 만들어요.</span>
-        <span className="shrink-0 text-xs text-soft">3D 방 {rooms.length}/{MAX_ROOMS_PER_SPACE}</span>
-      </div>
+    <div className="flex flex-col gap-4">
       {locked && (
         <p className="border-l-4 border-ink bg-wash px-4 py-2.5 text-sm text-ink" role="status">{locked}</p>
       )}
 
       {scenes.length > 0 && (
         <div className="flex flex-col gap-2">
-          <h2 className="text-sm font-bold text-ink">360° 장면</h2>
+          <div className="flex items-baseline justify-between gap-3">
+            <h2 className="text-sm font-bold text-ink">360° 장면</h2>
+            {counter}
+          </div>
           <ul className="flex flex-col divide-y divide-line border border-line">
             {scenes.map((scene, index) => renderRow(
               `${scene.image_url}-${index}`,
@@ -148,7 +155,10 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
       )}
 
       <div className="flex flex-col gap-2">
-        <h2 className="text-sm font-bold text-ink">도면으로 만든 방</h2>
+        <div className="flex items-baseline justify-between gap-3">
+          <h2 className="text-sm font-bold text-ink">도면으로 만든 방</h2>
+          {scenes.length === 0 && counter}
+        </div>
         {planRooms.length > 0 && (
           <ul className="flex flex-col divide-y divide-line border border-line">
             {planRooms.map((room) => renderRow(String(room.room_id), room.name, room, planRoomBuilderHref(spaceId, room.room_id, returnTo)))}
@@ -157,7 +167,9 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
         {(() => {
           const href = planRoomBuilderHref(spaceId, null, returnTo);
           const className = "button button--outline w-full";
-          const label = limitReached ? `3D 방은 ${MAX_ROOMS_PER_SPACE}개까지 만들 수 있어요` : "도면으로 방 추가";
+          const label = limitReached
+            ? `3D 방은 ${MAX_ROOMS_PER_SPACE}개까지 만들 수 있어요`
+            : <><IconPlus size={16} stroke={2} aria-hidden />도면으로 방 추가</>;
           if (disabled || limitReached) return <button type="button" disabled className={className}>{label}</button>;
           if (onOpen) return <button type="button" onClick={() => onOpen(href)} className={className}>{label}</button>;
           return <Link href={href} className={className}>{label}</Link>;

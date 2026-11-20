@@ -109,21 +109,22 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
         ) : (
           <span className="w-28 shrink-0 whitespace-nowrap sm:w-32" aria-hidden />
         )}
-        {/* 줄마다 같은 자리 — 방이 없는 줄도 빼기 칸을 비워 둔다 */}
-        <button
-          type="button"
-          onClick={() => {
-            if (!room) return;
-            setError(null);
-            setConfirming({ room, label });
-          }}
-          disabled={!room || disabled}
-          aria-label={`${label} 3D 방 빼기`}
-          title="3D 방 빼기"
-          className={cn("button button--outline button--square", !room && "invisible")}
-        >
-          <IconTrash size={16} stroke={2} aria-hidden />
-        </button>
+        {/* 방이 있는 줄만 빼기 버튼 — 없는 줄은 '3D 방 만들기'가 오른쪽 끝에 붙는다 */}
+        {room && (
+          <button
+            type="button"
+            onClick={() => {
+              setError(null);
+              setConfirming({ room, label });
+            }}
+            disabled={disabled}
+            aria-label={`${label} 3D 방 빼기`}
+            title="3D 방 빼기"
+            className="button button--outline button--square"
+          >
+            <IconTrash size={16} stroke={2} aria-hidden />
+          </button>
+        )}
       </li>
     );
   }

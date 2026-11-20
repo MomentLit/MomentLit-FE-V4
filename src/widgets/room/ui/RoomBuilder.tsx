@@ -320,7 +320,10 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
                   천장 재기
                 </button>
               </div>
-              <p className="min-h-10 text-xs leading-relaxed text-soft" aria-live="polite">{view === "plan" ? status : guide}</p>
+              {/* 사진 위 안내와 겹치지 않게 — 도면 시점(사진 위 안내가 없을 때)만 지금 상태를, 그 밖엔 사용법을 보여 준다 */}
+              <p className="min-h-10 text-xs leading-relaxed text-soft" aria-live="polite">
+                {view === "plan" ? status : "사진 시점에서 바닥과 벽이 만나는 모서리를 차례대로 누르거나 자동으로 찾아요. 찍은 점은 끌어서 옮기고, 도면에서 벽 길이를 수치로 고칠 수 있어요."}
+              </p>
             </Section>
 
             <Section title="높이">

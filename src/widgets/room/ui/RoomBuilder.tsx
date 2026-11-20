@@ -27,11 +27,12 @@ import {
   summarizeRoom,
   validateRoomDraft,
   withCameraHeight,
+  innerToRelative,
   withCeilingHeight,
   type RoomDraft,
 } from "../model";
 import { HeightField } from "./HeightField";
-import { PanelSection as Section, PanelToggleButton, RailButton, RailDivider, ToolRail } from "./EditorChrome";
+import { PanelSection as Section, PanelToggleButton, RailButton, RailDivider, StepGuide, ToolRail, type GuideStep } from "./EditorChrome";
 import { PlanEditor, type PlanShape, type PlanTool } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { ViewSwitch } from "./ViewSwitch";
@@ -61,14 +62,17 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
   const [draft, setDraft] = useState<RoomDraft>(() => initialDraft ?? createRoomDraft(scene.image_url));
   // "plan" — 위에서 본 도면에서 벽 길이·꼭짓점을 수치로 고친다
   const [view, setView] = useState<RoomView | "plan">("photo");
-  // 되돌리기 기록(모서리 목록). 끌기처럼 잇따른 변경은 한 번으로 묶는다.
-  const historyRef = useRef<Vec2[][]>([]);
+  // 되돌리기 기록(모서리·안쪽 벽). 끌기처럼 잇따른 변경은 한 번으로 묶는다.
+  const historyRef = useRef<Pick<RoomDraft, "corners" | "inner">[]>([]);
   const lastChangeRef = useRef(0);
   const [canUndo, setCanUndo] = useState(false);
   const [pickMode, setPickMode] = useState<PickMode>("corners");
   const [hint, setHint] = useState<string | null>(null);
   // 오른쪽 정보 칸 — 접으면 사진·미니어처를 넓게 쓴다
   const [panelOpen, setPanelOpen] = useState(true);
+  // 단계 안내 — 높이를 확인했는지(고쳤거나 천장을 쟀거나, 저장된 방을 다시 열었으면), 도면 보기를 열어 봤는지
+  const [heightChecked, setHeightChecked] = useState(initialDraft !== null);
+  const [planVisited, setPlanVisited] = useState(false);
   const detection = useLayoutDetection();
   const detecting = detection.state.status === "running";
 
@@ -78,11 +82,11 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
     () => ({
       outer: outerOfCorners(draft.corners, draft.cameraHeight),
       corners: draft.corners,
-      inner: [],
+      inner: summary?.inner ?? [],
       cameraHeight: draft.cameraHeight,
       ceilingHeight: draft.ceilingHeight,
     }),
-    [draft.corners, draft.cameraHeight, draft.ceilingHeight],
+    [draft.corners, draft.cameraHeight, draft.ceilingHeight, summary],
   );
 
   async function handleDetect() {
@@ -102,26 +106,29 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
     setHint(`모서리 ${corners.length}개를 찾았어요. 어긋난 점은 끌어서 고치고, 천장 높이를 맞춰 주세요.`);
   }
 
-  /** 모서리를 바꾸고 되돌리기 기록에 남긴다 — 0.5초 안에 잇따른 변경(끌기)은 한 번으로 친다. */
-  const changeCorners = useCallback((corners: Vec2[]) => {
+  /** 모서리(와 안쪽 벽)를 바꾸고 되돌리기 기록에 남긴다 — 0.5초 안에 잇따른 변경(끌기)은 한 번으로 친다. */
+  const changeShape = useCallback((corners: Vec2[], inner?: RoomDraft["inner"]) => {
     const now = Date.now();
     if (now - lastChangeRef.current > 500) {
-      historyRef.current.push(draft.corners.map(([u, v]) => [u, v]));
+      historyRef.current.push({ corners: draft.corners, inner: draft.inner });
       setCanUndo(true);
     }
     lastChangeRef.current = now;
-    setDraft((current) => ({ ...current, corners }));
-  }, [draft.corners]);
+    setDraft((current) => ({ ...current, corners, inner: inner ?? current.inner }));
+  }, [draft.corners, draft.inner]);
 
   const handleCornersChange = useCallback((corners: Vec2[]) => {
     setHint(null);
-    changeCorners(corners);
-  }, [changeCorners]);
+    changeShape(corners);
+  }, [changeShape]);
 
-  /** 도면에서 고친 바닥 점(m) → 사진에서 본 방향(모서리 사진 좌표). 촬영 높이를 바꿔도 모양이 유지된다. */
-  const handlePlanChange = useCallback(({ outer }: PlanShape) => {
-    changeCorners(outer.map(([x, z]) => directionToUv([x, -draft.cameraHeight, z])));
-  }, [changeCorners, draft.cameraHeight]);
+  /**
+   * 도면에서 고친 바닥 점(m) → 사진에서 본 방향(모서리 사진 좌표), 안쪽 벽은 촬영 높이 기준 값으로.
+   * 그래서 촬영 높이를 바꿔도 모양이 유지된다.
+   */
+  const handlePlanChange = useCallback(({ outer, inner }: PlanShape) => {
+    changeShape(outer.map(([x, z]) => directionToUv([x, -draft.cameraHeight, z])), innerToRelative(inner, draft.cameraHeight));
+  }, [changeShape, draft.cameraHeight]);
 
   const handleCeilingPick = useCallback((uv: Vec2) => {
     const floorPoints = outerFromCorners(draft.corners, draft.cameraHeight) ?? [];
@@ -138,6 +145,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
       layoutRatio: { z0: ceilingHeight - draft.cameraHeight, z1: -draft.cameraHeight },
     });
     setHint(`천장 높이를 ${ceilingHeight.toFixed(2)}m로 맞췄어요.`);
+    setHeightChecked(true);
     setPickMode("corners");
   }, [draft]);
 
@@ -145,15 +153,15 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
     const previous = historyRef.current.pop();
     setCanUndo(historyRef.current.length > 0);
     lastChangeRef.current = 0;
-    if (previous) setDraft((current) => ({ ...current, corners: previous }));
+    if (previous) setDraft((current) => ({ ...current, ...previous }));
   }
 
   function clearCorners() {
     if (draft.corners.length > 0) {
-      historyRef.current.push(draft.corners.map(([u, v]) => [u, v]));
+      historyRef.current.push({ corners: draft.corners, inner: draft.inner });
       setCanUndo(true);
     }
-    setDraft((current) => ({ ...current, corners: [], layoutRatio: null, imageUrl: current.sceneImageUrl }));
+    setDraft((current) => ({ ...current, corners: [], inner: [], layoutRatio: null, imageUrl: current.sceneImageUrl }));
     setView("photo");
     setPickMode("corners");
     setHint(null);
@@ -176,7 +184,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
     ? "천장과 벽이 만나는 모서리를 눌러 주세요."
     : draft.corners.length < 3
       ? draft.corners.length === 0
-        ? "바닥과 벽이 만나는 모서리를 차례대로 누르거나, 왼쪽 도구의 ‘자동으로 모서리 찾기’를 눌러 보세요."
+        ? "바닥과 벽이 만나는 모서리를 차례대로 누르거나, 왼쪽 도구의 ‘자동 인식’을 눌러 보세요."
         : `바닥 모서리를 계속 눌러 주세요 (${draft.corners.length}개). 찍은 점은 끌어서 옮길 수 있어요.`
       : `모서리 ${draft.corners.length}개 — 미니어처로 방 모양을 확인해 보세요.`;
 
@@ -194,18 +202,40 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
 
   const busy = detecting || saving;
   // 한 번 실행하는 동작 — 사진·미니어처에선 왼쪽 도구 막대, 도면 보기에선 도면 편집기 도구 막대에 넣는다
+  const hasRoom = draft.corners.length >= 3;
   const actions: PlanTool[] = [
     {
       id: "detect",
       label: draft.corners.length > 0 ? "모서리 다시 자동으로 찾기" : "자동으로 모서리 찾기",
+      caption: "자동 인식",
+      hint: "사진에서 바닥 모서리를 찾아 줘요(10초쯤). 어긋난 점은 끌어서 고쳐요.",
       icon: IconWand,
       onClick: () => void handleDetect(),
       disabled: saving,
       busy: detecting,
     },
-    { id: "undo", label: "되돌리기", icon: IconArrowBackUp, onClick: undo, disabled: busy || !canUndo },
-    { id: "clear", label: "모서리 처음부터", icon: IconEraser, onClick: clearCorners, disabled: busy || draft.corners.length === 0 },
+    { id: "undo", label: "되돌리기", caption: "되돌리기", hint: "방금 한 일을 취소해요.", icon: IconArrowBackUp, onClick: undo, disabled: busy || !canUndo },
+    { id: "clear", label: "모서리 처음부터", caption: "지우기", hint: "찍은 모서리와 안쪽 벽을 모두 지워요.", icon: IconEraser, onClick: clearCorners, disabled: busy || draft.corners.length === 0 },
   ];
+  const guideSteps: GuideStep[] = [
+    {
+      label: "바닥 모서리",
+      done: hasRoom,
+      how: "왼쪽 ‘자동 인식’을 누르거나, 사진에서 바닥과 벽이 만나는 모서리를 차례대로 눌러요.",
+    },
+    {
+      label: "천장 높이",
+      done: hasRoom && heightChecked,
+      how: "왼쪽 ‘천장’ 도구로 바닥 모서리 바로 위의 천장 모서리를 누르거나, 아래 ‘높이’에 실제 천장 높이를 넣어요.",
+    },
+    {
+      label: "도면에서 다듬기",
+      done: planVisited,
+      optional: true,
+      how: "왼쪽 ‘도면’을 눌러 벽 길이를 고치고, 안쪽 벽·점을 더해요.",
+    },
+  ];
+  const currentStep = guideSteps.findIndex((step) => !step.done && !step.optional);
   const statusText = saveError ?? (validationError && draft.corners.length >= 3 ? validationError : null);
   const status = detection.state.status === "running"
     ? detection.state.queued ? "차례를 기다리는 중이에요…" : "사진에서 방 모서리를 찾는 중이에요. 10초쯤 걸려요."
@@ -231,6 +261,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
           onChange={(next) => {
             setView(next);
             if (next !== "photo") setPickMode("corners");
+            if (next === "plan") setPlanVisited(true);
           }}
           className="order-3 w-full sm:order-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
         />
@@ -264,8 +295,10 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
           {view === "plan" && summary && (
             <PlanEditor
               outer={summary.outer}
+              inner={summary.inner}
               onChange={handlePlanChange}
               ceilingHeight={draft.ceilingHeight}
+              modes={["none", "inner", "point"]}
               actions={actions}
               className="absolute inset-0"
             />
@@ -274,6 +307,8 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
             <ToolRail label="모서리 편집 도구">
               <RailButton
                 label="바닥 모서리 찍기"
+                caption="모서리"
+                hint="사진에서 바닥과 벽이 만나는 모서리를 차례대로 눌러요. 찍은 점은 끌어서 옮겨요."
                 icon={IconVectorTriangle}
                 active={view === "photo" && pickMode === "corners"}
                 disabled={busy}
@@ -285,20 +320,39 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
               />
               <RailButton
                 label="천장 재기"
+                caption="천장"
+                hint="바닥 모서리 바로 위의 천장 모서리를 누르면 천장 높이가 맞춰져요."
                 icon={IconRuler2}
                 active={view === "photo" && pickMode === "ceiling"}
+                highlight={currentStep === 1}
                 disabled={busy || draft.corners.length === 0}
                 onClick={toggleCeilingMeasure}
               />
+              <RailButton
+                label="도면에서 다듬기"
+                caption="도면"
+                hint="위에서 본 도면으로 벽 길이를 고치고, 안쪽 벽과 점을 더해요."
+                icon={IconLayoutBoard}
+                highlight={currentStep === -1 && !planVisited}
+                disabled={busy || !summary}
+                onClick={() => {
+                  setView("plan");
+                  setPickMode("corners");
+                  setPlanVisited(true);
+                }}
+              />
               <RailDivider />
               <RailButton
-                label={detecting ? "모서리 찾는 중…" : draft.corners.length > 0 ? "모서리 다시 자동으로 찾기" : "자동으로 모서리 찾기"}
+                label={detecting ? "모서리 찾는 중…" : actions[0].label}
+                caption="자동 인식"
+                hint={actions[0].hint}
                 icon={IconWand}
+                highlight={draft.corners.length === 0}
                 disabled={busy}
                 onClick={() => void handleDetect()}
               />
-              <RailButton label="되돌리기" icon={IconArrowBackUp} disabled={busy || !canUndo} onClick={undo} />
-              <RailButton label="모서리 처음부터" icon={IconEraser} disabled={busy || draft.corners.length === 0} onClick={clearCorners} />
+              <RailButton label="되돌리기" caption="되돌리기" hint="방금 한 일을 취소해요." icon={IconArrowBackUp} disabled={busy || !canUndo} onClick={undo} />
+              <RailButton label="모서리 처음부터" caption="지우기" hint="찍은 모서리와 안쪽 벽을 모두 지워요." icon={IconEraser} disabled={busy || draft.corners.length === 0} onClick={clearCorners} />
             </ToolRail>
           )}
           {view !== "plan" && (
@@ -313,6 +367,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
 
         {panelOpen && (
           <aside className="flex min-h-0 flex-col overflow-y-auto border-line lg:w-[340px] lg:shrink-0 lg:border-l">
+            <StepGuide steps={guideSteps} doneText="준비됐어요. 미니어처로 방 모양을 확인하고 위쪽의 저장을 누르세요." />
             {(statusText || view === "plan") && (
               <div className="flex flex-col gap-1 border-b border-line bg-wash px-4 py-3 text-sm" aria-live="polite">
                 {view === "plan" && <p className="text-ink">{status}</p>}
@@ -328,7 +383,10 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
                   min={MIN_CEILING_HEIGHT}
                   max={MAX_CEILING_HEIGHT}
                   disabled={busy}
-                  onCommit={(value) => setDraft((current) => withCeilingHeight(current, value))}
+                  onCommit={(value) => {
+                    setDraft((current) => withCeilingHeight(current, value));
+                    setHeightChecked(true);
+                  }}
                 />
                 <HeightField
                   label="촬영 높이"
@@ -336,7 +394,10 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
                   min={MIN_CAMERA_HEIGHT}
                   max={MAX_CAMERA_HEIGHT}
                   disabled={busy}
-                  onCommit={(value) => setDraft((current) => withCameraHeight(current, value))}
+                  onCommit={(value) => {
+                    setDraft((current) => withCameraHeight(current, value));
+                    setHeightChecked(true);
+                  }}
                 />
               </div>
               <p className="text-xs leading-relaxed text-soft">
@@ -369,10 +430,10 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
 
             <Section title="만드는 법" defaultOpen={false}>
               <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-soft">
-                <li>도구는 화면 왼쪽 막대에 있어요. 마우스를 올리면 이름이 보여요.</li>
+                <li>도구는 화면 왼쪽 막대에 있어요. 마우스를 올리면 설명이 보이고, ‘추천’이 붙은 도구가 지금 쓰면 좋은 도구예요.</li>
                 <li>‘자동으로 모서리 찾기’를 누르거나, 사진 시점에서 바닥과 벽이 만나는 모서리를 차례대로 눌러요. 찍은 점은 끌어서 옮겨요.</li>
                 <li>‘천장 재기’로 바닥 모서리 바로 위의 천장 모서리를 누르면 천장 높이가 맞춰져요.</li>
-                <li>도면 보기에서는 벽을 눌러 길이(mm)를 고치고, 점을 끌거나 ‘선 위에 점 추가’로 모양을 다듬어요.</li>
+                <li>‘도면’에서는 벽을 눌러 길이(mm)를 고치고, ‘점 추가’로 원하는 자리에 점을 넣고, ‘안쪽 벽’으로 칸막이를 그려요.</li>
               </ul>
             </Section>
           </aside>

@@ -51,18 +51,24 @@ export type PlanDrawMode = "none" | "outer" | "inner" | "point" | "scale";
 export interface PlanTool {
   id: string;
   label: string;
+  /** 아이콘 아래 짧은 이름. */
+  caption?: string;
+  /** 마우스를 올렸을 때 설명. */
+  hint?: string;
+  /** 지금 쓰면 좋은 동작('추천' 표시). */
+  highlight?: boolean;
   icon: ToolIcon;
   onClick: () => void;
   disabled?: boolean;
   busy?: boolean;
 }
 
-const MODE_TOOLS: Record<PlanDrawMode, { label: string; icon: ToolIcon }> = {
-  none: { label: "고르기·옮기기", icon: IconPointer },
-  outer: { label: "바깥벽 그리기", icon: IconBorderOuter },
-  inner: { label: "안쪽 벽 그리기", icon: IconLine },
-  point: { label: "선 위에 점 추가", icon: IconCirclePlus },
-  scale: { label: "기준 길이 재기", icon: IconRuler2 },
+const MODE_TOOLS: Record<PlanDrawMode, { label: string; caption: string; hint: string; icon: ToolIcon }> = {
+  none: { label: "고르기·옮기기", caption: "고르기", hint: "벽을 눌러 길이를 고치고, 점을 끌어 옮겨요. 빈 곳을 끌면 화면이 움직여요.", icon: IconPointer },
+  outer: { label: "바깥벽 그리기", caption: "바깥벽", hint: "모서리를 차례로 눌러요. 첫 점을 다시 누르면 닫혀요.", icon: IconBorderOuter },
+  inner: { label: "안쪽 벽 그리기", caption: "안쪽 벽", hint: "누르는 점마다 벽이 이어져요. Esc로 끊어요.", icon: IconLine },
+  point: { label: "선 위에 점 추가", caption: "점 추가", hint: "벽 위 원하는 자리를 누르면 점이 생겨요. 바로 끌어서 옮길 수 있어요.", icon: IconCirclePlus },
+  scale: { label: "기준 길이 재기", caption: "축척", hint: "치수가 적힌 구간의 양 끝을 누르고 실제 길이를 mm로 넣어요.", icon: IconRuler2 },
 };
 
 
@@ -80,8 +86,8 @@ const CLOSE_PX = 12;
 /** 안쪽 벽 끝을 기존 점·바깥벽에 붙이는 거리(px). */
 const STICK_PX = 12;
 
-/** 화면 맞춤 때 왼쪽 도구 막대 몫으로 비워 두는 폭(px). */
-const RAIL_RESERVE_PX = 56;
+/** 화면 맞춤 때 왼쪽 도구 막대 몫으로 비워 두는 폭(px) — 넓은 화면은 이름까지 보이는 막대. */
+const railReservePx = (width: number) => (width >= 640 ? 96 : 62);
 
 /** 화면에서 끌기·스냅 허용 거리(px). */
 const SNAP_PX = 8;
@@ -133,6 +139,7 @@ export function PlanEditor({
   onDrawModeChange,
   modes = ["none", "point"],
   actions = [],
+  highlightMode = null,
   panel = null,
   background = null,
   uncalibrated = false,
@@ -154,6 +161,8 @@ export function PlanEditor({
   modes?: PlanDrawMode[];
   /** 도구 막대 아래쪽 동작 버튼. */
   actions?: PlanTool[];
+  /** '추천' 표시할 도구(지금 단계에서 쓰면 좋은 것). */
+  highlightMode?: PlanDrawMode | null;
   /** 도구 막대 옆 떠 있는 칸에 보일 내용(고른 것이 없을 때) — 예: 축척 길이 입력. */
   panel?: ReactNode;
   /** 밑에 깔 도면 이미지. */
@@ -221,7 +230,7 @@ export function PlanEditor({
     const width = svg?.clientWidth ?? 0;
     const height = svg?.clientHeight ?? 0;
     // 왼쪽 도구 막대 자리를 비우고 나머지 폭에 맞춘다(좁은 화면에서 막대가 벽을 가리지 않게)
-    const usable = width - RAIL_RESERVE_PX;
+    const usable = width - railReservePx(width);
     const aspect = height > 0 && usable > 0 ? usable / height : 1.6;
     // 바깥벽이 아직 없으면 도면 이미지 전체가 보이게
     const target: Vec2[] = outer.length >= 2 || !background
@@ -853,8 +862,11 @@ export function PlanEditor({
             <RailButton
               key={mode}
               label={MODE_TOOLS[mode].label}
+              caption={MODE_TOOLS[mode].caption}
+              hint={MODE_TOOLS[mode].hint}
               icon={MODE_TOOLS[mode].icon}
               active={drawMode === mode}
+              highlight={highlightMode === mode}
               disabled={mode === "outer" && closed}
               onClick={() => changeMode(drawMode === mode && mode !== "none" ? "none" : mode)}
             />
@@ -864,18 +876,21 @@ export function PlanEditor({
             <RailButton
               key={action.id}
               label={action.busy ? `${action.label} 중…` : action.label}
+              caption={action.caption}
+              hint={action.hint}
+              highlight={action.highlight}
               icon={action.icon}
               disabled={action.disabled || action.busy}
               onClick={action.onClick}
             />
           ))}
           <RailDivider />
-          <RailButton label="화면 맞춤" icon={IconArrowsMaximize} onClick={fit} />
+          <RailButton label="화면 맞춤" caption="맞춤" hint="방 전체가 보이게 화면을 맞춰요." icon={IconArrowsMaximize} onClick={fit} />
         </ToolRail>
 
         {/* 도구 막대 옆 — 고른 벽·점 고치기, 또는 부모가 넘긴 칸(축척 입력 등) */}
         {current && selectionTitle ? (
-          <div className="absolute left-[60px] top-3 flex w-[230px] flex-col gap-2 border border-line bg-white p-3 shadow-[0_2px_10px_rgba(21,23,28,.12)]">
+          <div className="absolute left-[62px] top-3 sm:left-[92px] flex w-[230px] flex-col gap-2 border border-line bg-white p-3 shadow-[0_2px_10px_rgba(21,23,28,.12)]">
             <span className="text-sm font-bold text-ink">{selectionTitle}</span>
             {current.kind !== "vertex" && selectedLengthMm !== null && (
               <label className="flex items-center gap-2 text-sm text-ink">
@@ -909,7 +924,7 @@ export function PlanEditor({
             )}
           </div>
         ) : panel ? (
-          <div className="absolute left-[60px] top-3 flex w-[260px] flex-col gap-2 border border-line bg-white p-3 shadow-[0_2px_10px_rgba(21,23,28,.12)]">
+          <div className="absolute left-[62px] top-3 sm:left-[92px] flex w-[260px] flex-col gap-2 border border-line bg-white p-3 shadow-[0_2px_10px_rgba(21,23,28,.12)]">
             {panel}
           </div>
         ) : null}

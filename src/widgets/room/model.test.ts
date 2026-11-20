@@ -3,6 +3,7 @@ import type { Room } from "@/entities/room";
 import { directionToUv } from "./lib/geometry";
 import {
   createRoomDraft,
+  innerToRelative,
   isSameRoomDraft,
   keepRoomsForScenes,
   planRoomSaves,
@@ -28,6 +29,24 @@ function draftOf(points: [number, number][], h = 1.5): RoomDraft {
 }
 
 const RECT: [number, number][] = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]];
+
+describe("파노라마 방의 안쪽 벽", () => {
+  it("촬영 높이 기준으로 저장해서, 촬영 높이를 바꾸면 바깥벽과 같은 비율로 커진다", () => {
+    const draft = { ...draftOf(RECT), inner: innerToRelative([[[0, -1.5], [0, 0.5]]], 1.5) };
+    expect(summarizeRoom(draft)!.inner[0][1][1]).toBeCloseTo(0.5);
+    const taller = summarizeRoom({ ...draft, cameraHeight: 3 })!;
+    expect(taller.inner[0][1][1]).toBeCloseTo(1);
+    expect(taller.outer[2][0]).toBeCloseTo(4);
+  });
+
+  it("저장 요청에 m로 들어가고, 다시 열면 그대로 돌아온다", () => {
+    const draft = { ...draftOf(RECT), inner: innerToRelative([[[0, -1.5], [0, 0.5]]], 1.5) };
+    const request = toRoomRequest(draft, { name: "거실", sortOrder: 0 });
+    expect(request.geometry.inner).toEqual([[[0, -1.5], [0, 0.5]]]);
+    const room: Room = { room_id: 1, space_id: 1, area_m2: 12, area_pyeong: 3.6, updated_at: "", ...request };
+    expect(summarizeRoom(roomToDraft(room)!)!.inner[0][1][1]).toBeCloseTo(0.5);
+  });
+});
 
 describe("방 초안", () => {
   it("모서리가 3개 미만이면 저장할 수 없다", () => {

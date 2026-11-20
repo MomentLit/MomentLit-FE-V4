@@ -1,7 +1,16 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent } from "react";
-import { IconArrowsMaximize, IconLayoutDistributeVertical, IconTrash } from "@tabler/icons-react";
+import { useCallback, useEffect, useRef, useState, type ComponentType, type KeyboardEvent as ReactKeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import {
+  IconArrowsMaximize,
+  IconBorderOuter,
+  IconCirclePlus,
+  IconLine,
+  IconPointer,
+  IconRuler2,
+  IconTrash,
+  type IconProps,
+} from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
 import { polygonArea, signedArea, toPyeong, type Vec2 } from "../lib/geometry";
@@ -12,8 +21,6 @@ import {
   setOuterWallLength,
   snapOuterVertex,
   snapPoint,
-  splitInnerWall,
-  splitOuterWall,
   type Segment,
 } from "../lib/planEdit";
 
@@ -35,8 +42,58 @@ export interface PlanShape {
   inner: Segment[];
 }
 
-/** 그리기 — 바깥벽 모서리 찍기 / 안쪽 벽 시작·끝 찍기 / 축척 기준 두 점 찍기. "none"이면 고르기·끌기. */
-export type PlanDrawMode = "none" | "outer" | "inner" | "scale";
+/**
+ * 편집 도구 — "none" 고르기·끌기 / 바깥벽 모서리 찍기 / 안쪽 벽 이어 그리기 / 선 위에 점 넣기 / 축척 기준 두 점 찍기.
+ */
+export type PlanDrawMode = "none" | "outer" | "inner" | "point" | "scale";
+
+type ToolIcon = ComponentType<IconProps>;
+
+/** 왼쪽 도구 막대의 동작 버튼(자동 인식·되돌리기 등 — 도구를 바꾸지 않고 한 번 실행). */
+export interface PlanTool {
+  id: string;
+  label: string;
+  icon: ToolIcon;
+  onClick: () => void;
+  disabled?: boolean;
+  busy?: boolean;
+}
+
+const MODE_TOOLS: Record<PlanDrawMode, { label: string; icon: ToolIcon }> = {
+  none: { label: "고르기·옮기기", icon: IconPointer },
+  outer: { label: "바깥벽 그리기", icon: IconBorderOuter },
+  inner: { label: "안쪽 벽 그리기", icon: IconLine },
+  point: { label: "선 위에 점 추가", icon: IconCirclePlus },
+  scale: { label: "기준 길이 재기", icon: IconRuler2 },
+};
+
+/** 도구 막대 버튼 — 아이콘만 보이고, 마우스를 올리면 오른쪽에 이름이 뜬다. */
+function RailButton({ label, icon: Icon, active = false, disabled = false, onClick }: {
+  label: string;
+  icon: ToolIcon;
+  active?: boolean;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      aria-label={label}
+      aria-pressed={active}
+      className={cn(
+        "group relative flex size-9 items-center justify-center transition-colors disabled:cursor-not-allowed disabled:opacity-35",
+        active ? "bg-ink text-white" : "text-ink hover:bg-wash",
+      )}
+    >
+      <Icon size={18} stroke={1.8} aria-hidden />
+      <span className="pointer-events-none absolute left-full top-1/2 z-10 ml-2 hidden -translate-y-1/2 whitespace-nowrap bg-ink px-2 py-1 text-xs font-medium text-white group-hover:block group-focus-visible:block">
+        {label}
+      </span>
+    </button>
+  );
+}
 
 /** 바닥 평면(m)에 깔 도면 이미지. */
 export interface PlanBackground {
@@ -87,8 +144,10 @@ function wallLength(a: Vec2, b: Vec2) {
  * 2D 도면 편집기 — 위에서 본 방(미터)을 보며 수치를 직접 고친다.
  *  - 벽을 누르고 길이(mm)를 넣고 Enter: 그 벽이 정확히 그 길이가 된다(바깥벽은 이어진 직각 벽도 같이 밀림 — CAD의 늘이기).
  *    벽을 고른 채 숫자를 바로 치면 입력이 시작된다.
- *  - 꼭짓점 끌기(이웃 점과 수평·수직, 다른 점의 x·z에 자동으로 맞춤), Delete로 지우기(3개 미만 불가), 벽 가운데에 점 추가
+ *  - 꼭짓점 끌기(이웃 점과 수평·수직, 다른 점의 x·z에 자동으로 맞춤), Delete로 지우기(3개 미만 불가)
+ *  - "선 위에 점 추가" 도구로 벽의 원하는 자리를 누르면 그 자리에 점이 생긴다(안쪽 벽은 두 벽으로 나뉜다)
  *  - 빈 곳을 끌면 화면 이동, 휠로 확대
+ * 편집 도구는 왼쪽 도구 막대에 모은다. `drawMode`를 넘기면 부모가 도구를 정하고(`onDrawModeChange`), 안 넘기면 스스로 정한다.
  */
 export function PlanEditor({
   outer,
@@ -96,7 +155,11 @@ export function PlanEditor({
   onChange,
   ceilingHeight,
   closed = true,
-  drawMode = "none",
+  drawMode: controlledMode,
+  onDrawModeChange,
+  modes = ["none", "point"],
+  actions = [],
+  panel = null,
   background = null,
   uncalibrated = false,
   onClose,
@@ -112,6 +175,13 @@ export function PlanEditor({
   /** 바깥벽이 닫혔는지 — 그리는 중이면 false(마지막 점과 첫 점 사이 벽이 없다). */
   closed?: boolean;
   drawMode?: PlanDrawMode;
+  onDrawModeChange?: (mode: PlanDrawMode) => void;
+  /** 도구 막대에 보일 도구(순서대로). */
+  modes?: PlanDrawMode[];
+  /** 도구 막대 아래쪽 동작 버튼. */
+  actions?: PlanTool[];
+  /** 도구 막대 옆 떠 있는 칸에 보일 내용(고른 것이 없을 때) — 예: 축척 길이 입력. */
+  panel?: ReactNode;
   /** 밑에 깔 도면 이미지. */
   background?: PlanBackground | null;
   /** 축척을 아직 모르면 true — 벽 길이를 넣으면 그 벽을 늘이지 않고 도면 전체 축척을 맞춘다(`onCalibrate`). */
@@ -139,6 +209,12 @@ export function PlanEditor({
   const [outerPaused, setOuterPaused] = useState(false);
   const [scalePoints, setScalePoints] = useState<Vec2[]>([]);
   const [hover, setHover] = useState<Vec2 | null>(null);
+  const [localMode, setLocalMode] = useState<PlanDrawMode>("none");
+  const drawMode = controlledMode ?? localMode;
+  function changeMode(next: PlanDrawMode) {
+    if (onDrawModeChange) onDrawModeChange(next);
+    else setLocalMode(next);
+  }
   const [lastDrawMode, setLastDrawMode] = useState(drawMode);
   if (lastDrawMode !== drawMode) {
     // 그리기 종류가 바뀌면 그리던 것을 비운다(렌더 중 상태 맞추기)
@@ -249,14 +325,72 @@ export function PlanEditor({
 
   function handleWallDown(event: PointerEvent<SVGLineElement>, next: Selection) {
     event.stopPropagation();
+    if (drawMode === "point" && next && next.kind !== "vertex") {
+      const p = toPlan(event.clientX, event.clientY);
+      if (p) insertPoint(next, p);
+      return;
+    }
     select(next);
+  }
+
+  /** 벽 위 가장 가까운 점(선분 위로 투영). 양 끝에 너무 붙으면 null(점이 겹치지 않게). */
+  function projectOnWall(a: Vec2, b: Vec2, p: Vec2): Vec2 | null {
+    const dx = b[0] - a[0];
+    const dz = b[1] - a[1];
+    const lengthSq = dx * dx + dz * dz;
+    if (lengthSq < 1e-6) return null;
+    const t = ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / lengthSq;
+    const margin = Math.min(0.45, 0.05 / Math.sqrt(lengthSq));
+    if (t < margin || t > 1 - margin) return null;
+    return [a[0] + t * dx, a[1] + t * dz];
+  }
+
+  /** 점 추가 도구 — 마우스 가까운 벽과 그 위의 자리. */
+  function nearestWallPoint(p: Vec2): { wall: Exclude<Selection, null>; point: Vec2 } | null {
+    const tolerance = STICK_PX / pxPerMeter();
+    let best: { wall: Exclude<Selection, null>; point: Vec2 } | null = null;
+    let bestDistance = tolerance;
+    const consider = (wall: Exclude<Selection, null>, a: Vec2, b: Vec2) => {
+      const q = projectOnWall(a, b, p);
+      if (!q) return;
+      const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = { wall, point: q };
+      }
+    };
+    const count = closed ? outer.length : Math.max(0, outer.length - 1);
+    for (let i = 0; i < count; i++) consider({ kind: "outer", index: i }, outer[i], outer[(i + 1) % outer.length]);
+    inner.forEach(([a, b], i) => consider({ kind: "inner", index: i }, a, b));
+    return best;
+  }
+
+  function insertPoint(wall: Exclude<Selection, null>, p: Vec2) {
+    if (wall.kind === "outer") {
+      const q = projectOnWall(outer[wall.index], outer[(wall.index + 1) % outer.length], p);
+      if (!q) return;
+      const next = outer.map((v) => [v[0], v[1]] as Vec2);
+      next.splice(wall.index + 1, 0, [q[0], q[1]]);
+      emit({ outer: next });
+      select({ kind: "vertex", index: wall.index + 1 });
+      setMessage("점을 넣었어요. 점을 끌어서 옮길 수 있어요.");
+    } else if (wall.kind === "inner") {
+      const [a, b] = inner[wall.index];
+      const q = projectOnWall(a, b, p);
+      if (!q) return;
+      const next = inner.flatMap(([s, e], i) => (i === wall.index
+        ? [[[s[0], s[1]], [q[0], q[1]]], [[q[0], q[1]], [e[0], e[1]]]] as Segment[]
+        : [[[s[0], s[1]], [e[0], e[1]]] as Segment]));
+      emit({ inner: next });
+      setMessage("안쪽 벽을 그 자리에서 둘로 나눴어요.");
+    }
   }
 
   function handleMove(event: PointerEvent<SVGSVGElement>) {
     const pointer = pointerRef.current;
     if (drawMode !== "none" && (!pointer || !pointer.moved)) {
       const p = toPlan(event.clientX, event.clientY);
-      setHover(p ? snapForDraw(p) : null);
+      setHover(p ? (drawMode === "point" ? nearestWallPoint(p)?.point ?? null : snapForDraw(p)) : null);
     }
     if (!pointer) return;
     const dx = event.clientX - pointer.startClient[0];
@@ -286,6 +420,12 @@ export function PlanEditor({
     }
     const p = toPlan(event.clientX, event.clientY);
     if (p) handleDrawClick(p);
+  }
+
+  function handlePointClick(raw: Vec2) {
+    const hit = nearestWallPoint(raw);
+    if (hit) insertPoint(hit.wall, hit.point);
+    else setMessage("벽(선) 위를 눌러 주세요.");
   }
 
   // ---------- 그리기 ----------
@@ -373,6 +513,8 @@ export function PlanEditor({
         emit({ inner: [...inner.map(([a, b]) => [[...a], [...b]] as Segment), [pending, point]] });
         setPending(point);
       }
+    } else if (drawMode === "point") {
+      handlePointClick(raw);
     } else if (drawMode === "scale") {
       const next = scalePoints.length >= 2 ? [raw] : [...scalePoints, raw];
       setScalePoints(next);
@@ -438,17 +580,6 @@ export function PlanEditor({
     }
   }
 
-  function splitSelected() {
-    if (!current || current.kind === "vertex") return;
-    if (current.kind === "outer") {
-      const { outer: next, vertex } = splitOuterWall(outer, current.index);
-      emit({ outer: next });
-      select({ kind: "vertex", index: vertex });
-    } else {
-      emit({ inner: splitInnerWall(inner, current.index) });
-    }
-  }
-
   // 키보드 — 벽을 고른 채 숫자를 치면 길이 입력으로, Delete 지우기, Esc 선택 풀기.
   // 리스너는 한 번만 달고 최신 선택·지우기는 ref로 읽는다.
   /**
@@ -465,8 +596,9 @@ export function PlanEditor({
       setOuterPaused(true);
       return true;
     }
-    if (drawMode !== "none" && onDrawExit) {
-      onDrawExit();
+    if (drawMode !== "none") {
+      if (onDrawExit) onDrawExit();
+      else changeMode("none");
       return true;
     }
     return false;
@@ -511,6 +643,8 @@ export function PlanEditor({
   // 닫히지 않았으면 마지막 점 → 첫 점 벽은 아직 없다
   const wallCount = closed ? outer.length : Math.max(0, outer.length - 1);
   const drawing = drawMode !== "none";
+  // 점 추가 도구는 벽을 누르고 점을 끌 수 있어야 한다 — 나머지 그리기 도구만 벽·점 누르기를 막는다
+  const blocksHits = drawing && drawMode !== "point";
   // 그리는 중 미리보기 선의 시작점
   const previewFrom: Vec2 | null = drawMode === "outer" && !closed && !outerPaused ? outer.at(-1) ?? null
     : drawMode === "inner" ? pending
@@ -537,7 +671,7 @@ export function PlanEditor({
         ref={svgRef}
         viewBox={`${view.x} ${view.z} ${view.w} ${view.h}`}
         preserveAspectRatio="xMidYMid meet"
-        className={cn("absolute inset-0 h-full w-full touch-none select-none text-ink", drawing && "cursor-crosshair")}
+        className={cn("absolute inset-0 h-full w-full touch-none select-none text-ink", blocksHits && "cursor-crosshair")}
         onPointerDown={handleBackgroundDown}
         onPointerMove={handleMove}
         onPointerUp={handleUp}
@@ -591,7 +725,7 @@ export function PlanEditor({
           const b = outer[(i + 1) % outer.length];
           const selected = current?.kind === "outer" && current.index === i;
           return (
-            <g key={`wall-${i}`} pointerEvents={drawing ? "none" : undefined}>
+            <g key={`wall-${i}`} pointerEvents={blocksHits ? "none" : undefined}>
               {selected && (
                 <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={TAPE} strokeWidth={7} vectorEffect="non-scaling-stroke" />
               )}
@@ -600,7 +734,7 @@ export function PlanEditor({
                 stroke="transparent"
                 strokeWidth={18}
                 vectorEffect="non-scaling-stroke"
-                className="cursor-pointer"
+                className={drawMode === "point" ? "cursor-copy" : "cursor-pointer"}
                 onPointerDown={(event) => handleWallDown(event, { kind: "outer", index: i })}
               />
             </g>
@@ -610,14 +744,14 @@ export function PlanEditor({
         {inner.map(([a, b], i) => {
           const selected = current?.kind === "inner" && current.index === i;
           return (
-            <g key={`inner-${i}`} pointerEvents={drawing ? "none" : undefined}>
+            <g key={`inner-${i}`} pointerEvents={blocksHits ? "none" : undefined}>
               <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={selected ? TAPE : "currentColor"} strokeWidth={4} vectorEffect="non-scaling-stroke" />
               <line
                 x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
                 stroke="transparent"
                 strokeWidth={18}
                 vectorEffect="non-scaling-stroke"
-                className="cursor-pointer"
+                className={drawMode === "point" ? "cursor-copy" : "cursor-pointer"}
                 onPointerDown={(event) => handleWallDown(event, { kind: "inner", index: i })}
               />
             </g>
@@ -670,8 +804,8 @@ export function PlanEditor({
               stroke="currentColor"
               strokeWidth={2}
               vectorEffect="non-scaling-stroke"
-              className={drawing ? undefined : "cursor-move"}
-              pointerEvents={drawing ? "none" : undefined}
+              className={blocksHits ? undefined : "cursor-move"}
+              pointerEvents={blocksHits ? "none" : undefined}
               onPointerDown={(event) => handleVertexDown(event, i)}
             />
           );
@@ -723,19 +857,44 @@ export function PlanEditor({
         )}
       </svg>
         {closed && outer.length >= 3 && (
-          <div className="pointer-events-none absolute left-3 top-3 border border-line bg-white/90 px-3 py-1.5 text-xs text-soft">
+          <div className="pointer-events-none absolute right-3 top-3 border border-line bg-white/90 px-3 py-1.5 text-xs text-soft">
             <span className="text-sm font-bold text-ink">{area.toFixed(1)}㎡</span> · 약 {toPyeong(area).toFixed(1)}평
             {ceilingHeight ? ` · 천장 ${ceilingHeight.toFixed(2)}m` : ""}
           </div>
         )}
-      </div>
 
-      <div className="flex h-14 shrink-0 items-center gap-2 overflow-x-auto border-t border-line px-3">
+        {/* 왼쪽 도구 막대 — 도구(고르기·그리기·점 추가·축척), 동작(자동 인식·되돌리기 등), 화면 맞춤 */}
+        <div role="toolbar" aria-label="도면 편집 도구" aria-orientation="vertical" className="absolute left-3 top-3 flex flex-col border border-line bg-white shadow-[0_2px_10px_rgba(21,23,28,.12)]">
+          {modes.map((mode) => (
+            <RailButton
+              key={mode}
+              label={MODE_TOOLS[mode].label}
+              icon={MODE_TOOLS[mode].icon}
+              active={drawMode === mode}
+              disabled={mode === "outer" && closed}
+              onClick={() => changeMode(drawMode === mode && mode !== "none" ? "none" : mode)}
+            />
+          ))}
+          {actions.length > 0 && <span className="mx-1.5 my-1 h-px bg-line" aria-hidden />}
+          {actions.map((action) => (
+            <RailButton
+              key={action.id}
+              label={action.busy ? `${action.label} 중…` : action.label}
+              icon={action.icon}
+              disabled={action.disabled || action.busy}
+              onClick={action.onClick}
+            />
+          ))}
+          <span className="mx-1.5 my-1 h-px bg-line" aria-hidden />
+          <RailButton label="화면 맞춤" icon={IconArrowsMaximize} onClick={fit} />
+        </div>
+
+        {/* 도구 막대 옆 — 고른 벽·점 고치기, 또는 부모가 넘긴 칸(축척 입력 등) */}
         {current && selectionTitle ? (
-          <>
-            <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-ink">{selectionTitle}</span>
+          <div className="absolute left-[60px] top-3 flex w-[230px] flex-col gap-2 border border-line bg-white p-3 shadow-[0_2px_10px_rgba(21,23,28,.12)]">
+            <span className="text-sm font-bold text-ink">{selectionTitle}</span>
             {current.kind !== "vertex" && selectedLengthMm !== null && (
-              <label className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm text-ink">
+              <label className="flex items-center gap-2 text-sm text-ink">
                 길이
                 <input
                   ref={lengthInputRef}
@@ -753,39 +912,42 @@ export function PlanEditor({
                 mm
               </label>
             )}
-            {current.kind !== "vertex" && (
-              <button type="button" onClick={splitSelected} className="button button--outline button--sm shrink-0">
-                <IconLayoutDistributeVertical size={15} stroke={2} aria-hidden />
-                가운데에 점 추가
-              </button>
-            )}
+            <p className="text-xs leading-relaxed text-soft">
+              {current.kind === "vertex"
+                ? "끌어서 옮기고, Delete로 지워요."
+                : "숫자를 치면 바로 길이를 바꿔요. 점을 넣으려면 ‘선 위에 점 추가’ 도구로 원하는 자리를 누르세요."}
+            </p>
             {current.kind !== "outer" && (
-              <button type="button" onClick={deleteSelected} className="button button--danger button--sm shrink-0">
+              <button type="button" onClick={deleteSelected} className="button button--danger button--sm self-start">
                 <IconTrash size={15} stroke={2} aria-hidden />
                 지우기
               </button>
             )}
-          </>
-        ) : (
-          <span className="truncate text-sm text-soft">
-            {drawMode === "outer"
-              ? closed ? "바깥벽이 닫혔어요."
-                : outerPaused ? "끊었어요. 첫 점이나 마지막 점을 눌러 거기서 이어 그려요 (Esc로 그리기 끝내기)"
-                  : outer.length === 0 ? "바깥벽 모서리를 차례로 누르세요"
-                    : outer.length < 3 ? `다음 모서리를 누르세요 (${outer.length}개 · Esc로 끊기)`
-                      : `계속 찍거나 첫 점을 눌러 닫으세요 (${outer.length}개 · Esc로 끊기)`
-              : drawMode === "inner"
-                ? pending ? "다음 점을 누르면 이어서 벽이 생겨요 (Esc로 끊기)" : "안쪽 벽이 시작할 점을 누르세요 — 기존 점·벽에 붙어요 (Esc로 그리기 끝내기)"
+          </div>
+        ) : panel ? (
+          <div className="absolute left-[60px] top-3 flex w-[260px] flex-col gap-2 border border-line bg-white p-3 shadow-[0_2px_10px_rgba(21,23,28,.12)]">
+            {panel}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex h-11 shrink-0 items-center gap-3 overflow-x-auto border-t border-line px-3">
+        <span className="truncate text-sm text-soft">
+          {drawMode === "outer"
+            ? closed ? "바깥벽이 닫혔어요."
+              : outerPaused ? "끊었어요. 첫 점이나 마지막 점을 눌러 거기서 이어 그려요 (Esc로 그리기 끝내기)"
+                : outer.length === 0 ? "바깥벽 모서리를 차례로 누르세요"
+                  : outer.length < 3 ? `다음 모서리를 누르세요 (${outer.length}개 · Esc로 끊기)`
+                    : `계속 찍거나 첫 점을 눌러 닫으세요 (${outer.length}개 · Esc로 끊기)`
+            : drawMode === "inner"
+              ? pending ? "다음 점을 누르면 이어서 벽이 생겨요 (Esc로 끊기)" : "안쪽 벽이 시작할 점을 누르세요 — 기존 점·벽에 붙어요 (Esc로 그리기 끝내기)"
+              : drawMode === "point"
+                ? "벽(선) 위 원하는 자리를 누르면 점이 생겨요. 점은 바로 끌어서 옮길 수 있어요 (Esc로 끝내기)"
                 : drawMode === "scale"
                   ? scalePoints.length < 2 ? `치수가 적힌 구간의 양 끝을 누르세요 (${scalePoints.length}/2)` : "실제 길이를 mm로 넣어 주세요"
                   : "벽을 누르면 길이(mm)를 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요."}
-          </span>
-        )}
-        {message && <span className="shrink-0 whitespace-nowrap text-xs text-soft" aria-live="polite">{message}</span>}
-        <button type="button" onClick={fit} className="button button--outline button--sm ml-auto shrink-0">
-          <IconArrowsMaximize size={15} stroke={2} aria-hidden />
-          화면 맞춤
-        </button>
+        </span>
+        {message && <span className="ml-auto shrink-0 whitespace-nowrap text-xs text-soft" aria-live="polite">{message}</span>}
       </div>
     </div>
   );

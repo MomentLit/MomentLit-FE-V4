@@ -5,13 +5,15 @@ import Link from "next/link";
 import {
   IconArrowBackUp,
   IconArrowLeft,
+  IconChevronDown,
   IconCube,
+  IconEraser,
   IconLayoutBoard,
-  IconPencil,
-  IconRefresh,
-  IconRuler2,
+  IconLayoutSidebarRightCollapse,
+  IconLayoutSidebarRightExpand,
   IconUpload,
   IconWalk,
+  IconWand,
 } from "@tabler/icons-react";
 import { getErrorMessage } from "@/shared/api";
 import { detectPlanWalls } from "@/entities/room";
@@ -32,7 +34,7 @@ import {
   type PlanDraft,
 } from "../planModel";
 import { HeightField } from "./HeightField";
-import { PlanEditor, type PlanDrawMode, type PlanShape } from "./PlanEditor";
+import { PlanEditor, type PlanDrawMode, type PlanShape, type PlanTool } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { ViewSwitch } from "./ViewSwitch";
 
@@ -41,11 +43,29 @@ const NOMINAL_EYE_HEIGHT = 1.5;
 
 type PlanView = Exclude<RoomView, "photo"> | "plan";
 
-function Section({ title, children }: { title: string; children: ReactNode }) {
+/** 접을 수 있는 정보 칸. 접혀 있으면 제목 옆에 한 줄 요약을 보여 준다. */
+function Section({ title, summary, defaultOpen = true, children }: {
+  title: string;
+  summary?: string;
+  defaultOpen?: boolean;
+  children: ReactNode;
+}) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
-    <section className="flex flex-col gap-3 border-b border-line p-4">
-      <h2 className="text-sm font-bold text-ink">{title}</h2>
-      {children}
+    <section className="border-b border-line">
+      <h2>
+        <button
+          type="button"
+          onClick={() => setOpen((value) => !value)}
+          aria-expanded={open}
+          className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-wash"
+        >
+          <span className="shrink-0 text-sm font-bold text-ink">{title}</span>
+          <span className="min-w-0 flex-1 truncate text-right text-xs text-soft">{!open && summary}</span>
+          <IconChevronDown size={16} stroke={2} aria-hidden className={cn("shrink-0 text-soft transition-transform", open && "rotate-180")} />
+        </button>
+      </h2>
+      {open && <div className="flex flex-col gap-3 px-4 pb-4">{children}</div>}
     </section>
   );
 }
@@ -92,6 +112,8 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+  // 오른쪽 정보 칸 — 접으면 도면을 넓게 쓴다
+  const [panelOpen, setPanelOpen] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const scaleInputRef = useRef<HTMLInputElement>(null);
   // 되돌리기 — 끌기처럼 0.5초 안에 잇따른 변경은 한 번으로
@@ -228,10 +250,10 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
     setMessage("축척은 나중에 맞춰도 돼요 — 벽을 고르고 실제 길이를 넣으면 그 길이로 도면 전체 축척이 맞춰져요.");
   }
 
-  function toggleDraw(mode: PlanDrawMode) {
+  function changeDrawMode(mode: PlanDrawMode) {
     setView("plan");
     setScaleLine(null);
-    setDrawMode((current) => (current === mode ? "none" : mode));
+    setDrawMode(mode);
     setMessage(null);
   }
 
@@ -251,6 +273,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
       await onSave(draft);
     } catch (error) {
       setSaveError(getErrorMessage(error));
+      setPanelOpen(true);
       setSaving(false);
     }
   }
@@ -269,6 +292,50 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
   // floor는 draft에서 계산 — draft의 해당 값이 바뀔 때만 새로 만든다
   }), [draft?.closed, draft?.outer, draft?.inner, draft?.ceilingHeight, draft?.showFloor, floor?.url, floor?.x, floor?.z, floor?.width, floor?.height]); // eslint-disable-line react-hooks/exhaustive-deps
   const busy = uploading || saving || detecting;
+  const hasWalls = Boolean(draft && (draft.outer.length > 0 || draft.inner.length > 0));
+  const tools: PlanTool[] = [
+    {
+      id: "detect",
+      label: hasWalls ? "자동 초안으로 교체" : "벽 자동 인식",
+      icon: IconWand,
+      onClick: () => draft && void generateWalls(draft),
+      disabled: !draft || uploading || saving,
+      busy: detecting,
+    },
+    { id: "undo", label: "되돌리기", icon: IconArrowBackUp, onClick: undo, disabled: busy || !canUndo },
+    { id: "restart", label: "처음부터 다시 그리기", icon: IconEraser, onClick: restart, disabled: !draft || busy || !hasWalls },
+  ];
+  // 도구 막대 옆 칸 — 축척 재기 중일 때만
+  const scalePanel = scaleLine !== null ? (
+    <>
+      <span className="text-sm font-bold text-ink">실제 길이</span>
+      <label className="flex items-center gap-2 text-sm text-ink">
+        <input
+          ref={scaleInputRef}
+          type="number"
+          inputMode="numeric"
+          min={100}
+          step={10}
+          value={scaleText}
+          onChange={(event) => setScaleText(event.target.value)}
+          onKeyDown={handleScaleKeyDown}
+          placeholder="예: 5400"
+          className={cn(fieldInputClass, "w-28 py-1.5")}
+          aria-label="기준 길이(mm)"
+        />
+        mm
+        <button type="button" onClick={applyScale} className="button button--primary button--sm ml-auto">적용</button>
+      </label>
+      <p className="text-xs text-soft">찍은 두 점 사이의 실제 길이예요. 적용하면 벽을 자동으로 찾아 그려요.</p>
+    </>
+  ) : drawMode === "scale" ? (
+    <>
+      <span className="text-sm font-bold text-ink">기준 길이 재기</span>
+      <p className="text-xs leading-relaxed text-soft">치수가 적힌 가장 긴 구간의 양 끝을 누르세요. 축척을 모르면 건너뛰고 나중에 벽 길이를 넣어도 돼요.</p>
+      <button type="button" onClick={skipScale} disabled={busy} className="button button--outline button--sm self-start">건너뛰기</button>
+    </>
+  ) : null;
+  const statusText = saveError ?? (draft && (draft.outer.length > 0 || draft.calibrated) ? validationError : null);
 
   return (
     <div className="flex h-dvh min-h-[600px] w-full flex-col bg-white">
@@ -294,10 +361,33 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
           }}
           className="w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
         />
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setPanelOpen((open) => !open)}
+            aria-pressed={panelOpen}
+            aria-label={panelOpen ? "정보 접기" : "정보 펼치기"}
+            title={panelOpen ? "정보 접기" : "정보 펼치기"}
+            className="button button--outline button--sm button--icon"
+          >
+            {panelOpen
+              ? <IconLayoutSidebarRightCollapse size={16} stroke={2} aria-hidden />
+              : <IconLayoutSidebarRightExpand size={16} stroke={2} aria-hidden />}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handleSave()}
+            disabled={busy || validationError !== null}
+            title={validationError ?? undefined}
+            className="button button--primary button--sm"
+          >
+            {saving ? "저장 중…" : "저장"}
+          </button>
+        </div>
       </header>
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
-        <div className="relative h-[55dvh] shrink-0 lg:h-auto lg:flex-1">
+        <div className={cn("relative shrink-0 lg:h-auto lg:flex-1", panelOpen ? "h-[55dvh]" : "min-h-0 flex-1")}>
           {!draft ? (
             <div className="flex h-full flex-col items-center justify-center gap-4 bg-wash p-8 text-center">
               <IconUpload size={32} stroke={1.5} className="text-soft" aria-hidden />
@@ -326,6 +416,10 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
                   inner={draft.inner}
                   closed={draft.closed}
                   drawMode={drawMode}
+                  onDrawModeChange={changeDrawMode}
+                  modes={["none", "outer", "inner", "point", "scale"]}
+                  actions={tools}
+                  panel={scalePanel}
                   background={floor ? { href: floor.url, x: floor.x, z: floor.z, width: floor.width, height: floor.height } : null}
                   uncalibrated={!draft.calibrated}
                   ceilingHeight={draft.ceilingHeight}
@@ -348,13 +442,16 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
           <input ref={fileInputRef} type="file" accept={PLAN_ACCEPT} disabled={busy} onChange={(event) => void handleFile(event)} className="sr-only" aria-label="도면 이미지" />
         </div>
 
-        <aside className="flex min-h-0 flex-col border-line lg:w-[360px] lg:shrink-0 lg:border-l">
-          <div className="flex-1 overflow-y-auto">
-            {message && (
-              <p className="border-b border-line bg-wash px-4 py-3 text-sm text-ink" aria-live="polite">{message}</p>
+        {panelOpen && (
+          <aside className="flex min-h-0 flex-col overflow-y-auto border-line lg:w-[340px] lg:shrink-0 lg:border-l">
+            {(message || statusText) && (
+              <div className="flex flex-col gap-1 border-b border-line bg-wash px-4 py-3 text-sm" aria-live="polite">
+                {message && <p className="text-ink">{message}</p>}
+                {statusText && <p className={saveError ? "text-coral" : "text-soft"}>{saveError ? statusText : `저장하려면 — ${statusText}`}</p>}
+              </div>
             )}
 
-            <Section title="도면">
+            <Section title="도면" summary={draft ? `${draft.widthPx}×${draft.heightPx}px` : "없음"}>
               <div className="flex items-center gap-2">
                 <span className="min-w-0 flex-1 truncate text-sm text-soft">
                   {draft ? `도면 이미지 · ${draft.widthPx}×${draft.heightPx}px` : "아직 올리지 않았어요"}
@@ -367,101 +464,19 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
               {draft && <p className="text-xs text-soft">다른 도면으로 바꾸면 그린 벽과 축척은 처음부터 다시 해요.</p>}
             </Section>
 
-            <Section title="축척">
+            <Section title="축척" summary={draft?.calibrated ? `1m = ${pixelsPerMeter(draft).toFixed(1)}px` : "아직 몰라요"}>
               <p className="flex items-center gap-2 text-sm">
                 <span className={cn("size-2 shrink-0 rounded-full", draft?.calibrated ? "bg-ink" : "bg-coral")} aria-hidden />
                 {draft?.calibrated
                   ? <span className="text-ink">맞춤 완료 · 1m = 도면 {pixelsPerMeter(draft).toFixed(1)}px</span>
                   : <span className="text-ink">아직 몰라요</span>}
               </p>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => toggleDraw("scale")}
-                  disabled={!draft || busy}
-                  aria-pressed={drawMode === "scale"}
-                  className={cn("button button--sm", drawMode === "scale" ? "button--primary" : "button--outline")}
-                >
-                  <IconRuler2 size={15} stroke={2} aria-hidden />
-                  기준 길이 재기
-                </button>
-                <button type="button" onClick={skipScale} disabled={!draft || busy || drawMode !== "scale"} className="button button--outline button--sm">
-                  건너뛰기
-                </button>
-              </div>
-              {scaleLine !== null && (
-                <label className="flex items-center gap-2 text-sm text-ink">
-                  실제 길이
-                  <input
-                    ref={scaleInputRef}
-                    type="number"
-                    inputMode="numeric"
-                    min={100}
-                    step={10}
-                    value={scaleText}
-                    onChange={(event) => setScaleText(event.target.value)}
-                    onKeyDown={handleScaleKeyDown}
-                    placeholder="예: 5400"
-                    className={cn(fieldInputClass, "w-28 py-2")}
-                    aria-label="기준 길이(mm)"
-                  />
-                  mm
-                  <button type="button" onClick={applyScale} className="button button--primary button--sm ml-auto">적용</button>
-                </label>
-              )}
               <p className="text-xs leading-relaxed text-soft">
-                도면에서 치수가 적힌 가장 긴 구간의 양 끝을 누르고 그 길이를 mm로 넣어요. 벽을 고르고 길이를 넣어도 축척이 맞춰져요.
+                왼쪽 도구의 ‘기준 길이 재기’로 치수가 적힌 구간의 양 끝을 누르고 길이를 mm로 넣어요. 벽을 고르고 길이를 넣어도 축척이 맞춰져요.
               </p>
             </Section>
 
-            <Section title="벽 그리기">
-              <button type="button" onClick={() => draft && void generateWalls(draft)} disabled={!draft || busy} className="button button--outline button--sm self-start">
-                <IconRefresh size={15} stroke={2} aria-hidden />
-                {detecting ? "벽 찾는 중…" : draft && (draft.outer.length > 0 || draft.inner.length > 0) ? "자동 초안으로 교체" : "벽 자동 인식"}
-              </button>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => toggleDraw("outer")}
-                  disabled={!draft || busy || draft.closed}
-                  aria-pressed={drawMode === "outer"}
-                  className={cn("button button--sm", drawMode === "outer" ? "button--primary" : "button--outline")}
-                >
-                  <IconPencil size={15} stroke={2} aria-hidden />
-                  바깥벽 그리기
-                </button>
-                <button
-                  type="button"
-                  onClick={() => toggleDraw("inner")}
-                  disabled={!draft || busy}
-                  aria-pressed={drawMode === "inner"}
-                  className={cn("button button--sm", drawMode === "inner" ? "button--primary" : "button--outline")}
-                >
-                  <IconPencil size={15} stroke={2} aria-hidden />
-                  안쪽 벽 그리기
-                </button>
-                <button type="button" onClick={undo} disabled={busy || !canUndo} className="button button--outline button--sm">
-                  <IconArrowBackUp size={15} stroke={2} aria-hidden />
-                  되돌리기
-                </button>
-                <button
-                  type="button"
-                  onClick={restart}
-                  disabled={!draft || busy || (draft.outer.length === 0 && draft.inner.length === 0)}
-                  className="button button--outline button--sm"
-                >
-                  <IconRefresh size={15} stroke={2} aria-hidden />
-                  처음부터
-                </button>
-              </div>
-              <p className="text-xs leading-relaxed text-soft">
-                점을 찍을 때마다 앞 점과 벽으로 이어져요. <b className="font-semibold text-ink">Esc</b>를 누르면 이어지던 선이 끊기고,
-                다음에 찍는 점부터 새로 시작해요(바깥벽은 첫 점·마지막 점에서 다시 이어요). 한 번 더 Esc면 그리기가 끝나요.
-                바깥벽은 첫 점을 다시 누르면 닫혀요. 안쪽 벽은 기존 점·벽에 붙고, 문 틈은 끊어서 비워 두세요.
-              </p>
-            </Section>
-
-            <Section title="설정">
+            <Section title="설정" summary={draft ? `${draft.name.trim() || defaultName} · 천장 ${draft.ceilingHeight.toFixed(2)}m` : undefined}>
               <label className="flex flex-col gap-1.5 text-sm font-semibold text-ink">
                 방 이름
                 <input
@@ -492,7 +507,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
               </label>
             </Section>
 
-            <Section title="방 정보">
+            <Section title="방 정보" summary={summary ? `${summary.areaM2.toFixed(1)}㎡ · 약 ${summary.areaPyeong.toFixed(1)}평` : undefined}>
               {summary && draft ? (
                 <>
                   <p className="text-2xl font-bold text-ink">
@@ -513,22 +528,18 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
                 <p className="text-sm text-soft">바깥벽을 그리고 닫으면 면적과 벽 길이가 나와요.</p>
               )}
             </Section>
-          </div>
 
-          <div className="flex flex-col gap-2 border-t border-line p-4">
-            <p className="min-h-5 text-sm text-soft" aria-live="polite">
-              {saveError ?? (draft && (draft.outer.length > 0 || draft.calibrated) ? validationError ?? "" : "")}
-            </p>
-            <div className="grid grid-cols-2 gap-2">
-              <Link href={backHref} className={cn("button button--outline", busy && "pointer-events-none opacity-50")}>
-                취소
-              </Link>
-              <button type="button" onClick={() => void handleSave()} disabled={busy || validationError !== null} className="button button--primary">
-                {saving ? "저장 중…" : "저장"}
-              </button>
-            </div>
-          </div>
-        </aside>
+            <Section title="그리는 법" defaultOpen={false}>
+              <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-soft">
+                <li>도구는 도면 왼쪽 막대에 있어요. 마우스를 올리면 이름이 보여요.</li>
+                <li>바깥벽·안쪽 벽은 점을 찍을 때마다 앞 점과 이어져요. <b className="font-semibold text-ink">Esc</b>로 선을 끊고, 한 번 더 누르면 그리기가 끝나요.</li>
+                <li>바깥벽은 첫 점을 다시 누르면 닫혀요. 끊긴 뒤엔 첫 점·마지막 점에서 다시 이어요.</li>
+                <li>‘선 위에 점 추가’로 벽의 원하는 자리를 누르면 점이 생기고, 바로 끌어서 옮길 수 있어요.</li>
+                <li>벽을 고르고 숫자를 치면 길이(mm)가 바뀌어요. 문 틈은 안쪽 벽을 끊어서 비워 두세요.</li>
+              </ul>
+            </Section>
+          </aside>
+        )}
       </div>
     </div>
   );

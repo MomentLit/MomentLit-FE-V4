@@ -9,7 +9,6 @@ import {
   type PhotoItem,
 } from "@/shared/ui/MultiPhotoUpload";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import Link from "next/link";
 import { IconCube } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
@@ -45,7 +44,7 @@ import {
 } from "@/widgets/registration-form/model";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
 import { deleteRoom, fetchRooms, updateRoom } from "@/entities/room";
-import { planRoomSaves, roomToDraft, type RoomDraft } from "@/widgets/room";
+import { planRoomSaves, RoomSceneList, roomToDraft, type RoomDraft } from "@/widgets/room";
 import {
   isSamePanoramaScenes,
   resolvePanoramaScenes,
@@ -131,6 +130,12 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
     });
   }, [spaceQuery.data, spaceId]);
 
+  // 3D 방은 서버에 저장된 장면 기준으로 만든다(만들기 페이지가 그 순서로 연다).
+  const savedPanoramaScenes = spaceQuery.data
+    ? resolvePanoramaScenes(spaceQuery.data.panorama_scenes, spaceQuery.data.panorama_url)
+    : [];
+  const scenesUnsaved = !isSamePanoramaScenes(panoramaScenes, savedPanoramaScenes);
+
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     setError(null);
@@ -209,7 +214,7 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         ...(bookingType === "EXTERNAL" ? {} : toBookingRulesRequest(bookingRules, usageUnit, "update")),
       });
 
-      // 3D 방은 3D 방 관리에서 바로 저장된다. 여기서는 장면을 바꾼 만큼만 맞춘다 —
+      // 3D 방은 만들기 페이지에서 바로 저장된다. 여기서는 장면을 바꾼 만큼만 맞춘다 —
       // 장면 이름·순서가 바뀌면 방 이름·순서도 바꾸고, 지운(또는 사진을 바꾼) 장면의 방은 지운다.
       if (roomsQuery.isSuccess) {
         const keptScenes = new Set(panoramaScenes.map((scene) => scene.image_url));
@@ -373,22 +378,24 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           saveHint
         />
 
-        {panoramaScenes.length > 0 && (
-          <div className="flex flex-wrap items-center gap-3 border border-line p-4 sm:col-span-2">
-            <IconCube size={20} stroke={1.8} className="shrink-0 text-ink" aria-hidden />
-            <div className="min-w-0 flex-1">
-              <span className="block text-sm font-semibold text-ink">3D 방</span>
-              <span className="block text-xs text-soft">
-                {roomsQuery.data && roomsQuery.data.length > 0
-                  ? `360° 장면 ${panoramaScenes.length}개 중 ${roomsQuery.data.length}개에 3D 방이 있어요.`
-                  : "360° 장면마다 실제 크기의 3D 방을 만들 수 있어요."}
-                {" "}장면을 바꿨다면 먼저 저장해 주세요.
-              </span>
+        {(savedPanoramaScenes.length > 0 || panoramaScenes.length > 0) && roomsQuery.isSuccess && (
+          <section className="flex flex-col gap-3 border border-line p-4 sm:col-span-2 sm:p-5">
+            <div className="flex items-center gap-2">
+              <IconCube size={20} stroke={1.8} className="shrink-0 text-ink" aria-hidden />
+              <span className="text-[0.95rem] font-bold text-ink">3D 방 (선택)</span>
             </div>
-            <Link href={`/spaces/${spaceId}/rooms`} className="button button--outline">
-              3D 방 관리
-            </Link>
-          </div>
+            <p className="text-xs text-soft">
+              360° 장면마다 실제 크기의 3D 방을 만들면, 손님이 미니어처·1인칭으로 둘러보고 가구를 놓아 볼 수 있어요.
+              3D 방은 만드는 페이지에서 저장하는 즉시 반영돼요 — 이 화면에서 고친 다른 내용은 이동하기 전에 저장해 주세요.
+            </p>
+            <RoomSceneList
+              spaceId={spaceId}
+              scenes={savedPanoramaScenes}
+              rooms={roomsQuery.data}
+              returnTo="edit"
+              locked={scenesUnsaved ? "360° 장면을 바꿨어요. 아래 '저장하기'를 누른 뒤 3D 방을 만들거나 고칠 수 있어요." : null}
+            />
+          </section>
         )}
 
         {error && (

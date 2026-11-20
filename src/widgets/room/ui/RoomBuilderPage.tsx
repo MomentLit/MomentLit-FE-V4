@@ -6,17 +6,19 @@ import { useQueryClient } from "@tanstack/react-query";
 import { createRoom, updateRoom } from "@/entities/room";
 import { roomPlacement, roomToDraft, toRoomRequest, type RoomDraft } from "../model";
 import { RoomBuilder } from "./RoomBuilder";
+import { roomReturnHref, type RoomReturnTo } from "./RoomSceneList";
 import { ROOM_ACCESS_MESSAGES, useRoomHostAccess } from "./useRoomHostAccess";
 
 /**
- * `/spaces/{id}/rooms/edit?scene=n` — n번째 360° 장면으로 3D 방을 만들거나 고친다.
- * 저장하면 바로 서버에 저장하고(장면에 방이 있으면 덮어쓰기) 3D 방 관리로 돌아간다.
+ * `/spaces/{id}/rooms/edit?scene=n&from=edit|rooms` — n번째 360° 장면으로 3D 방을 만들거나 고친다.
+ * 저장하면 바로 서버에 저장하고(장면에 방이 있으면 덮어쓰기) 들어온 곳(공간 수정 또는 3D 방 관리)으로 돌아간다.
  */
-export function RoomBuilderPage({ spaceId, sceneIndex }: { spaceId: number; sceneIndex: number }) {
+export function RoomBuilderPage({ spaceId, sceneIndex, returnTo }: { spaceId: number; sceneIndex: number; returnTo: RoomReturnTo }) {
   const { status, space, scenes, rooms } = useRoomHostAccess(spaceId);
   const router = useRouter();
   const queryClient = useQueryClient();
-  const backHref = `/spaces/${spaceId}/rooms`;
+  const backHref = roomReturnHref(spaceId, returnTo);
+  const backLabel = returnTo === "edit" ? "공간 수정" : "3D 방 관리";
 
   const scene = scenes[sceneIndex];
   if (status !== "ready" || !space || !scene) {
@@ -24,7 +26,7 @@ export function RoomBuilderPage({ spaceId, sceneIndex }: { spaceId: number; scen
     return (
       <div className="flex h-dvh flex-col items-center justify-center gap-4 p-10 text-sm text-soft">
         {message}
-        <Link href={backHref} className="button button--outline">3D 방 관리로</Link>
+        <Link href={backHref} className="button button--outline">{backLabel}(으)로</Link>
       </div>
     );
   }
@@ -49,6 +51,7 @@ export function RoomBuilderPage({ spaceId, sceneIndex }: { spaceId: number; scen
       initialDraft={existing ? roomToDraft(existing) : null}
       title={space.name}
       backHref={backHref}
+      backLabel={backLabel}
       onSave={save}
     />
   );

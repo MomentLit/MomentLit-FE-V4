@@ -88,15 +88,17 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
  * 1) 바닥 모서리 찾기(자동 또는 직접 찍기, 도면에서 수치로 고치기) → 2) 높이 맞추기 → 3) 미니어처로 확인 후 저장.
  * 저장은 부모(`onSave`)가 서버에 한다.
  */
-export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, onSave }: {
+export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, backLabel, onSave }: {
   scene: PanoramaTourScene;
   /** 화면에 보일 장면 이름(예: "거실", "장면 2"). */
   sceneLabel: string;
   initialDraft: RoomDraft | null;
   /** 공간 이름. */
   title: string;
-  /** 돌아갈 곳(3D 방 관리). */
+  /** 돌아갈 곳(들어온 곳 — 공간 수정 또는 3D 방 관리). */
   backHref: string;
+  /** 돌아갈 곳 이름(예: "공간 수정") — 뒤로 가기 버튼 설명. */
+  backLabel: string;
   /** 저장 — 실패하면 오류를 던진다(화면에 문구로 보여 준다). */
   onSave: (draft: RoomDraft) => Promise<void>;
 }) {
@@ -239,7 +241,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
   return (
     <div className="flex h-dvh min-h-[600px] w-full flex-col bg-white">
       <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-2.5">
-        <Link href={backHref} aria-label="3D 방 관리로 돌아가기" className="button button--outline button--sm button--icon">
+        <Link href={backHref} aria-label={`${backLabel}(으)로 돌아가기`} title={`${backLabel}(으)로 돌아가기`} className="button button--outline button--sm button--icon">
           <IconArrowLeft size={16} stroke={2} aria-hidden />
         </Link>
         <div className="min-w-[120px] flex-1">

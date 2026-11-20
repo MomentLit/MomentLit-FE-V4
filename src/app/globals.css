@@ -291,6 +291,8 @@ html { scroll-behavior: smooth; scroll-padding-top: 88px; }
 /* 작은 버튼 — 도구 막대·패널 안에서. 같은 줄에는 같은 크기만 둔다. --icon은 아이콘만 있는 정사각형. */
 .button--sm { min-height: 36px; gap: 6px; padding: 6px 12px; font-size: .8125rem; }
 .button--icon { width: 36px; padding-inline: 0; }
+/* 기본 크기(44px) 정사각 아이콘 버튼. .button은 레이어 밖이라 Tailwind의 px-0 같은 유틸리티로는 여백을 못 덮는다. */
+.button--square { width: 44px; padding-inline: 0; }
 /* 붙어 있는 선택(시점 전환 등) — 칸을 나눠 쓰고 고른 칸만 잉크 바탕이라, 항목이 바뀌어도 크기가 그대로다. */
 .segmented { display: inline-flex; border: 1px solid var(--line-2); background: white; }
 .segmented__item { display: inline-flex; min-height: 34px; align-items: center; justify-content: center; gap: 6px; padding: 6px 12px; font-size: .8125rem; font-weight: 700; line-height: 1.4; white-space: nowrap; color: var(--soft); transition: background-color 160ms, color 160ms; }

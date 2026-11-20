@@ -90,7 +90,7 @@ export function RoomManager({ spaceId, justCreated = false }: { spaceId: number;
               disabled={!room}
               aria-label={`${label} 3D 방 빼기`}
               title="3D 방 빼기"
-              className={cn("button button--outline w-11 px-0", !room && "invisible")}
+              className={cn("button button--outline button--square", !room && "invisible")}
             >
               <IconTrash size={16} stroke={2} aria-hidden />
             </button>

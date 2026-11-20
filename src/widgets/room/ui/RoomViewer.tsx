@@ -312,7 +312,7 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
                   disabled={view === "walk"}
                   onClick={() => startPlacing(def.id)}
                   aria-pressed={placingType === def.id}
-                  className={cn("button button--sm h-14 flex-col gap-0", placingType === def.id ? "button--primary" : "button--outline")}
+                  className={cn("button button--sm h-14 flex-col", placingType === def.id ? "button--primary" : "button--outline")}
                 >
                   {def.name}
                   <small className="text-[0.7rem] font-normal opacity-70">{def.width}×{def.depth}m</small>

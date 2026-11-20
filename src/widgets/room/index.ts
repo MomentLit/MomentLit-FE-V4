@@ -1,8 +1,7 @@
-export { RoomBuilderModal } from "./ui/RoomBuilderModal";
-export { RoomField } from "./ui/RoomField";
+export { RoomBuilderPage } from "./ui/RoomBuilderPage";
+export { RoomManager } from "./ui/RoomManager";
 export { RoomViewer } from "./ui/RoomViewer";
 export {
-  keepRoomsForScenes,
   planRoomSaves,
   roomPlacement,
   roomToDraft,

@@ -9,6 +9,8 @@ import {
   type PhotoItem,
 } from "@/shared/ui/MultiPhotoUpload";
 import { useEffect, useRef, useState, type FormEvent } from "react";
+import Link from "next/link";
+import { IconCube } from "@tabler/icons-react";
 import { useRouter } from "next/navigation";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRequireAuth } from "@/widgets/auth";
@@ -42,8 +44,8 @@ import {
   type BookingRulesState,
 } from "@/widgets/registration-form/model";
 import { PanoramaPhotoField } from "@/widgets/panorama/ui/PanoramaPhotoField";
-import { createRoom, deleteRoom, fetchRooms, updateRoom } from "@/entities/room";
-import { keepRoomsForScenes, planRoomSaves, RoomField, roomToDraft, type RoomDraft } from "@/widgets/room";
+import { deleteRoom, fetchRooms, updateRoom } from "@/entities/room";
+import { planRoomSaves, roomToDraft, type RoomDraft } from "@/widgets/room";
 import {
   isSamePanoramaScenes,
   resolvePanoramaScenes,
@@ -98,8 +100,6 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
   // 재조회될 때마다 다시 채우면 저장하지 않은 수정 내용이 서버 값으로 덮어써진다.
   const initializedSpaceIdRef = useRef<number | null>(null);
   const [panoramaScenes, setPanoramaScenes] = useState<PanoramaTourScene[]>([]);
-  const [rooms, setRooms] = useState<RoomDraft[]>([]);
-  const initializedRoomSpaceIdRef = useRef<number | null>(null);
   const [bookingType, setBookingType] = useState<BookingType>("INTERNAL");
   const [externalBookingUrl, setExternalBookingUrl] = useState("");
   const [bookingRules, setBookingRules] = useState<BookingRulesState>(createInitialBookingRules);
@@ -130,25 +130,6 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
       setBookingRules(bookingRulesFromSpace(space));
     });
   }, [spaceQuery.data, spaceId]);
-
-  useEffect(() => {
-    if (!roomsQuery.isSuccess || initializedRoomSpaceIdRef.current === spaceId) return;
-    initializedRoomSpaceIdRef.current = spaceId;
-    const saved = roomsQuery.data;
-    queueMicrotask(() => setRooms(saved.map(roomToDraft).filter((draft): draft is RoomDraft => draft !== null)));
-  }, [roomsQuery.isSuccess, roomsQuery.data, spaceId]);
-
-  function handlePanoramaScenesChange(scenes: PanoramaTourScene[]) {
-    setPanoramaScenes(scenes);
-    // 장면을 지우거나 사진을 바꾸면 그 장면으로 만든 3D 방도 뺀다.
-    setRooms((current) => keepRoomsForScenes(current, scenes));
-  }
-
-  const roomsChanged = (() => {
-    if (!roomsQuery.isSuccess) return false;
-    const plan = planRoomSaves(rooms, roomsQuery.data, panoramaScenes);
-    return plan.create.length + plan.update.length + plan.remove.length > 0;
-  })();
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -228,11 +209,16 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
         ...(bookingType === "EXTERNAL" ? {} : toBookingRulesRequest(bookingRules, usageUnit, "update")),
       });
 
+      // 3D 방은 3D 방 관리에서 바로 저장된다. 여기서는 장면을 바꾼 만큼만 맞춘다 —
+      // 장면 이름·순서가 바뀌면 방 이름·순서도 바꾸고, 지운(또는 사진을 바꾼) 장면의 방은 지운다.
       if (roomsQuery.isSuccess) {
-        const plan = planRoomSaves(rooms, roomsQuery.data, panoramaScenes);
+        const keptScenes = new Set(panoramaScenes.map((scene) => scene.image_url));
+        const drafts = roomsQuery.data
+          .map(roomToDraft)
+          .filter((draft): draft is RoomDraft => draft !== null && keptScenes.has(draft.sceneImageUrl));
+        const plan = planRoomSaves(drafts, roomsQuery.data, panoramaScenes);
         for (const roomId of plan.remove) await deleteRoom(spaceId, roomId);
         for (const { roomId, request } of plan.update) await updateRoom(spaceId, roomId, request);
-        for (const request of plan.create) await createRoom(spaceId, request);
         if (plan.remove.length + plan.update.length + plan.create.length > 0) {
           await queryClient.invalidateQueries({ queryKey: ["space-rooms", spaceId] });
         }
@@ -381,22 +367,27 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
 
         <PanoramaPhotoField
           value={panoramaScenes}
-          onChange={handlePanoramaScenesChange}
+          onChange={setPanoramaScenes}
           title={name.trim() || "공간"}
           disabled={submitting}
           saveHint
         />
 
-        {panoramaScenes.length > 0 && roomsQuery.isSuccess && (
-          <div className="sm:col-span-2">
-            <RoomField
-              scenes={panoramaScenes}
-              value={rooms}
-              onChange={setRooms}
-              title={name.trim() || "공간"}
-              disabled={submitting}
-              saveHint={roomsChanged}
-            />
+        {panoramaScenes.length > 0 && (
+          <div className="flex flex-wrap items-center gap-3 border border-line p-4 sm:col-span-2">
+            <IconCube size={20} stroke={1.8} className="shrink-0 text-ink" aria-hidden />
+            <div className="min-w-0 flex-1">
+              <span className="block text-sm font-semibold text-ink">3D 방</span>
+              <span className="block text-xs text-soft">
+                {roomsQuery.data && roomsQuery.data.length > 0
+                  ? `360° 장면 ${panoramaScenes.length}개 중 ${roomsQuery.data.length}개에 3D 방이 있어요.`
+                  : "360° 장면마다 실제 크기의 3D 방을 만들 수 있어요."}
+                {" "}장면을 바꿨다면 먼저 저장해 주세요.
+              </span>
+            </div>
+            <Link href={`/spaces/${spaceId}/rooms`} className="button button--outline">
+              3D 방 관리
+            </Link>
           </div>
         )}
 

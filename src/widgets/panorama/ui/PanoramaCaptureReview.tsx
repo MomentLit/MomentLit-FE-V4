@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { IconAlertTriangle, IconCircleCheck, IconRefresh } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
 import {
-  CAPTURE_ACCEPT,
   PANORAMA_CAPTURE_STEPS,
   readCapturePhotoSize,
   reviewCapturePhotos,
@@ -14,9 +13,7 @@ import {
 export interface PanoramaCaptureReviewProps {
   /** 10장이 모두 채워진 상태로만 들어온다(`PANORAMA_CAPTURE_STEPS`와 같은 순서). */
   files: readonly File[];
-  onFileChange: (index: number, file: File) => void;
-  /** 모바일이면 "사진 바꾸기"가 앨범 대신 카메라를 바로 연다. */
-  mobile: boolean;
+  onCapture: (index: number) => void;
   disabled?: boolean;
 }
 
@@ -24,7 +21,7 @@ export interface PanoramaCaptureReviewProps {
  * 합성 전 검수 — 10장을 방향과 함께 한눈에 보여주고, 중복·세로 촬영·낮은 해상도를 경고한다.
  * 경고는 안내일 뿐이라 그대로 합성할 수 있다.
  */
-export function PanoramaCaptureReview({ files, onFileChange, mobile, disabled }: PanoramaCaptureReviewProps) {
+export function PanoramaCaptureReview({ files, onCapture, disabled }: PanoramaCaptureReviewProps) {
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   const [sizes, setSizes] = useState<(CapturePhotoSize | null)[] | null>(null);
 
@@ -93,27 +90,19 @@ export function PanoramaCaptureReview({ files, onFileChange, mobile, disabled }:
                 </span>
               ))}
               {/* .button과 같은 모양의 작은 버전 — 5열 칸이 좁아 기본 .button 여백으로는 넘친다. */}
-              <label
+              <button
+                type="button"
+                disabled={disabled}
+                onClick={() => onCapture(index)}
+                aria-label={`${step.direction} 다시 촬영`}
                 className={cn(
                   "mt-auto inline-flex min-h-9 cursor-pointer items-center justify-center gap-1 border border-line-2 bg-white px-2 text-xs font-bold text-ink transition-colors hover:border-ink hover:bg-ink hover:text-white focus-within:border-sky",
                   disabled && "pointer-events-none opacity-60",
                 )}
               >
                 <IconRefresh size={14} stroke={2} aria-hidden />
-                사진 바꾸기
-                <input
-                  type="file"
-                  accept={CAPTURE_ACCEPT}
-                  capture={mobile ? "environment" : undefined}
-                  disabled={disabled}
-                  onChange={(e) => {
-                    const next = e.target.files?.[0];
-                    if (next) onFileChange(index, next);
-                  }}
-                  aria-label={`${step.direction} 사진 바꾸기`}
-                  className="sr-only"
-                />
-              </label>
+                다시 촬영
+              </button>
             </div>
           );
         })}

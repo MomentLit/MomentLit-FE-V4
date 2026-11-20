@@ -6,8 +6,7 @@ import type { PanoramaScene, PanoramaSceneRequest } from "@/entities/space/model
  *
  * 수평 45° 간격 8장 + 천장 1장 + 바닥 1장 = 10장. 휴대폰 기본 카메라(1배)를 가로로 들어도
  * 수평 화각이 대략 65° 안팎이라, 45° 간격이면 이웃 사진끼리 1/3가량 겹쳐서 합성에 필요한
- * 공통 영역이 생긴다. 0.6배 광각을 권장하는 이유는 한 장에 위아래가 더 넓게 담겨서, 10장으로 덮지 못해
- * 주변 색으로 채우는 곳(수평 사진과 천장·바닥 사이)이 줄어들기 때문이다. 천장·바닥은 구면의 위아래 빈 곳을 채우는 용도 — 서버가 매칭하지 않고 "정면을 보고 선 채
+ * 공통 영역이 생긴다. 천장·바닥은 구면의 위아래 빈 곳을 채우는 용도 — 서버가 매칭하지 않고 "정면을 보고 선 채
  * 가로로 든 휴대폰을 그대로 젖히거나(천장) 숙인(바닥)" 방향에 바로 놓으므로, 가이드 문구도 그 자세를 정확히 안내한다.
  *
  * 장수와 순서는 백엔드 `ImageService.PANORAMA_SOURCE_COUNT`와 반드시 맞출 것 —
@@ -33,7 +32,7 @@ export const PANORAMA_CAPTURE_STEPS: readonly PanoramaCaptureStep[] = [
 ];
 
 export const PANORAMA_CAPTURE_TIPS = [
-  "카메라를 0.6배 광각으로 맞추면 한 장에 더 넓게 담겨 빈 곳이 줄어요.",
+  "브라우저에서 카메라 접근을 허용한 뒤, 화면을 보며 찍어요.",
   "휴대폰을 가로로 들고, 발 위치는 그대로 둔 채 제자리에서 몸만 돌려요.",
   "이웃한 사진끼리 1/3 정도 겹치게 찍어요.",
   "찍는 동안 조명을 바꾸지 말고, 움직이는 사람이나 물체가 없을 때 찍어요.",
@@ -51,9 +50,8 @@ export const PANORAMA_CAPTURE_DETAILED_GUIDE: readonly PanoramaGuideSection[] = 
     items: [
       "공간의 조명을 모두 켜고, 촬영이 끝날 때까지 바꾸지 않아요.",
       "사람이나 움직이는 물체가 화면에 들어오지 않을 때 찍어요.",
-      "카메라는 0.6배 광각으로 맞춰 주세요. 한 장에 더 넓게 담겨 빈 곳이 줄어요. 0.6배가 없는 휴대폰은 기본 배율(1배)로 찍어요.",
-      "줌·인물 모드, 플래시, HDR, 필터는 꺼 주세요.",
-      "렌즈를 한 번 닦아 주면 사진이 뿌옇게 나오지 않아요.",
+      "브라우저에서 카메라 접근을 허용해 주세요.",
+        "렌즈를 한 번 닦아 주면 사진이 뿌옇게 나오지 않아요.",
     ],
   },
   {
@@ -84,124 +82,6 @@ export const PANORAMA_CAPTURE_DETAILED_GUIDE: readonly PanoramaGuideSection[] = 
     ],
   },
 ];
-
-/** 가이드 촬영 사진 — 일반 이미지 업로드(`uploadImage`)와 같은 형식. */
-export const CAPTURE_ACCEPT = "image/jpeg,image/png,image/webp";
-
-/** 이미 만들어진 360도 사진 — 서버가 비율 검증을 ImageIO로 해서 webp는 받지 않는다. */
-export const PANORAMA_ACCEPT = "image/jpeg,image/png";
-
-/**
- * 등장방형(equirectangular) 360도 사진은 가로:세로 = 2:1. 서버와 같은 허용 오차.
- * 카메라·앱마다 픽셀 수가 조금씩 달라(예: 1456×720 = 2.022) ±0.05까지는 같은 사진으로 본다.
- */
-const PANORAMA_RATIO = 2;
-const PANORAMA_RATIO_TOLERANCE = 0.05;
-
-/** 업로드 전에 브라우저에서 먼저 가로:세로 비율을 확인한다 — 서버도 같은 검증을 한 번 더 한다. */
-export function readImageRatio(file: File): Promise<number> {
-  return new Promise((resolve, reject) => {
-    const url = URL.createObjectURL(file);
-    const image = new Image();
-    image.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(image.naturalWidth / image.naturalHeight);
-    };
-    image.onerror = () => {
-      URL.revokeObjectURL(url);
-      reject(new Error("이미지를 읽을 수 없어요."));
-    };
-    image.src = url;
-  });
-}
-
-export function isPanoramaRatio(ratio: number): boolean {
-  return Math.abs(ratio - PANORAMA_RATIO) <= PANORAMA_RATIO_TOLERANCE;
-}
-
-/** 2:1보다 가로로 긴 사진 — 휴대폰 기본 카메라의 "파노라마"로 찍은 사진으로 본다. */
-export function isPhonePanoramaRatio(ratio: number): boolean {
-  return ratio > PANORAMA_RATIO + PANORAMA_RATIO_TOLERANCE;
-}
-
-export const PHONE_PANORAMA_MIN_FOV = 90;
-export const PHONE_PANORAMA_MAX_FOV = 360;
-export const PHONE_PANORAMA_MAX_SHIFT = 45;
-
-/**
- * 폰 파노라마가 담은 가로 각도 추정 — 휴대폰 세로 화각(약 70°) × 가로:세로 비율. 5° 단위, 90~360°.
- * 정확하지 않아서 사용자가 "찍은 가로 각도"로 고칠 수 있게 한다(프로토타입 panorama-room.html과 같은 식).
- */
-export function estimatePhonePanoramaFov(ratio: number): number {
-  const estimate = Math.round((70 * ratio) / 5) * 5;
-  return Math.max(PHONE_PANORAMA_MIN_FOV, Math.min(PHONE_PANORAMA_MAX_FOV, estimate));
-}
-
-export interface PhonePanoramaPlacement {
-  /** 결과 캔버스 크기(2:1). */
-  width: number;
-  height: number;
-  /** 원본 사진을 그릴 자리. */
-  x: number;
-  y: number;
-  drawWidth: number;
-  drawHeight: number;
-}
-
-const EQUIRECT_MIN_WIDTH = 2048;
-const EQUIRECT_MAX_WIDTH = 4096;
-
-/**
- * 폰 파노라마를 360° 사진(2:1)의 어디에 놓을지. 가운데(정면)를 기준으로 가로 `fov`도만큼 펼치고,
- * 세로는 원본 비율을 지켜 수평선에 맞춘 뒤 `shift`도만큼 위(+)·아래(-)로 옮긴다.
- * 결과 너비는 원본 해상도를 살리되 2048~4096px로 맞춘다.
- */
-export function placePhonePanorama(
-  sourceWidth: number,
-  sourceHeight: number,
-  fov: number,
-  shift: number,
-): PhonePanoramaPlacement {
-  const fullWidth = Math.round((sourceWidth * 360) / fov);
-  const width = Math.max(EQUIRECT_MIN_WIDTH, Math.min(EQUIRECT_MAX_WIDTH, fullWidth - (fullWidth % 2)));
-  const height = width / 2;
-  const drawWidth = (width * fov) / 360;
-  const drawHeight = (drawWidth * sourceHeight) / sourceWidth;
-  return {
-    width,
-    height,
-    x: (width - drawWidth) / 2,
-    y: (height - drawHeight) / 2 - (shift / 180) * height,
-    drawWidth,
-    drawHeight,
-  };
-}
-
-/** 사진에 담기지 않은 위아래를 채우는 색 — 프로토타입과 같은 회색. */
-const PHONE_PANORAMA_FILL = "#5d6166";
-
-/** 폰 파노라마 → 2:1 360° 사진(JPEG). `createImageBitmap`으로 읽어 EXIF 회전도 반영된 비트맵을 받는다. */
-export async function renderPhonePanorama(
-  bitmap: ImageBitmap,
-  fov: number,
-  shift: number,
-  fileName: string,
-): Promise<File> {
-  const placement = placePhonePanorama(bitmap.width, bitmap.height, fov, shift);
-  const canvas = document.createElement("canvas");
-  canvas.width = placement.width;
-  canvas.height = placement.height;
-  const context = canvas.getContext("2d");
-  if (!context) throw new Error("사진을 처리할 수 없어요.");
-  context.fillStyle = PHONE_PANORAMA_FILL;
-  context.fillRect(0, 0, placement.width, placement.height);
-  context.drawImage(bitmap, placement.x, placement.y, placement.drawWidth, placement.drawHeight);
-
-  const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", 0.9));
-  if (!blob) throw new Error("사진을 처리할 수 없어요.");
-  const baseName = fileName.replace(/\.[^.]+$/, "");
-  return new File([blob], `${baseName}-360.jpg`, { type: "image/jpeg" });
-}
 
 /** 합성용 사진의 긴 변 최대 길이 — 10장을 한 번에 보내므로 요청 크기와 합성 시간을 줄인다. */
 const STITCH_MAX_SIDE = 1600;

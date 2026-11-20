@@ -35,7 +35,7 @@ export function PanoramaPhotoField({ value, onChange, title, disabled = false, s
     <FormField
       label="360° 사진 (선택)"
       full
-      hint="사진 한 장으로 공간을 둘러보게 하거나, 가이드에 따라 찍은 10장으로 360° 사진을 만들어 보세요. 여러 장을 넣으면 장면마다 이동 화살표를 추가해 바닥 화살표로 다른 장소에 이동할 수 있어요 — 화살표 방향은 사진에서 직접 눌러 정해요. 첫 장면이 시작 장면이에요."
+      hint="서비스 카메라로 가이드에 따라 10장을 찍으면 360° 장면을 만들 수 있어요. 장면을 여러 개 만들면 이동 화살표를 연결할 수 있어요. 첫 장면이 시작 장면이에요."
     >
       {value.length > 0 && (
         <PanoramaTourEditor scenes={value} onChange={onChange} onReplacePhoto={setUploadTarget} disabled={disabled} />

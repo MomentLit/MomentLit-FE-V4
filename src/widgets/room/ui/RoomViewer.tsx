@@ -19,6 +19,7 @@ import { cn } from "@/shared/lib";
 import { FURNITURE_CATALOG, findFurniture, normalizeRotation } from "../lib/furniture";
 import { polygonArea, toPyeong, wallLengths } from "../lib/geometry";
 import type { RoomStageState, RoomView } from "../lib/stage";
+import { roomPlanFloorImage } from "../planModel";
 import { LayoutsPanel } from "./LayoutsPanel";
 import { RoomPlanView } from "./RoomPlanView";
 import { RoomStageCanvas } from "./RoomStageCanvas";
@@ -54,13 +55,14 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
   );
 }
 
-/** 이 화면에서 그릴 수 있는 방 — 파노라마 사진과 촬영 높이가 있어야 한다. */
+/** 이 화면에서 그릴 수 있는 방 — 파노라마 방은 사진과 촬영 높이, 도면 방은 도면 정보가 있어야 한다. */
 function isViewable(room: Room) {
+  if (room.source === "PLAN") return roomPlanFloorImage(room) !== null;
   return Boolean(room.image_url) && room.camera_height != null;
 }
 
 /**
- * `/spaces/{id}/room` — 공간의 3D 방(360° 장면마다 하나)을 화면 가득 보여 주고, 실제 크기 가구를 놓아 보고, 배치를 여러 개 저장한다.
+ * `/spaces/{id}/room` — 공간의 3D 방(360° 장면마다 하나, 도면으로 만든 방)을 화면 가득 보여 주고, 실제 크기 가구를 놓아 보고, 배치를 여러 개 저장한다.
  * 방이 여러 개면 위쪽 탭으로 옮겨 다닌다. 가구 배치는 방마다 따로다.
  */
 export function RoomViewer({ spaceId }: { spaceId: number }) {
@@ -148,8 +150,18 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
   const [hint, setHint] = useState<string | null>(null);
   const layouts = useFurnitureLayouts(spaceId, room.room_id);
   const { items, setItems } = layouts;
+  // 도면으로 만든 방은 사진이 없어 사진 시점이 없고, 벽은 무늬 없는 색·바닥엔 도면(호스트가 켰으면)을 깐다
+  const isPlan = room.source === "PLAN";
+  const floorImage = isPlan && room.geometry.plan?.show_floor ? roomPlanFloorImage(room) : null;
+  const views = isPlan ? VIEWS.filter((option) => option.id !== "photo") : VIEWS;
 
   const stageState = useMemo<RoomStageState>(() => ({
+    ...(room.source === "PLAN"
+      ? {
+        surface: { kind: "plan" as const, floor: room.geometry.plan?.show_floor ? roomPlanFloorImage(room) : null },
+        walkStart: null,
+      }
+      : {}),
     outer: room.geometry.outer,
     corners: [],
     inner: room.geometry.inner,
@@ -233,7 +245,7 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
       <ViewerHeader spaceId={spaceId} title={title}>
         {/* 좁은 화면에선 제목이 찌그러지지 않게 다음 줄로 내려 폭을 채운다 */}
         <ViewSwitch
-          options={VIEWS}
+          options={views}
           value={view}
           onChange={changeView}
           className="w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
@@ -244,7 +256,7 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         <div className="relative h-[58dvh] shrink-0 lg:h-auto lg:flex-1">
           <RoomStageCanvas
-            imageUrl={room.image_url!}
+            imageUrl={isPlan ? null : room.image_url!}
             state={stageState}
             view={stageView}
             furnitureEditable={view === "miniature" || view === "photo"}
@@ -270,6 +282,7 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
               onDragEnd={() => undefined}
               onPlace={handlePlace}
               onHint={setHint}
+              floorImage={floorImage}
               className="absolute inset-0 h-full w-full"
             />
           )}

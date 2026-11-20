@@ -1,5 +1,6 @@
 export { RoomBuilderPage } from "./ui/RoomBuilderPage";
 export { RoomManager } from "./ui/RoomManager";
+export { RoomPlanBuilderPage } from "./ui/RoomPlanBuilderPage";
 export { RoomSceneList } from "./ui/RoomSceneList";
 export { RoomViewer } from "./ui/RoomViewer";
 export {

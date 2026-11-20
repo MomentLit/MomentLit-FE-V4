@@ -22,7 +22,24 @@ export interface RoomGeometry {
   yaw: number | null;
   /** 바닥 모서리의 사진 좌표 — 다시 편집할 때 쓴다. */
   corners: PanoramaUv[] | null;
+  /** 도면 방의 도면 이미지 놓는 자리(축척·위치). 파노라마 방은 없다. */
+  plan?: PlanImage | null;
 }
+
+/** 도면 이미지를 바닥 평면(m)에 놓는 자리. */
+export interface PlanImage {
+  /** 축척: 이미지 1px = 몇 m. */
+  meters_per_pixel: number;
+  /** 이미지 왼쪽 위 모서리의 바닥 좌표 [x, z] (m). */
+  offset: FloorPoint;
+  width_px: number;
+  height_px: number;
+  /** 3D 바닥에 도면을 깔지. */
+  show_floor: boolean;
+}
+
+/** 도면 방은 장면 방 뒤에 오도록 순서를 이만큼 띄운다. */
+export const PLAN_ROOM_SORT_BASE = 1000;
 
 /** 공간의 3D 방 하나 — 360° 장면마다 하나씩, 공간당 20개까지. */
 export interface Room {
@@ -54,7 +71,8 @@ export interface RoomUpsertRequest {
   source: RoomSource;
   image_url: string;
   ceiling_height: number;
-  camera_height: number;
+  /** 파노라마 방은 필수, 도면 방은 null. */
+  camera_height: number | null;
   geometry: RoomGeometry;
 }
 

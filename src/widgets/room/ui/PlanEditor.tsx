@@ -11,6 +11,7 @@ import {
   setInnerWallLength,
   setOuterWallLength,
   snapOuterVertex,
+  snapPoint,
   splitInnerWall,
   splitOuterWall,
   type Segment,
@@ -34,6 +35,23 @@ export interface PlanShape {
   inner: Segment[];
 }
 
+/** 그리기 — 바깥벽 모서리 찍기 / 안쪽 벽 시작·끝 찍기 / 축척 기준 두 점 찍기. "none"이면 고르기·끌기. */
+export type PlanDrawMode = "none" | "outer" | "inner" | "scale";
+
+/** 바닥 평면(m)에 깔 도면 이미지. */
+export interface PlanBackground {
+  href: string;
+  x: number;
+  z: number;
+  width: number;
+  height: number;
+}
+
+/** 첫 점 근처를 누르면 바깥벽을 닫는다(px). */
+const CLOSE_PX = 12;
+/** 안쪽 벽 끝을 기존 점·바깥벽에 붙이는 거리(px). */
+const STICK_PX = 12;
+
 /** 화면에서 끌기·스냅 허용 거리(px). */
 const SNAP_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
@@ -45,6 +63,7 @@ function isTypingTarget(target: EventTarget | null) {
 
 function fitView(outer: readonly Vec2[], aspect: number): View {
   if (outer.length === 0) return { x: -3, z: -3, w: 6, h: 6 / aspect };
+  if (outer.length === 1) return { x: outer[0][0] - 3, z: outer[0][1] - 3, w: 6, h: 6 / aspect };
   const xs = outer.map((p) => p[0]);
   const zs = outer.map((p) => p[1]);
   const pad = 1.2;
@@ -76,12 +95,32 @@ export function PlanEditor({
   inner = [],
   onChange,
   ceilingHeight,
+  closed = true,
+  drawMode = "none",
+  background = null,
+  uncalibrated = false,
+  onClose,
+  onScaleLine,
+  onCalibrate,
   className,
 }: {
   outer: readonly Vec2[];
   inner?: readonly Segment[];
   onChange: (shape: PlanShape) => void;
   ceilingHeight?: number;
+  /** 바깥벽이 닫혔는지 — 그리는 중이면 false(마지막 점과 첫 점 사이 벽이 없다). */
+  closed?: boolean;
+  drawMode?: PlanDrawMode;
+  /** 밑에 깔 도면 이미지. */
+  background?: PlanBackground | null;
+  /** 축척을 아직 모르면 true — 벽 길이를 넣으면 그 벽을 늘이지 않고 도면 전체 축척을 맞춘다(`onCalibrate`). */
+  uncalibrated?: boolean;
+  /** 바깥벽 그리기에서 첫 점을 다시 눌렀을 때. */
+  onClose?: () => void;
+  /** 축척 재기에서 두 점을 찍었을 때. */
+  onScaleLine?: (a: Vec2, b: Vec2) => void;
+  /** 축척을 모를 때 벽 길이를 넣으면 — 지금 길이(m)와 실제 길이(m). */
+  onCalibrate?: (current: number, actual: number) => void;
   className?: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -90,6 +129,18 @@ export function PlanEditor({
   const [selection, setSelection] = useState<Selection>(null);
   const [lengthText, setLengthText] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // 그리는 중 — 안쪽 벽 시작점, 축척 두 점, 마우스 자리(미리보기 선)
+  const [pending, setPending] = useState<Vec2 | null>(null);
+  const [scalePoints, setScalePoints] = useState<Vec2[]>([]);
+  const [hover, setHover] = useState<Vec2 | null>(null);
+  const [lastDrawMode, setLastDrawMode] = useState(drawMode);
+  if (lastDrawMode !== drawMode) {
+    // 그리기 종류가 바뀌면 그리던 것을 비운다(렌더 중 상태 맞추기)
+    setLastDrawMode(drawMode);
+    setPending(null);
+    setScalePoints([]);
+    setSelection(null);
+  }
   // 화면 폭(px) — 치수 글자가 벽 길이 안에 들어갈 때만 보여 주는 데 쓴다
   const [svgWidth, setSvgWidth] = useState(0);
   useEffect(() => {
@@ -111,14 +162,18 @@ export function PlanEditor({
   const fit = useCallback(() => {
     const svg = svgRef.current;
     const aspect = svg && svg.clientHeight > 0 ? svg.clientWidth / svg.clientHeight : 1.6;
-    setView(fitView(outer, aspect));
-  }, [outer]);
+    // 바깥벽이 아직 없으면 도면 이미지 전체가 보이게
+    const target: Vec2[] = outer.length >= 2 || !background
+      ? outer.map((p) => [p[0], p[1]])
+      : [[background.x, background.z], [background.x + background.width, background.z + background.height]];
+    setView(fitView(target, aspect));
+  }, [outer, background]);
   const fittedRef = useRef(false);
   useEffect(() => {
-    if (fittedRef.current || outer.length === 0) return;
+    if (fittedRef.current || (outer.length === 0 && !background)) return;
     fittedRef.current = true;
     queueMicrotask(fit);
-  }, [fit, outer.length]);
+  }, [fit, outer.length, background]);
 
   // 지우거나 되돌려서 선택한 것이 없어졌으면 선택을 푼다(렌더 중에 계산)
   const current: Selection = selection && (
@@ -192,6 +247,10 @@ export function PlanEditor({
 
   function handleMove(event: PointerEvent<SVGSVGElement>) {
     const pointer = pointerRef.current;
+    if (drawMode !== "none" && (!pointer || !pointer.moved)) {
+      const p = toPlan(event.clientX, event.clientY);
+      setHover(p ? snapForDraw(p) : null);
+    }
     if (!pointer) return;
     const dx = event.clientX - pointer.startClient[0];
     const dy = event.clientY - pointer.startClient[1];
@@ -209,11 +268,86 @@ export function PlanEditor({
     emit({ outer: moveOuterVertex(outer, pointer.index, snapped) });
   }
 
-  function handleUp() {
+  function handleUp(event: PointerEvent<SVGSVGElement>) {
     const pointer = pointerRef.current;
     pointerRef.current = null;
-    // 빈 곳을 눌렀다 바로 떼면 선택을 푼다
-    if (pointer?.mode === "pan" && !pointer.moved) select(null);
+    if (pointer?.mode !== "pan" || pointer.moved) return;
+    // 빈 곳을 눌렀다 바로 떼면 — 그리는 중이면 점 찍기, 아니면 선택 풀기
+    if (drawMode === "none") {
+      select(null);
+      return;
+    }
+    const p = toPlan(event.clientX, event.clientY);
+    if (p) handleDrawClick(p);
+  }
+
+  // ---------- 그리기 ----------
+
+  /** 가장 가까운 바깥벽 위의 점(가까우면). */
+  function nearestOnOuter(p: Vec2, tolerance: number): Vec2 | null {
+    if (outer.length < 2) return null;
+    let best: Vec2 | null = null;
+    let bestDistance = tolerance;
+    const count = closed ? outer.length : outer.length - 1;
+    for (let i = 0; i < count; i++) {
+      const a = outer[i];
+      const b = outer[(i + 1) % outer.length];
+      const dx = b[0] - a[0];
+      const dz = b[1] - a[1];
+      const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dz) / (dx * dx + dz * dz || 1)));
+      const q: Vec2 = [a[0] + t * dx, a[1] + t * dz];
+      const d = Math.hypot(q[0] - p[0], q[1] - p[1]);
+      if (d < bestDistance) {
+        bestDistance = d;
+        best = q;
+      }
+    }
+    return best;
+  }
+
+  /** 그리기 종류에 맞춰 점을 맞춘다 — 수평·수직, 다른 점의 x·z, (안쪽 벽은) 기존 점·바깥벽에 붙이기. */
+  function snapForDraw(p: Vec2): Vec2 {
+    const tolerance = SNAP_PX / pxPerMeter();
+    if (drawMode === "outer") {
+      const last = outer.at(-1) ?? null;
+      return snapPoint(p, last, outer.slice(0, -1), tolerance);
+    }
+    if (drawMode === "inner") {
+      const vertices: Vec2[] = [...outer, ...inner.flatMap(([a, b]) => [a, b])];
+      const stick = STICK_PX / pxPerMeter();
+      const near = vertices.find((v) => Math.hypot(v[0] - p[0], v[1] - p[1]) < stick);
+      if (near) return [near[0], near[1]];
+      const snapped = snapPoint(p, pending, vertices, tolerance);
+      return nearestOnOuter(snapped, STICK_PX / pxPerMeter()) ?? snapped;
+    }
+    return p;
+  }
+
+  function handleDrawClick(raw: Vec2) {
+    if (drawMode === "outer") {
+      if (closed) return;
+      const first = outer[0];
+      if (first && outer.length >= 3 && Math.hypot(first[0] - raw[0], first[1] - raw[1]) * pxPerMeter() < CLOSE_PX) {
+        onClose?.();
+        setHover(null);
+        return;
+      }
+      emit({ outer: [...outer.map((q) => [q[0], q[1]] as Vec2), snapForDraw(raw)] });
+    } else if (drawMode === "inner") {
+      const point = snapForDraw(raw);
+      if (!pending) {
+        setPending(point);
+        return;
+      }
+      if (Math.hypot(point[0] - pending[0], point[1] - pending[1]) > 0.05) {
+        emit({ inner: [...inner.map(([a, b]) => [[...a], [...b]] as Segment), [pending, point]] });
+      }
+      setPending(null);
+    } else if (drawMode === "scale") {
+      const next = scalePoints.length >= 2 ? [raw] : [...scalePoints, raw];
+      setScalePoints(next);
+      if (next.length === 2) onScaleLine?.(next[0], next[1]);
+    }
   }
 
   // ---------- 선택한 것 고치기 ----------
@@ -231,6 +365,12 @@ export function PlanEditor({
     setLengthText(null);
     if (!(mm >= 100 && mm <= 100_000)) {
       setMessage("벽 길이는 100~100,000mm로 넣어 주세요.");
+      return;
+    }
+    if (uncalibrated && onCalibrate && selectedEnds) {
+      // 축척을 아직 모르면 — 이 벽을 늘이지 않고, 이 길이로 도면 전체 축척을 맞춘다
+      onCalibrate(wallLength(selectedEnds[0], selectedEnds[1]), mm / 1000);
+      setMessage(`이 벽을 ${mm.toLocaleString()}mm로 보고 도면 전체 축척을 맞췄어요.`);
       return;
     }
     if (current.kind === "outer") emit({ outer: setOuterWallLength(outer, current.index, mm / 1000) });
@@ -281,13 +421,24 @@ export function PlanEditor({
 
   // 키보드 — 벽을 고른 채 숫자를 치면 길이 입력으로, Delete 지우기, Esc 선택 풀기.
   // 리스너는 한 번만 달고 최신 선택·지우기는 ref로 읽는다.
-  const keyStateRef = useRef({ current, deleteSelected });
+  /** 그리던 안쪽 벽 시작점·축척 점을 비운다. 비울 게 있었으면 true. */
+  function cancelDraw() {
+    if (!pending && scalePoints.length === 0) return false;
+    setPending(null);
+    setScalePoints([]);
+    return true;
+  }
+  const keyStateRef = useRef({ current, deleteSelected, cancelDraw });
   useEffect(() => {
-    keyStateRef.current = { current, deleteSelected };
+    keyStateRef.current = { current, deleteSelected, cancelDraw };
   });
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
-      const { current, deleteSelected } = keyStateRef.current;
+      const { current, deleteSelected, cancelDraw } = keyStateRef.current;
+      if (event.key === "Escape" && !isTypingTarget(event.target) && cancelDraw()) {
+        event.stopPropagation();
+        return;
+      }
       if (!current || isTypingTarget(event.target)) return;
       if (/^[0-9]$/.test(event.key) && current.kind !== "vertex") {
         event.preventDefault();
@@ -312,7 +463,15 @@ export function PlanEditor({
   // 화면에서 늘 같은 크기로 보이게 — px → m
   const px = (value: number) => value / pxPerM;
   const outward = signedArea(outer) > 0 ? 1 : -1;
-  const area = outer.length >= 3 ? polygonArea(outer) : 0;
+  const area = closed && outer.length >= 3 ? polygonArea(outer) : 0;
+  // 닫히지 않았으면 마지막 점 → 첫 점 벽은 아직 없다
+  const wallCount = closed ? outer.length : Math.max(0, outer.length - 1);
+  const drawing = drawMode !== "none";
+  // 그리는 중 미리보기 선의 시작점
+  const previewFrom: Vec2 | null = drawMode === "outer" && !closed ? outer.at(-1) ?? null
+    : drawMode === "inner" ? pending
+      : drawMode === "scale" && scalePoints.length === 1 ? scalePoints[0]
+        : null;
   const gridStep = view.w > 60 ? 5 : 1;
   const gridX: number[] = [];
   for (let x = Math.ceil(view.x / gridStep) * gridStep; x <= view.x + view.w; x += gridStep) gridX.push(x);
@@ -334,11 +493,14 @@ export function PlanEditor({
         ref={svgRef}
         viewBox={`${view.x} ${view.z} ${view.w} ${view.h}`}
         preserveAspectRatio="xMidYMid meet"
-        className="absolute inset-0 h-full w-full touch-none select-none text-ink"
+        className={cn("absolute inset-0 h-full w-full touch-none select-none text-ink", drawing && "cursor-crosshair")}
         onPointerDown={handleBackgroundDown}
         onPointerMove={handleMove}
         onPointerUp={handleUp}
-        onPointerCancel={handleUp}
+        onPointerCancel={() => {
+          pointerRef.current = null;
+        }}
+        onPointerLeave={() => setHover(null)}
         role="img"
         aria-label={`도면 편집 — 면적 ${area.toFixed(1)}㎡`}
       >
@@ -347,23 +509,45 @@ export function PlanEditor({
           {gridZ.map((z) => <line key={`gz${z}`} x1={view.x} y1={z} x2={view.x + view.w} y2={z} vectorEffect="non-scaling-stroke" />)}
         </g>
 
-        {outer.length >= 3 && (
+        {background && (
+          <image
+            href={background.href}
+            x={background.x}
+            y={background.z}
+            width={background.width}
+            height={background.height}
+            preserveAspectRatio="none"
+            opacity={0.75}
+            pointerEvents="none"
+          />
+        )}
+
+        {closed && outer.length >= 3 ? (
           <polygon
             points={outer.map((p) => p.join(",")).join(" ")}
-            fill="var(--wash, #f4f4f2)"
+            fill={background ? "rgba(242,188,46,.12)" : "var(--wash, #f4f4f2)"}
             stroke="currentColor"
             strokeWidth={5}
             strokeLinejoin="miter"
             vectorEffect="non-scaling-stroke"
           />
-        )}
+        ) : outer.length >= 2 ? (
+          <polyline
+            points={outer.map((p) => p.join(",")).join(" ")}
+            fill="none"
+            stroke="currentColor"
+            strokeWidth={5}
+            strokeLinejoin="miter"
+            vectorEffect="non-scaling-stroke"
+          />
+        ) : null}
 
         {/* 바깥벽 — 눌러서 고르기(보이지 않는 굵은 선으로 누르기 쉽게) */}
-        {outer.map((a, i) => {
+        {outer.slice(0, wallCount).map((a, i) => {
           const b = outer[(i + 1) % outer.length];
           const selected = current?.kind === "outer" && current.index === i;
           return (
-            <g key={`wall-${i}`}>
+            <g key={`wall-${i}`} pointerEvents={drawing ? "none" : undefined}>
               {selected && (
                 <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={TAPE} strokeWidth={7} vectorEffect="non-scaling-stroke" />
               )}
@@ -382,7 +566,7 @@ export function PlanEditor({
         {inner.map(([a, b], i) => {
           const selected = current?.kind === "inner" && current.index === i;
           return (
-            <g key={`inner-${i}`}>
+            <g key={`inner-${i}`} pointerEvents={drawing ? "none" : undefined}>
               <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={selected ? TAPE : "currentColor"} strokeWidth={4} vectorEffect="non-scaling-stroke" />
               <line
                 x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
@@ -397,7 +581,7 @@ export function PlanEditor({
         })}
 
         {/* 벽마다 바깥쪽 치수 */}
-        {outer.length >= 3 && outer.map((a, i) => {
+        {outer.length >= 2 && outer.slice(0, wallCount).map((a, i) => {
           const b = outer[(i + 1) % outer.length];
           const length = wallLength(a, b);
           if (length < 0.2) return null;
@@ -442,13 +626,50 @@ export function PlanEditor({
               stroke="currentColor"
               strokeWidth={2}
               vectorEffect="non-scaling-stroke"
-              className="cursor-move"
+              className={drawing ? undefined : "cursor-move"}
+              pointerEvents={drawing ? "none" : undefined}
               onPointerDown={(event) => handleVertexDown(event, i)}
             />
           );
         })}
+
+        {/* 그리는 중 — 미리보기 선, 안쪽 벽 시작점, 축척 기준 두 점 */}
+        {drawing && previewFrom && hover && (
+          <line
+            x1={previewFrom[0]} y1={previewFrom[1]} x2={hover[0]} y2={hover[1]}
+            stroke={drawMode === "scale" ? "#1d6fd1" : TAPE}
+            strokeWidth={3}
+            strokeDasharray="6 5"
+            vectorEffect="non-scaling-stroke"
+            pointerEvents="none"
+          />
+        )}
+        {drawing && hover && (
+          <circle cx={hover[0]} cy={hover[1]} r={px(4)} fill={drawMode === "scale" ? "#1d6fd1" : TAPE} pointerEvents="none" />
+        )}
+        {drawMode === "outer" && !closed && outer.length >= 3 && (
+          <circle
+            cx={outer[0][0]} cy={outer[0][1]} r={px(CLOSE_PX)}
+            fill="none" stroke={TAPE} strokeWidth={2} strokeDasharray="4 3"
+            vectorEffect="non-scaling-stroke" pointerEvents="none"
+          />
+        )}
+        {pending && <circle cx={pending[0]} cy={pending[1]} r={px(6)} fill={TAPE} stroke="currentColor" strokeWidth={2} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
+        {scalePoints.length > 0 && (
+          <g pointerEvents="none">
+            {scalePoints.length === 2 && (
+              <line
+                x1={scalePoints[0][0]} y1={scalePoints[0][1]} x2={scalePoints[1][0]} y2={scalePoints[1][1]}
+                stroke="#1d6fd1" strokeWidth={3} vectorEffect="non-scaling-stroke"
+              />
+            )}
+            {scalePoints.map(([x, z], i) => (
+              <circle key={`s-${i}`} cx={x} cy={z} r={px(6)} fill="#1d6fd1" stroke="white" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+            ))}
+          </g>
+        )}
       </svg>
-        {outer.length >= 3 && (
+        {closed && outer.length >= 3 && (
           <div className="pointer-events-none absolute left-3 top-3 border border-line bg-white/90 px-3 py-1.5 text-xs text-soft">
             <span className="text-sm font-bold text-ink">{area.toFixed(1)}㎡</span> · 약 {toPyeong(area).toFixed(1)}평
             {ceilingHeight ? ` · 천장 ${ceilingHeight.toFixed(2)}m` : ""}
@@ -494,7 +715,13 @@ export function PlanEditor({
           </>
         ) : (
           <span className="truncate text-sm text-soft">
-            벽을 누르면 길이(mm)를 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요.
+            {drawMode === "outer"
+              ? closed ? "바깥벽이 닫혔어요." : outer.length < 3 ? `바깥벽 모서리를 차례로 누르세요 (${outer.length}개)` : `계속 찍거나 첫 점을 눌러 닫으세요 (${outer.length}개)`
+              : drawMode === "inner"
+                ? pending ? "벽이 끝나는 점을 누르세요 (Esc로 취소)" : "안쪽 벽이 시작하는 점을 누르세요"
+                : drawMode === "scale"
+                  ? scalePoints.length < 2 ? `치수가 적힌 구간의 양 끝을 누르세요 (${scalePoints.length}/2)` : "실제 길이를 mm로 넣어 주세요"
+                  : "벽을 누르면 길이(mm)를 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요."}
           </span>
         )}
         {message && <span className="shrink-0 whitespace-nowrap text-xs text-soft" aria-live="polite">{message}</span>}

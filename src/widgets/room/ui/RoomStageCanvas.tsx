@@ -26,7 +26,8 @@ export function RoomStageCanvas({
   className,
   ...callbacks
 }: {
-  imageUrl: string;
+  /** 벽에 입힐 360° 사진. 도면 방은 null(사진 없이 그린다). */
+  imageUrl: string | null;
   state: RoomStageState;
   view: RoomView;
   pickMode?: PickMode;
@@ -39,7 +40,7 @@ export function RoomStageCanvas({
   const containerRef = useRef<HTMLDivElement>(null);
   const [stage, setStage] = useState<RoomStage | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(imageUrl !== null);
 
   const callbacksRef = useRef<RoomStageCallbacks>(callbacks);
   useEffect(() => {
@@ -77,7 +78,7 @@ export function RoomStageCanvas({
   }, []);
 
   useEffect(() => {
-    if (!stage) return;
+    if (!stage || !imageUrl) return;
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;

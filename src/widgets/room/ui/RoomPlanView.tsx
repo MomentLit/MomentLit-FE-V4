@@ -1,10 +1,11 @@
 "use client";
 
-import { useRef, type MouseEvent, type PointerEvent } from "react";
+import { useId, useRef, type MouseEvent, type PointerEvent } from "react";
 import { cn } from "@/shared/lib";
 import { findFurniture } from "../lib/furniture";
 import { centroid, pointInPolygon, polygonArea, signedArea, toPyeong, wallLengths, type Vec2 } from "../lib/geometry";
 import type { StageFurniture } from "../lib/stage";
+import type { PlanFloorImage } from "../planModel";
 
 const PADDING_M = 1.2;
 const DRAG_THRESHOLD_M = 0.03;
@@ -25,6 +26,7 @@ export function RoomPlanView({
   onDragEnd,
   onPlace,
   onHint,
+  floorImage = null,
   className,
 }: {
   outer: readonly Vec2[];
@@ -38,9 +40,12 @@ export function RoomPlanView({
   onDragEnd: () => void;
   onPlace: (x: number, z: number) => void;
   onHint: (message: string) => void;
+  /** 도면으로 만든 방이면 그 도면을 방 바닥 안쪽에 흐리게 깐다. */
+  floorImage?: PlanFloorImage | null;
   className?: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
+  const clipId = useId();
   const dragRef = useRef<{ index: number; offset: Vec2; start: Vec2; moved: boolean } | null>(null);
 
   const xs = outer.map((p) => p[0]);
@@ -127,8 +132,26 @@ export function RoomPlanView({
         {gridZ.map((z) => <line key={`z${z}`} x1={minX} y1={z} x2={maxX} y2={z} />)}
       </g>
 
-      {/* 바닥과 바깥벽 */}
-      <polygon points={outer.map((p) => p.join(",")).join(" ")} fill="var(--wash, #f4f4f2)" stroke="currentColor" strokeWidth={0.12} strokeLinejoin="miter" />
+      {/* 바닥(도면 방이면 도면 이미지)과 바깥벽 */}
+      {floorImage && (
+        <>
+          <clipPath id={clipId}>
+            <polygon points={outer.map((p) => p.join(",")).join(" ")} />
+          </clipPath>
+          <image
+            href={floorImage.url}
+            x={floorImage.x}
+            y={floorImage.z}
+            width={floorImage.width}
+            height={floorImage.height}
+            preserveAspectRatio="none"
+            opacity={0.55}
+            clipPath={`url(#${clipId})`}
+            pointerEvents="none"
+          />
+        </>
+      )}
+      <polygon points={outer.map((p) => p.join(",")).join(" ")} fill={floorImage ? "none" : "var(--wash, #f4f4f2)"} stroke="currentColor" strokeWidth={0.12} strokeLinejoin="miter" />
       {inner.map(([a, b], i) => (
         <line key={`inner-${i}`} x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke="currentColor" strokeWidth={0.1} strokeLinecap="square" />
       ))}

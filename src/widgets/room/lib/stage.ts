@@ -35,7 +35,26 @@ export interface StageFurniture {
   rotation: number;
 }
 
+/** 도면 방 바닥에 깔 도면 이미지 자리(m) — planModel의 PlanFloorImage와 같은 모양. */
+export interface StageFloorImage {
+  url: string;
+  x: number;
+  z: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * 벽·바닥을 무엇으로 칠할지 — 파노라마 방은 사진을 투영하고, 도면 방은 흰 벽·흰 천장에 바닥만 도면(또는 나무색)으로.
+ * 도면 방에는 사진 시점이 없다.
+ */
+export type StageSurface = { kind: "panorama" } | { kind: "plan"; floor: StageFloorImage | null };
+
 export interface RoomStageState {
+  /** 기본은 파노라마. */
+  surface?: StageSurface;
+  /** 1인칭 시작 자리 — 없으면 원점(파노라마 방은 사진 찍은 자리), null이면 방 무게중심. */
+  walkStart?: Vec2 | null;
   /** 바닥 다각형(m). */
   outer: readonly Vec2[];
   /** 편집할 바닥 모서리의 사진 좌표 — 방 만들기 화면만. `outer`와 순서가 같다. */
@@ -112,6 +131,11 @@ export class RoomStage {
   private ceilingMesh: Three.Mesh | null = null;
   private selectionBox: Three.BoxHelper | null = null;
   private texture: Three.Texture | null = null;
+  private readonly planWallMaterial: Three.MeshStandardMaterial;
+  private readonly planInnerMaterial: Three.MeshStandardMaterial;
+  private readonly planCeilingMaterial: Three.MeshStandardMaterial;
+  private readonly planFloorMaterial: Three.MeshStandardMaterial;
+  private planFloorTexture: { url: string; texture: Three.Texture } | null = null;
   private frame = 0;
   private disposed = false;
 
@@ -169,6 +193,11 @@ export class RoomStage {
 
     const uniforms = { panorama: { value: null as Three.Texture | null }, eye: { value: new three.Vector3() } };
     this.roomMaterial = new three.ShaderMaterial({ uniforms, vertexShader: VERTEX_SHADER, fragmentShader: FRAGMENT_SHADER });
+    // 도면 방 — 사진이 없으니 흰 벽·흰 천장, 바닥은 도면(없으면 나무색)
+    this.planWallMaterial = new three.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.92 });
+    this.planInnerMaterial = new three.MeshStandardMaterial({ color: 0xdcd9d1, roughness: 0.9 });
+    this.planCeilingMaterial = new three.MeshStandardMaterial({ color: 0xf4f3ef, roughness: 0.95 });
+    this.planFloorMaterial = new three.MeshStandardMaterial({ color: 0xb89b78, roughness: 0.85 });
     this.skyMaterial = new three.ShaderMaterial({
       uniforms,
       vertexShader: VERTEX_SHADER,
@@ -254,6 +283,8 @@ export class RoomStage {
 
   setView(view: RoomView) {
     if (view !== "photo" && this.state.outer.length < 3) return;
+    // 도면 방엔 사진이 없다 — 사진 시점 대신 미니어처
+    if (view === "photo" && this.isPlan()) view = "miniature";
     const previous = this.view;
     this.view = view;
     if (view === "walk" && (this.walk.needsReset || previous !== "walk")) this.resetWalk();
@@ -330,6 +361,8 @@ export class RoomStage {
     this.roomMaterial.dispose();
     this.skyMaterial.dispose();
     this.texture?.dispose();
+    this.planFloorTexture?.texture.dispose();
+    for (const material of [this.planWallMaterial, this.planInnerMaterial, this.planCeilingMaterial, this.planFloorMaterial]) material.dispose();
     this.timer.dispose();
     this.renderer.dispose();
     canvas.remove();
@@ -392,7 +425,11 @@ export class RoomStage {
     const floorGeometry = new three.ShapeGeometry(new three.Shape(points.map(([x, z]) => new three.Vector2(x, -z))));
     floorGeometry.rotateX(-Math.PI / 2);
     floorGeometry.translate(0, floorY, 0);
-    this.roomGroup.add(new three.Mesh(floorGeometry, this.roomMaterial));
+    const plan = this.isPlan();
+    if (plan) this.preparePlanFloor();
+    const floorMesh = new three.Mesh(floorGeometry, plan ? this.planFloorMaterial : this.roomMaterial);
+    floorMesh.receiveShadow = plan;
+    this.roomGroup.add(floorMesh);
     // 가구 그림자만 받는 투명 바닥
     const shadow = new three.Mesh(floorGeometry.clone(), new three.ShadowMaterial({ opacity: 0.3 }));
     shadow.position.y = 0.003;
@@ -402,7 +439,7 @@ export class RoomStage {
     const ceilingGeometry = new three.ShapeGeometry(new three.Shape(points.map(([x, z]) => new three.Vector2(x, z))));
     ceilingGeometry.rotateX(Math.PI / 2);
     ceilingGeometry.translate(0, ceilingY, 0);
-    this.ceilingMesh = new three.Mesh(ceilingGeometry, this.roomMaterial);
+    this.ceilingMesh = new three.Mesh(ceilingGeometry, plan ? this.planCeilingMaterial : this.roomMaterial);
     this.roomGroup.add(this.ceilingMesh);
 
     // 벽: 안쪽에서만 보이게 감는 방향을 맞춘다 → 미니어처에서 카메라 쪽 벽은 뒷면이라 안 보여 방 안이 들여다보인다.
@@ -415,7 +452,9 @@ export class RoomStage {
         a[0], floorY, a[1], b[0], floorY, b[1], b[0], ceilingY, b[1], a[0], ceilingY, a[1],
       ], 3));
       geometry.setIndex(ccw ? [0, 1, 2, 0, 2, 3] : [0, 2, 1, 0, 3, 2]);
-      this.roomGroup.add(new three.Mesh(geometry, this.roomMaterial));
+      const wallMesh = new three.Mesh(geometry, plan ? this.planWallMaterial : this.roomMaterial);
+      wallMesh.receiveShadow = plan;
+      this.roomGroup.add(wallMesh);
 
       const label = this.makeLabel(`${lengths[i].toFixed(2)}m`, true);
       label.position.set((a[0] + b[0]) / 2, floorY + 0.08, (a[1] + b[1]) / 2);
@@ -423,7 +462,7 @@ export class RoomStage {
     });
 
     // 안쪽 벽: 두께 10cm 상자
-    const innerMaterial = new three.MeshStandardMaterial({ color: 0xdcd9d1, roughness: 0.9 });
+    const innerMaterial = this.planInnerMaterial;
     for (const [a, b] of this.state.inner) {
       const length = Math.hypot(b[0] - a[0], b[1] - a[1]);
       if (length < 0.05) continue;
@@ -446,6 +485,54 @@ export class RoomStage {
     }
     if (!canStand(this.walk.position, this.walkArea())) this.walk.needsReset = true;
     this.applyView();
+  }
+
+  private isPlan() {
+    return this.state.surface?.kind === "plan";
+  }
+
+  /**
+   * 도면 방 바닥에 도면 이미지를 깐다. 바닥 ShapeGeometry의 uv는 (x, -z)라서, repeat·offset으로
+   * 이미지 왼쪽 위(x, z)가 uv (0, 1), 오른쪽 아래가 (1, 0)이 되게 맞춘다. 이미지는 한 번만 받고 바뀔 때만 다시 받는다.
+   */
+  private preparePlanFloor() {
+    const surface = this.state.surface;
+    const floor = surface?.kind === "plan" ? surface.floor : null;
+    const material = this.planFloorMaterial;
+    if (!floor) {
+      material.map = null;
+      material.color.set(0xb89b78);
+      material.needsUpdate = true;
+      return;
+    }
+    const apply = (texture: Three.Texture) => {
+      texture.repeat.set(1 / floor.width, 1 / floor.height);
+      texture.offset.set(-floor.x / floor.width, 1 + floor.z / floor.height);
+      material.map = texture;
+      material.color.set(0xffffff);
+      material.needsUpdate = true;
+    };
+    if (this.planFloorTexture?.url === floor.url) {
+      apply(this.planFloorTexture.texture);
+      return;
+    }
+    const loader = new this.three.TextureLoader();
+    loader.setCrossOrigin("anonymous");
+    const url = floor.url;
+    loader.loadAsync(url).then((texture) => {
+      if (this.disposed) {
+        texture.dispose();
+        return;
+      }
+      texture.colorSpace = this.three.SRGBColorSpace;
+      texture.wrapS = texture.wrapT = this.three.ClampToEdgeWrapping;
+      this.planFloorTexture?.texture.dispose();
+      this.planFloorTexture = { url, texture };
+      // 받는 사이에 도면이 또 바뀌었으면 지금 것으로 다시 맞춘다
+      this.preparePlanFloor();
+    }).catch(() => {
+      this.callbacks.onHint?.("도면 이미지를 불러오지 못했어요.");
+    });
   }
 
   private makeLabel(text: string, dark: boolean): Three.Sprite {
@@ -572,11 +659,19 @@ export class RoomStage {
       const material = mesh.material as Three.Material | Three.Material[] | undefined;
       for (const m of Array.isArray(material) ? material : material ? [material] : []) {
         // 공유 재질(사진 셰이더, 가구 재질)은 무대를 닫을 때 한 번에 정리한다.
-        if (m === this.roomMaterial || Object.values(this.furnitureMaterials).includes(m as Three.MeshStandardMaterial)) continue;
+        if (m === this.roomMaterial || this.isSharedMaterial(m)) continue;
         (m as Three.SpriteMaterial).map?.dispose();
         m.dispose();
       }
     });
+  }
+
+  private isSharedMaterial(material: Three.Material) {
+    return Object.values(this.furnitureMaterials).includes(material as Three.MeshStandardMaterial)
+      || material === this.planWallMaterial
+      || material === this.planInnerMaterial
+      || material === this.planCeilingMaterial
+      || material === this.planFloorMaterial;
   }
 
   private clearGroup(group: Three.Group) {
@@ -598,8 +693,9 @@ export class RoomStage {
   // ---------- 1인칭 ----------
 
   private resetWalk() {
-    // 파노라마 방은 사진을 찍은 자리(원점)에서 시작한다.
-    const start = startPosition(this.walkArea(), [0, 0]);
+    // 파노라마 방은 사진을 찍은 자리(원점), 도면 방은 무게중심에서 시작한다.
+    const preferred = this.state.walkStart === undefined ? [0, 0] as Vec2 : this.state.walkStart;
+    const start = startPosition(this.walkArea(), preferred);
     if (start) this.walk.position = start;
     this.walk.yaw = 0;
     this.walk.pitch = 0;

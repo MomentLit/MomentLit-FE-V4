@@ -17,12 +17,17 @@ export function roomBuilderHref(spaceId: number, sceneIndex: number, returnTo: R
   return `/spaces/${spaceId}/rooms/edit?scene=${sceneIndex}&from=${returnTo}`;
 }
 
+/** 도면 방 만들기(roomId 없음)·고치기 페이지. */
+export function planRoomBuilderHref(spaceId: number, roomId: number | null, returnTo: RoomReturnTo) {
+  return `/spaces/${spaceId}/rooms/plan?${roomId === null ? "" : `room=${roomId}&`}from=${returnTo}`;
+}
+
 export function roomReturnHref(spaceId: number, returnTo: RoomReturnTo) {
   return returnTo === "edit" ? `/spaces/${spaceId}/edit` : `/spaces/${spaceId}/rooms`;
 }
 
 /**
- * 360° 장면마다의 3D 방 목록 — 만들기·고치기(방 만들기 페이지로), 빼기(줄 안에서 한 번 더 확인하고 바로 지움).
+ * 360° 장면마다의 3D 방 목록과 도면으로 만든 방 목록 — 만들기·고치기(방 만들기 페이지로), 빼기(줄 안에서 한 번 더 확인하고 바로 지움).
  * 공간 수정 화면과 3D 방 관리 페이지가 같이 쓴다. `scenes`는 서버에 저장된 장면이어야 한다(방 만들기 페이지가 그 순서로 연다).
  * `locked`면 목록만 보여 주고 고칠 수 없게 한다(예: 공간 수정에서 장면을 바꾸고 아직 저장하지 않았을 때).
  */
@@ -48,7 +53,8 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
 
   const sceneUrls = new Set(scenes.map((scene) => scene.image_url));
   // 장면을 지운 뒤 남은 방 — 공간 수정 저장 때 정리되지만, 그 전이면 여기서 뺄 수 있게 보여 준다
-  const orphanRooms = rooms.filter((room) => !room.scene_image_url || !sceneUrls.has(room.scene_image_url));
+  const orphanRooms = rooms.filter((room) => room.source !== "PLAN" && (!room.scene_image_url || !sceneUrls.has(room.scene_image_url)));
+  const planRooms = rooms.filter((room) => room.source === "PLAN");
   const limitReached = rooms.length >= MAX_ROOMS_PER_SPACE;
   const disabled = locked !== null || busy;
 
@@ -67,7 +73,7 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
   }
 
   function renderRow(key: string, label: string, room: Room | null, editHref: string | null) {
-    const draft = room ? roomToDraft(room) : null;
+    const draft = room && room.source !== "PLAN" ? roomToDraft(room) : null;
     const summary = draft ? summarizeRoom(draft) : null;
     const isConfirming = room !== null && confirming === room.room_id;
     const canCreate = !room && !limitReached;
@@ -81,7 +87,7 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
               : room
                 ? summary
                   ? `${summary.areaM2.toFixed(1)}㎡ · 약 ${summary.areaPyeong.toFixed(1)}평 · 천장 ${room.ceiling_height.toFixed(2)}m`
-                  : `${room.area_m2.toFixed(1)}㎡`
+                  : `${room.area_m2.toFixed(1)}㎡ · 약 ${room.area_pyeong.toFixed(1)}평 · 천장 ${room.ceiling_height.toFixed(2)}m`
                 : "아직 3D 방이 없어요"}
           </span>
         </div>
@@ -128,22 +134,43 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex flex-col gap-2">
-        <div className="flex items-baseline justify-between">
+      <div className="flex items-baseline justify-between">
+        <span className="text-xs text-soft">360° 장면이나 평면 도면으로 실제 크기의 3D 방을 만들어요.</span>
+        <span className="shrink-0 text-xs text-soft">3D 방 {rooms.length}/{MAX_ROOMS_PER_SPACE}</span>
+      </div>
+      {locked && (
+        <p className="border-l-4 border-ink bg-wash px-4 py-2.5 text-sm text-ink" role="status">{locked}</p>
+      )}
+
+      {scenes.length > 0 && (
+        <div className="flex flex-col gap-2">
           <h2 className="text-sm font-bold text-ink">360° 장면</h2>
-          <span className="text-xs text-soft">3D 방 {rooms.length}/{MAX_ROOMS_PER_SPACE}</span>
+          <ul className="flex flex-col divide-y divide-line border border-line">
+            {scenes.map((scene, index) => renderRow(
+              `${scene.image_url}-${index}`,
+              roomPlacement(scenes, scene.image_url).name,
+              rooms.find((room) => room.scene_image_url === scene.image_url) ?? null,
+              roomBuilderHref(spaceId, index, returnTo),
+            ))}
+          </ul>
         </div>
-        {locked && (
-          <p className="border-l-4 border-ink bg-wash px-4 py-2.5 text-sm text-ink" role="status">{locked}</p>
+      )}
+
+      <div className="flex flex-col gap-2">
+        <h2 className="text-sm font-bold text-ink">도면으로 만든 방</h2>
+        {planRooms.length > 0 && (
+          <ul className="flex flex-col divide-y divide-line border border-line">
+            {planRooms.map((room) => renderRow(String(room.room_id), room.name, room, planRoomBuilderHref(spaceId, room.room_id, returnTo)))}
+          </ul>
         )}
-        <ul className="flex flex-col divide-y divide-line border border-line">
-          {scenes.map((scene, index) => renderRow(
-            `${scene.image_url}-${index}`,
-            roomPlacement(scenes, scene.image_url).name,
-            rooms.find((room) => room.scene_image_url === scene.image_url) ?? null,
-            roomBuilderHref(spaceId, index, returnTo),
-          ))}
-        </ul>
+        {(() => {
+          const href = planRoomBuilderHref(spaceId, null, returnTo);
+          const className = "button button--outline w-full";
+          const label = limitReached ? `3D 방은 ${MAX_ROOMS_PER_SPACE}개까지 만들 수 있어요` : "도면으로 방 추가";
+          if (disabled || limitReached) return <button type="button" disabled className={className}>{label}</button>;
+          if (onOpen) return <button type="button" onClick={() => onOpen(href)} className={className}>{label}</button>;
+          return <Link href={href} className={className}>{label}</Link>;
+        })()}
       </div>
 
       {orphanRooms.length > 0 && (

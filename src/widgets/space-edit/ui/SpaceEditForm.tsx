@@ -380,14 +380,14 @@ export function SpaceEditForm({ spaceId }: { spaceId: number }) {
           saveHint
         />
 
-        {panoramaScenes.length > 0 && roomsQuery.isSuccess && (
+        {roomsQuery.isSuccess && (
           <section className="flex flex-col gap-3 border border-line p-4 sm:col-span-2 sm:p-5">
             <div className="flex items-center gap-2">
               <IconCube size={20} stroke={1.8} className="shrink-0 text-ink" aria-hidden />
               <span className="text-[0.95rem] font-bold text-ink">3D 방 (선택)</span>
             </div>
             <p className="text-xs text-soft">
-              360° 장면마다 실제 크기의 3D 방을 만들면, 손님이 미니어처·1인칭으로 둘러보고 가구를 놓아 볼 수 있어요.
+              360° 장면이나 평면 도면으로 실제 크기의 3D 방을 만들면, 손님이 미니어처·1인칭으로 둘러보고 가구를 놓아 볼 수 있어요.
               방금 추가한 장면도 바로 만들 수 있어요 — 누르면 지금까지 고친 내용을 저장하고 3D 방 만들기로 넘어가요.
             </p>
             {/* 지금 화면의 장면 기준 — 만들기 페이지는 저장된 장면 순서로 열리므로, 열기 전에 저장한다 */}

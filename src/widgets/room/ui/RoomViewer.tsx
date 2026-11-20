@@ -23,10 +23,11 @@ import { LayoutsPanel } from "./LayoutsPanel";
 import { RoomPlanView } from "./RoomPlanView";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { useFurnitureLayouts } from "./useFurnitureLayout";
+import { ViewSwitch, type ViewOption } from "./ViewSwitch";
 
 type ViewerView = RoomView | "plan";
 
-const VIEWS: { id: ViewerView; label: string; icon: typeof IconCube }[] = [
+const VIEWS: readonly ViewOption<ViewerView>[] = [
   { id: "photo", label: "사진 시점", icon: IconView360 },
   { id: "miniature", label: "미니어처", icon: IconCube },
   { id: "walk", label: "1인칭", icon: IconWalk },
@@ -102,14 +103,13 @@ export function RoomViewer({ spaceId }: { spaceId: number }) {
 
 function ViewerHeader({ spaceId, title, children }: { spaceId: number; title: string; children?: ReactNode }) {
   return (
-    <header className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-3">
-      <Link href={`/spaces/${spaceId}`} className="button button--outline min-h-9 px-3 py-1.5">
+    <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-line px-4 py-2.5">
+      <Link href={`/spaces/${spaceId}`} aria-label="공간으로 돌아가기" className="button button--outline button--sm button--icon">
         <IconArrowLeft size={16} stroke={2} aria-hidden />
-        공간으로
       </Link>
       <div className="min-w-0 flex-1">
-        <span className="font-mono text-[0.66rem] font-medium uppercase tracking-[0.18em] text-soft">3D Room</span>
-        <h1 className="truncate text-lg font-bold text-ink">{title}</h1>
+        <span className="block font-mono text-[0.62rem] font-medium uppercase leading-none tracking-[0.18em] text-soft">3D Room</span>
+        <h1 className="truncate text-base font-bold leading-tight text-ink">{title}</h1>
       </div>
       {children}
     </header>
@@ -119,14 +119,14 @@ function ViewerHeader({ spaceId, title, children }: { spaceId: number; title: st
 function RoomTabs({ rooms, activeId, onChange }: { rooms: readonly Room[]; activeId: number; onChange: (roomId: number) => void }) {
   if (rooms.length < 2) return null;
   return (
-    <nav className="flex gap-1 overflow-x-auto border-b border-line px-4 py-2" aria-label="방">
+    <nav className="tabs border-b border-line px-3" aria-label="방">
       {rooms.map((item) => (
         <button
           key={item.room_id}
           type="button"
           onClick={() => onChange(item.room_id)}
-          aria-current={item.room_id === activeId || undefined}
-          className={cn("button min-h-9 shrink-0 px-3 py-1.5", item.room_id === activeId ? "button--primary" : "button--outline")}
+          aria-current={item.room_id === activeId ? "true" : undefined}
+          className="tabs__item"
         >
           {item.name}
         </button>
@@ -231,20 +231,7 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
   return (
     <>
       <ViewerHeader spaceId={spaceId} title={title}>
-        <div className="flex flex-wrap gap-1" role="group" aria-label="시점">
-          {VIEWS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => changeView(id)}
-              aria-pressed={view === id}
-              className={cn("button min-h-9 px-3 py-1.5", view === id ? "button--primary" : "button--outline")}
-            >
-              <Icon size={16} stroke={2} aria-hidden />
-              {label}
-            </button>
-          ))}
-        </div>
+        <ViewSwitch options={VIEWS} value={view} onChange={changeView} />
       </ViewerHeader>
       <RoomTabs rooms={rooms} activeId={room.room_id} onChange={onRoomChange} />
 
@@ -280,9 +267,30 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
               className="absolute inset-0 h-full w-full"
             />
           )}
+          {/* 선택한 가구 — 화면 위에 띄워서, 고르고 풀 때 옆 패널이 밀리지 않게 */}
+          {selectedDef && (
+            <div
+              role="toolbar"
+              aria-label="선택한 가구"
+              className="absolute left-3 top-3 flex items-center gap-1 border border-line bg-white p-1 pl-3 shadow-[0_2px_10px_rgba(21,23,28,.18)]"
+            >
+              <span className="mr-1 text-sm font-semibold text-ink">{selectedDef.name}</span>
+              <button type="button" onClick={() => rotateSelected(Math.PI / 2)} className="button button--outline button--sm" title="90° 돌리기 (R)">
+                <IconRotateClockwise2 size={15} stroke={2} aria-hidden />
+                90°
+              </button>
+              <button type="button" onClick={() => rotateSelected(Math.PI / 12)} className="button button--outline button--sm" title="15° 돌리기 (Shift+R)">
+                <IconRotate size={15} stroke={2} aria-hidden />
+                15°
+              </button>
+              <button type="button" onClick={deleteSelected} aria-label="지우기 (Delete)" title="지우기 (Delete)" className="button button--danger button--sm button--icon">
+                <IconTrash size={15} stroke={2} aria-hidden />
+              </button>
+            </div>
+          )}
           <p
             aria-live="polite"
-            className="pointer-events-none absolute bottom-3 left-3 right-3 bg-black/60 px-3 py-2 text-sm text-white sm:right-auto sm:max-w-[560px]"
+            className="pointer-events-none absolute bottom-3 left-3 right-3 bg-black/65 px-3 py-2 text-[0.8125rem] text-white sm:right-auto sm:max-w-[520px]"
           >
             {message}
           </p>
@@ -298,33 +306,16 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
                   disabled={view === "walk"}
                   onClick={() => startPlacing(def.id)}
                   aria-pressed={placingType === def.id}
-                  className={cn("button flex-col gap-0 px-3 py-1.5", placingType === def.id ? "button--primary" : "button--outline")}
+                  className={cn("button button--sm h-14 flex-col gap-0", placingType === def.id ? "button--primary" : "button--outline")}
                 >
                   {def.name}
-                  <small className="font-normal opacity-70">{def.width}×{def.depth}m</small>
+                  <small className="text-[0.7rem] font-normal opacity-70">{def.width}×{def.depth}m</small>
                 </button>
               ))}
             </div>
-            {view === "walk" && <p className="text-xs text-soft">1인칭에서는 둘러보기만 해요. 가구는 다른 시점에서 놓아 주세요.</p>}
-            {selectedDef && (
-              <div className="flex flex-col gap-2 border border-line p-3" role="toolbar" aria-label="선택한 가구">
-                <span className="text-sm font-semibold text-ink">선택한 가구: {selectedDef.name}</span>
-                <div className="flex flex-wrap gap-2">
-                  <button type="button" onClick={() => rotateSelected(Math.PI / 2)} className="button button--outline">
-                    <IconRotateClockwise2 size={18} stroke={2} aria-hidden />
-                    90°
-                  </button>
-                  <button type="button" onClick={() => rotateSelected(Math.PI / 12)} className="button button--outline">
-                    <IconRotate size={18} stroke={2} aria-hidden />
-                    15°
-                  </button>
-                  <button type="button" onClick={deleteSelected} className="button button--danger">
-                    <IconTrash size={18} stroke={2} aria-hidden />
-                    지우기
-                  </button>
-                </div>
-              </div>
-            )}
+            <p className="text-xs text-soft">
+              {view === "walk" ? "1인칭에서는 둘러보기만 해요. 가구는 다른 시점에서 놓아 주세요." : "고른 가구는 R로 돌리고 Delete로 지워요."}
+            </p>
           </Section>
 
           <Section title="내 배치">

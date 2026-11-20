@@ -33,7 +33,7 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
           로그인하면 방마다 배치에 이름을 붙여 {MAX_FURNITURE_LAYOUTS}개까지 저장하고 언제든 다시 불러올 수 있어요.
           지금 놓은 가구는 이 브라우저에 임시로 남아 있어요.
         </p>
-        <button type="button" onClick={layouts.openLogin} className="button button--primary self-start">
+        <button type="button" onClick={layouts.openLogin} className="button button--primary button--sm self-start">
           로그인하고 저장하기
         </button>
       </div>
@@ -82,36 +82,44 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
 
   return (
     <div className="flex flex-col gap-3">
-      <p className="text-sm text-ink">
-        {layouts.active ? (
-          <>
-            <span className="font-semibold">‘{layouts.active.name}’</span> 고치는 중
-          </>
-        ) : (
-          <span className="font-semibold">새 배치</span>
-        )}
-        {layouts.dirty && <span className="text-soft"> · 저장 안 됨</span>}
-      </p>
+      {/* 지금 상태 — 한 줄로 고정해서 상태가 바뀌어도 아래가 밀리지 않게 */}
+      <div className="flex min-h-6 items-center gap-2 text-sm">
+        <span className={cn("size-2 shrink-0 rounded-full", layouts.dirty ? "bg-coral" : "bg-line-2")} aria-hidden />
+        <span className="min-w-0 flex-1 truncate text-ink">
+          <span className="font-semibold">{layouts.active ? `‘${layouts.active.name}’` : "새 배치"}</span>
+          <span className="text-soft">{layouts.dirty ? " · 저장 안 됨" : layouts.active ? " · 저장됨" : ""}</span>
+        </span>
+        <button
+          type="button"
+          onClick={requestNew}
+          disabled={layouts.busy}
+          className="inline-flex shrink-0 items-center gap-1 text-xs font-semibold text-soft underline-offset-2 hover:text-ink hover:underline disabled:opacity-50"
+        >
+          <IconPlus size={13} stroke={2} aria-hidden />
+          빈 방에서 시작
+        </button>
+      </div>
 
-      <div className="flex flex-wrap gap-2">
-        {layouts.active && layouts.dirty && (
-          <button type="button" onClick={() => void layouts.overwrite()} disabled={layouts.busy} className="button button--primary">
-            <IconDeviceFloppy size={18} stroke={2} aria-hidden />
-            덮어쓰기
-          </button>
-        )}
+      {/* 저장 버튼 두 개는 늘 같은 자리에 — 덮어쓸 배치가 없으면 덮어쓰기만 흐리게 */}
+      <div className="grid grid-cols-2 gap-2">
         <button
           type="button"
           onClick={() => startNaming("new")}
           disabled={layouts.busy || layouts.limitReached}
-          className={cn("button", layouts.active && layouts.dirty ? "button--outline" : "button--primary")}
+          className="button button--primary button--sm"
         >
-          <IconDeviceFloppy size={18} stroke={2} aria-hidden />
+          <IconDeviceFloppy size={15} stroke={2} aria-hidden />
           새 배치로 저장
         </button>
-        <button type="button" onClick={requestNew} disabled={layouts.busy} className="button button--outline">
-          <IconPlus size={18} stroke={2} aria-hidden />
-          빈 방에서 시작
+        <button
+          type="button"
+          onClick={() => void layouts.overwrite()}
+          disabled={layouts.busy || !layouts.active || !layouts.dirty}
+          title={layouts.active ? `‘${layouts.active.name}’에 덮어쓰기` : "불러온 배치가 있을 때 덮어쓸 수 있어요"}
+          className="button button--outline button--sm"
+        >
+          <IconDeviceFloppy size={15} stroke={2} aria-hidden />
+          덮어쓰기
         </button>
       </div>
 
@@ -132,10 +140,10 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
             />
           </label>
           <div className="flex gap-2">
-            <button type="submit" disabled={layouts.busy || !name.trim()} className="button button--primary">
+            <button type="submit" disabled={layouts.busy || !name.trim()} className="button button--primary button--sm">
               {layouts.busy ? "저장 중…" : "저장"}
             </button>
-            <button type="button" onClick={() => setNaming(null)} disabled={layouts.busy} className="button button--outline">
+            <button type="button" onClick={() => setNaming(null)} disabled={layouts.busy} className="button button--outline button--sm">
               취소
             </button>
           </div>
@@ -148,10 +156,10 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
             ? `‘${pending.layout.name}’ 배치를 지울까요? 되돌릴 수 없어요.`
             : "지금 배치를 저장하지 않았어요. 바꾸면 저장 안 된 가구 배치가 사라져요."}
           <div className="flex gap-2">
-            <button type="button" onClick={() => void confirmPending()} disabled={layouts.busy} className="button button--danger">
+            <button type="button" onClick={() => void confirmPending()} disabled={layouts.busy} className="button button--danger button--sm">
               {pending.kind === "delete" ? "지우기" : pending.kind === "load" ? `‘${pending.layout.name}’ 불러오기` : "빈 방에서 시작"}
             </button>
-            <button type="button" onClick={() => setPending(null)} className="button button--outline">취소</button>
+            <button type="button" onClick={() => setPending(null)} className="button button--outline button--sm">취소</button>
           </div>
         </div>
       )}
@@ -171,7 +179,7 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
           {layouts.layouts.map((layout) => {
             const isActive = layout.layout_id === layouts.active?.layout_id;
             return (
-              <li key={layout.layout_id} className={cn("flex items-center gap-2 p-2.5", isActive && "bg-wash")}>
+              <li key={layout.layout_id} className={cn("flex items-center gap-1.5 py-2 pl-3 pr-2", isActive && "bg-wash shadow-[inset_3px_0_0_var(--ink)]")}>
                 <button
                   type="button"
                   onClick={() => requestLoad(layout)}
@@ -189,7 +197,7 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
                   onClick={() => startNaming(layout)}
                   disabled={layouts.busy}
                   aria-label={`${layout.name} 이름 바꾸기`}
-                  className="button button--outline min-h-9 px-2.5 py-1.5"
+                  className="button button--outline button--sm button--icon"
                 >
                   <IconPencil size={16} stroke={2} aria-hidden />
                 </button>
@@ -198,7 +206,7 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
                   onClick={() => setPending({ kind: "delete", layout })}
                   disabled={layouts.busy}
                   aria-label={`${layout.name} 지우기`}
-                  className="button button--outline min-h-9 px-2.5 py-1.5"
+                  className="button button--outline button--sm button--icon"
                 >
                   <IconTrash size={16} stroke={2} aria-hidden />
                 </button>

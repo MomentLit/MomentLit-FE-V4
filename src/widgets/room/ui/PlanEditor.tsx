@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent as ReactKe
 import { IconArrowsMaximize, IconLayoutDistributeVertical, IconTrash } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
-import { centroid, polygonArea, signedArea, toPyeong, type Vec2 } from "../lib/geometry";
+import { polygonArea, signedArea, toPyeong, type Vec2 } from "../lib/geometry";
 import {
   moveOuterVertex,
   removeOuterVertex,
@@ -90,6 +90,15 @@ export function PlanEditor({
   const [selection, setSelection] = useState<Selection>(null);
   const [lengthText, setLengthText] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  // 화면 폭(px) — 치수 글자가 벽 길이 안에 들어갈 때만 보여 주는 데 쓴다
+  const [svgWidth, setSvgWidth] = useState(0);
+  useEffect(() => {
+    const svg = svgRef.current;
+    if (!svg) return;
+    const observer = new ResizeObserver(() => setSvgWidth(svg.clientWidth));
+    observer.observe(svg);
+    return () => observer.disconnect();
+  }, []);
   const pointerRef = useRef<{
     mode: "pan" | "vertex";
     index: number;
@@ -299,10 +308,11 @@ export function PlanEditor({
 
   // ---------- 그리기 ----------
 
-  const unit = view.w / 60; // 화면 크기에 비례하는 글자·점 크기
+  const pxPerM = svgWidth > 0 ? svgWidth / view.w : 40;
+  // 화면에서 늘 같은 크기로 보이게 — px → m
+  const px = (value: number) => value / pxPerM;
   const outward = signedArea(outer) > 0 ? 1 : -1;
   const area = outer.length >= 3 ? polygonArea(outer) : 0;
-  const [cx, cz] = outer.length > 0 ? centroid(outer) : [0, 0];
   const gridStep = view.w > 60 ? 5 : 1;
   const gridX: number[] = [];
   for (let x = Math.ceil(view.x / gridStep) * gridStep; x <= view.x + view.w; x += gridStep) gridX.push(x);
@@ -319,11 +329,12 @@ export function PlanEditor({
 
   return (
     <div className={cn("flex flex-col bg-white", className)}>
+      <div className="relative min-h-0 flex-1">
       <svg
         ref={svgRef}
         viewBox={`${view.x} ${view.z} ${view.w} ${view.h}`}
         preserveAspectRatio="xMidYMid meet"
-        className="min-h-0 flex-1 touch-none select-none text-ink"
+        className="absolute inset-0 h-full w-full touch-none select-none text-ink"
         onPointerDown={handleBackgroundDown}
         onPointerMove={handleMove}
         onPointerUp={handleUp}
@@ -392,17 +403,19 @@ export function PlanEditor({
           if (length < 0.2) return null;
           const nx = ((b[1] - a[1]) / length) * outward;
           const nz = (-(b[0] - a[0]) / length) * outward;
-          const tx = (a[0] + b[0]) / 2 + nx * unit * 2.2;
-          const tz = (a[1] + b[1]) / 2 + nz * unit * 2.2;
+          const selected = current?.kind === "outer" && current.index === i;
+          // 글자(약 52px)가 벽보다 길면 겹치니까 숨긴다 — 고른 벽은 늘 보여 준다
+          if (!selected && length * pxPerM < 64) return null;
+          const tx = (a[0] + b[0]) / 2 + nx * px(16);
+          const tz = (a[1] + b[1]) / 2 + nz * px(16);
           const angle = (Math.atan2(b[1] - a[1], b[0] - a[0]) * 180) / Math.PI;
           const upright = angle > 90 || angle < -90 ? angle + 180 : angle;
-          const selected = current?.kind === "outer" && current.index === i;
           return (
             <text
               key={`dim-${i}`}
               x={tx}
               y={tz}
-              fontSize={unit * 1.4}
+              fontSize={px(13)}
               fontWeight={selected ? 700 : 500}
               textAnchor="middle"
               dominantBaseline="middle"
@@ -415,14 +428,6 @@ export function PlanEditor({
           );
         })}
 
-        {outer.length >= 3 && (
-          <g textAnchor="middle" fill="currentColor" opacity={0.6} pointerEvents="none">
-            <text x={cx} y={cz} fontSize={unit * 2} fontWeight={700}>{area.toFixed(1)}㎡</text>
-            <text x={cx} y={cz + unit * 2.2} fontSize={unit * 1.2}>
-              약 {toPyeong(area).toFixed(1)}평{ceilingHeight ? ` · 천장 ${ceilingHeight.toFixed(2)}m` : ""}
-            </text>
-          </g>
-        )}
 
         {/* 꼭짓점 — 끌어서 옮기기 */}
         {outer.map(([x, z], i) => {
@@ -432,7 +437,7 @@ export function PlanEditor({
               key={`v-${i}`}
               cx={x}
               cy={z}
-              r={unit * (selected ? 0.9 : 0.7)}
+              r={px(selected ? 7 : 6)}
               fill={selected ? TAPE : "white"}
               stroke="currentColor"
               strokeWidth={2}
@@ -443,13 +448,20 @@ export function PlanEditor({
           );
         })}
       </svg>
+        {outer.length >= 3 && (
+          <div className="pointer-events-none absolute left-3 top-3 border border-line bg-white/90 px-3 py-1.5 text-xs text-soft">
+            <span className="text-sm font-bold text-ink">{area.toFixed(1)}㎡</span> · 약 {toPyeong(area).toFixed(1)}평
+            {ceilingHeight ? ` · 천장 ${ceilingHeight.toFixed(2)}m` : ""}
+          </div>
+        )}
+      </div>
 
-      <div className="flex min-h-[64px] flex-wrap items-center gap-2 border-t border-line p-3">
+      <div className="flex h-14 shrink-0 items-center gap-2 overflow-x-auto border-t border-line px-3">
         {current && selectionTitle ? (
           <>
-            <span className="text-sm font-semibold text-ink">{selectionTitle}</span>
+            <span className="shrink-0 whitespace-nowrap text-sm font-semibold text-ink">{selectionTitle}</span>
             {current.kind !== "vertex" && selectedLengthMm !== null && (
-              <label className="flex items-center gap-2 text-sm text-ink">
+              <label className="flex shrink-0 items-center gap-2 whitespace-nowrap text-sm text-ink">
                 길이
                 <input
                   ref={lengthInputRef}
@@ -461,35 +473,35 @@ export function PlanEditor({
                   onChange={(event) => setLengthText(event.target.value)}
                   onBlur={applyLength}
                   onKeyDown={handleLengthKeyDown}
-                  className={cn(fieldInputClass, "w-28 py-2")}
+                  className={cn(fieldInputClass, "w-24 py-1.5")}
                   aria-label="벽 길이(mm)"
                 />
                 mm
               </label>
             )}
             {current.kind !== "vertex" && (
-              <button type="button" onClick={splitSelected} className="button button--outline min-h-9 px-3 py-1.5">
-                <IconLayoutDistributeVertical size={16} stroke={2} aria-hidden />
+              <button type="button" onClick={splitSelected} className="button button--outline button--sm shrink-0">
+                <IconLayoutDistributeVertical size={15} stroke={2} aria-hidden />
                 가운데에 점 추가
               </button>
             )}
             {current.kind !== "outer" && (
-              <button type="button" onClick={deleteSelected} className="button button--danger min-h-9 px-3 py-1.5">
-                <IconTrash size={16} stroke={2} aria-hidden />
+              <button type="button" onClick={deleteSelected} className="button button--danger button--sm shrink-0">
+                <IconTrash size={15} stroke={2} aria-hidden />
                 지우기
               </button>
             )}
           </>
         ) : (
-          <span className="text-sm text-soft">
-            벽을 누르면 길이(mm)를 바로 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요.
+          <span className="truncate text-sm text-soft">
+            벽을 누르면 길이(mm)를 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요.
           </span>
         )}
-        <button type="button" onClick={fit} className="button button--outline ml-auto min-h-9 px-3 py-1.5">
-          <IconArrowsMaximize size={16} stroke={2} aria-hidden />
+        {message && <span className="shrink-0 whitespace-nowrap text-xs text-soft" aria-live="polite">{message}</span>}
+        <button type="button" onClick={fit} className="button button--outline button--sm ml-auto shrink-0">
+          <IconArrowsMaximize size={15} stroke={2} aria-hidden />
           화면 맞춤
         </button>
-        {message && <span className="w-full text-xs text-soft" aria-live="polite">{message}</span>}
       </div>
     </div>
   );

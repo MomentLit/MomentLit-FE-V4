@@ -54,19 +54,13 @@ export function RoomManager({ spaceId, justCreated = false }: { spaceId: number;
         </div>
       )}
 
-      {scenes.length === 0 ? (
-        <div className="flex flex-col items-start gap-3 border border-line p-6">
-          <p className="text-sm text-ink">3D 방은 360° 사진으로 만들어요. 먼저 공간 수정에서 360° 사진을 추가해 주세요.</p>
-          <Link href={`/spaces/${spaceId}/edit`} className="button button--outline">공간 수정으로</Link>
-        </div>
-      ) : (
-        <>
-          <RoomSceneList spaceId={spaceId} scenes={scenes} rooms={rooms} returnTo="rooms" />
-          <p className="-mt-3 text-xs text-soft">
-            장면을 추가하거나 사진을 바꾸려면 공간 수정에서 해 주세요. 만든 3D 방은 저장하는 즉시 손님에게 보여요.
-          </p>
-        </>
-      )}
+      <RoomSceneList spaceId={spaceId} scenes={scenes} rooms={rooms} returnTo="rooms" />
+      <p className="-mt-3 text-xs text-soft">
+        {scenes.length === 0
+          ? "360° 사진이 있으면 장면마다 3D 방을 자동으로 잡아 줘요 — 공간 수정에서 추가할 수 있어요. "
+          : "장면을 추가하거나 사진을 바꾸려면 공간 수정에서 해 주세요. "}
+        만든 3D 방은 저장하는 즉시 손님에게 보여요.
+      </p>
     </div>
   );
 }

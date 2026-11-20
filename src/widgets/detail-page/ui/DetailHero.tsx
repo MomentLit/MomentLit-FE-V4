@@ -139,10 +139,10 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
   // 3D 방(장면마다 하나)은 공간과 따로 저장돼서 따로 확인한다. 없으면 빈 목록.
   const roomsQuery = useQuery({ queryKey: ["space-rooms", space.space_id], queryFn: () => fetchRooms(space.space_id) });
   const hasRoom = (roomsQuery.data?.length ?? 0) > 0;
-  // 호스트(또는 관리자)에게는 360° 장면만 있고 3D 방이 없을 때 만들기로 가는 버튼을 보여 준다
+  // 호스트(또는 관리자)에게는 3D 방이 없을 때(360° 장면이나 도면으로) 만들기로 가는 버튼을 보여 준다
   const user = useAuthStore((state) => state.user);
   const canManageRooms = Boolean(user && (user.role === "ADMIN" || user.id === space.host_id));
-  const canMakeRoom = !hasRoom && hasPanorama && canManageRooms && roomsQuery.isSuccess;
+  const canMakeRoom = !hasRoom && canManageRooms && roomsQuery.isSuccess;
   const showRoomButton = hasRoom || canMakeRoom;
 
   // 구역으로 묶인 공간이면 제목은 공통 이름만 쓰고, 구역 이름은 아래 탭과 제목 위 라벨로 보여준다.

@@ -1,11 +1,10 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
+import { useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import { getErrorMessage } from "@/shared/api";
 import Link from "next/link";
 import { IconArrowBackUp, IconArrowLeft, IconCube, IconLayoutBoard, IconRefresh, IconRuler2, IconSparkles, IconView360 } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
-import { fieldInputClass } from "@/widgets/registration-form/FormField";
 import type { PanoramaTourScene } from "@/widgets/panorama/model";
 import { directionToUv, floorCornersFromLayout, measureCeilingHeight, outerFromCorners, round, type Vec2 } from "../lib/geometry";
 import { outerOfCorners, type PickMode, type RoomStageState, type RoomView } from "../lib/stage";
@@ -21,58 +20,11 @@ import {
   withCeilingHeight,
   type RoomDraft,
 } from "../model";
+import { HeightField } from "./HeightField";
 import { PlanEditor, type PlanShape } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { ViewSwitch } from "./ViewSwitch";
 import { useLayoutDetection } from "./useLayoutDetection";
-
-/** 높이 입력 — 타이핑 중엔 자유롭게 두고, 칸을 벗어나거나 Enter를 누를 때 범위 안으로 맞춰 반영한다. */
-function HeightField({ label, value, min, max, onCommit, disabled }: {
-  label: string;
-  value: number;
-  min: number;
-  max: number;
-  onCommit: (value: number) => void;
-  disabled?: boolean;
-}) {
-  const [text, setText] = useState<string | null>(null);
-
-  function commit() {
-    if (text === null) return;
-    const parsed = Number(text);
-    setText(null);
-    if (Number.isFinite(parsed) && parsed > 0) onCommit(Math.max(min, Math.min(max, parsed)));
-  }
-
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
-    if (event.key === "Enter") {
-      event.preventDefault();
-      commit();
-    }
-  }
-
-  return (
-    <label className="flex min-w-0 flex-1 flex-col gap-1.5 text-sm font-semibold text-ink">
-      {label}
-      <span className="flex items-center gap-2">
-        <input
-          type="number"
-          inputMode="decimal"
-          step={0.01}
-          min={min}
-          max={max}
-          disabled={disabled}
-          value={text ?? value.toFixed(2)}
-          onChange={(event) => setText(event.target.value)}
-          onBlur={commit}
-          onKeyDown={handleKeyDown}
-          className={fieldInputClass}
-        />
-        <span className="text-soft">m</span>
-      </span>
-    </label>
-  );
-}
 
 function Section({ title, children }: { title: string; children: ReactNode }) {
   return (

@@ -4,12 +4,13 @@ import { useState, type FormEvent } from "react";
 import { IconDeviceFloppy, IconPencil, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { MAX_FURNITURE_LAYOUTS, type FurnitureLayout } from "@/entities/room";
 import { cn } from "@/shared/lib";
+import { ConfirmDialog } from "@/shared/ui";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
 import type { useFurnitureLayouts } from "./useFurnitureLayout";
 
 type Layouts = ReturnType<typeof useFurnitureLayouts>;
 
-/** 저장 안 된 변경이 있을 때 한 번 더 묻는 동작. */
+/** 한 번 더 묻는 동작 — 저장 안 된 변경을 버리게 되거나, 배치를 지울 때. 확인 모달로 묻는다. */
 type Pending = { kind: "load"; layout: FurnitureLayout } | { kind: "new" } | { kind: "delete"; layout: FurnitureLayout };
 
 const NAME_MAX = 50;
@@ -152,19 +153,25 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
       )}
 
       {pending && (
-        <div role="alert" className="flex flex-col gap-2 border-l-4 border-coral bg-wash p-3 text-sm text-ink">
-          {pending.kind === "delete"
-            ? `‘${pending.layout.name}’ 배치를 지울까요? 되돌릴 수 없어요.`
+        <ConfirmDialog
+          title={pending.kind === "delete"
+            ? `‘${pending.layout.name}’ 배치를 지울까요?`
             : pending.kind === "new"
-              ? "초기화하면 놓은 가구가 모두 빠지고, 저장하지 않은 배치는 사라져요. 저장한 배치는 그대로 남아요."
-              : "지금 배치를 저장하지 않았어요. 바꾸면 저장 안 된 가구 배치가 사라져요."}
-          <div className="flex gap-2">
-            <button type="button" onClick={() => void confirmPending()} disabled={layouts.busy} className="button button--danger button--sm">
-              {pending.kind === "delete" ? "지우기" : pending.kind === "load" ? `‘${pending.layout.name}’ 불러오기` : "초기화"}
-            </button>
-            <button type="button" onClick={() => setPending(null)} className="button button--outline button--sm">취소</button>
-          </div>
-        </div>
+              ? "배치를 초기화할까요?"
+              : `‘${pending.layout.name}’ 배치를 불러올까요?`}
+          confirmLabel={pending.kind === "delete" ? "지우기" : pending.kind === "load" ? "불러오기" : "초기화"}
+          busyLabel={pending.kind === "delete" ? "지우는 중…" : undefined}
+          tone={pending.kind === "load" ? "primary" : "danger"}
+          busy={layouts.busy}
+          onConfirm={() => void confirmPending()}
+          onCancel={() => setPending(null)}
+        >
+          {pending.kind === "delete"
+            ? "지운 배치는 되돌릴 수 없어요."
+            : pending.kind === "new"
+              ? "놓은 가구가 모두 빠지고, 저장하지 않은 배치는 사라져요. 저장한 배치는 그대로 남아요."
+              : "지금 배치를 저장하지 않았어요. 불러오면 저장 안 된 가구 배치가 사라져요."}
+        </ConfirmDialog>
       )}
 
       {layouts.error && <p className="text-sm text-coral">{layouts.error}</p>}

@@ -30,7 +30,7 @@ import {
   validatePlanDraft,
   type PlanDraft,
 } from "../planModel";
-import { PanelSection as Section, PanelToggleButton, StepGuide, type GuideStep } from "./EditorChrome";
+import { PanelSection as Section, PanelToggleButton } from "./EditorChrome";
 import { HeightField } from "./HeightField";
 import { PlanEditor, type PlanDrawMode, type PlanShape, type PlanTool } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
@@ -280,27 +280,6 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
     { id: "undo", label: "되돌리기", caption: "되돌리기", hint: "방금 한 일을 취소해요.", icon: IconArrowBackUp, onClick: undo, disabled: busy || !canUndo },
     { id: "restart", label: "처음부터 다시 그리기", caption: "지우기", hint: "그린 벽을 모두 지우고 바깥벽부터 다시 그려요.", icon: IconEraser, onClick: restart, disabled: !draft || busy || !hasWalls },
   ];
-  const guideSteps: GuideStep[] = [
-    { label: "도면 올리기", done: Boolean(draft), how: "가운데 ‘도면 올리기’를 눌러 평면도 이미지(JPG·PNG)를 올려요." },
-    {
-      label: "축척 맞추기",
-      done: Boolean(draft?.calibrated),
-      how: scaleLine !== null
-        ? "도면 옆 칸에 두 점 사이의 실제 길이를 mm로 넣고 ‘적용’을 누르세요."
-        : "왼쪽 ‘축척’ 도구를 고르고, 치수가 적힌 구간(예: 8000)의 양 끝을 누르세요.",
-    },
-    {
-      label: "바깥벽",
-      done: Boolean(draft?.closed),
-      how: "왼쪽 ‘자동 인식’으로 벽을 그리거나, ‘벽’ 도구로 방 모서리를 차례로 눌러 첫 점에서 닫아요.",
-    },
-    {
-      label: "안쪽 벽·다듬기",
-      done: Boolean(draft && draft.inner.length > 0),
-      optional: true,
-      how: "바깥벽을 닫은 뒤 ‘벽’ 도구로 누르면 안쪽 벽(칸막이)이 그려져요. 벽을 눌러 길이도 고쳐요.",
-    },
-  ];
   // 도구 막대 옆 칸 — 축척 재기 중일 때만
   const scalePanel = scaleLine !== null ? (
     <>
@@ -432,7 +411,6 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
 
         {panelOpen && (
           <aside className="flex min-h-0 flex-col overflow-y-auto border-line lg:w-[340px] lg:shrink-0 lg:border-l">
-            <StepGuide steps={guideSteps} doneText="준비됐어요. 미니어처·1인칭으로 확인하고 위쪽의 저장을 누르세요." />
             {(message || statusText) && (
               <div className="flex flex-col gap-1 border-b border-line bg-wash px-4 py-3 text-sm" aria-live="polite">
                 {message && <p className="text-ink">{message}</p>}

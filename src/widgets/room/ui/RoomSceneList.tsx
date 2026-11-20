@@ -7,6 +7,7 @@ import { IconTrash } from "@tabler/icons-react";
 import { deleteRoom, MAX_ROOMS_PER_SPACE, type Room } from "@/entities/room";
 import { getErrorMessage } from "@/shared/api";
 import { cn } from "@/shared/lib";
+import { ConfirmDialog } from "@/shared/ui";
 import type { PanoramaTourScene } from "@/widgets/panorama/model";
 import { roomPlacement, roomToDraft, summarizeRoom } from "../model";
 
@@ -27,7 +28,7 @@ export function roomReturnHref(spaceId: number, returnTo: RoomReturnTo) {
 }
 
 /**
- * 360° 장면마다의 3D 방 목록과 도면으로 만든 방 목록 — 만들기·고치기(방 만들기 페이지로), 빼기(줄 안에서 한 번 더 확인하고 바로 지움).
+ * 360° 장면과 도면으로 만든 3D 방 목록. 편집 페이지에서 만들거나 고치고, 확인 모달을 거쳐 삭제한다.
  * 공간 수정 화면과 3D 방 관리 페이지가 같이 쓴다. `scenes`는 서버에 저장된 장면이어야 한다(방 만들기 페이지가 그 순서로 연다).
  * `locked`면 목록만 보여 주고 고칠 수 없게 한다(예: 공간 수정에서 장면을 바꾸고 아직 저장하지 않았을 때).
  */
@@ -47,8 +48,8 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
   onOpen?: (href: string) => void;
 }) {
   const queryClient = useQueryClient();
-  const [confirming, setConfirming] = useState<number | null>(null);
-  const [deleting, setDeleting] = useState<number | null>(null);
+  const [confirming, setConfirming] = useState<{ room: Room; label: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const sceneUrls = new Set(scenes.map((scene) => scene.image_url));
@@ -59,7 +60,7 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
   const disabled = locked !== null || busy;
 
   async function remove(room: Room) {
-    setDeleting(room.room_id);
+    setDeleting(true);
     setError(null);
     try {
       await deleteRoom(spaceId, room.room_id);
@@ -68,66 +69,56 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
     } catch (deleteError) {
       setError(getErrorMessage(deleteError));
     } finally {
-      setDeleting(null);
+      setDeleting(false);
     }
   }
 
   function renderRow(key: string, label: string, room: Room | null, editHref: string | null) {
     const draft = room && room.source !== "PLAN" ? roomToDraft(room) : null;
     const summary = draft ? summarizeRoom(draft) : null;
-    const isConfirming = room !== null && confirming === room.room_id;
     const canCreate = !room && !limitReached;
     return (
       <li key={key} className="flex min-h-16 items-center gap-2 py-2.5 pl-4 pr-3">
         <div className="min-w-0 flex-1">
           <span className="block truncate text-sm font-semibold text-ink">{label}</span>
           <span className="block text-xs text-soft">
-            {isConfirming
-              ? "이 3D 방과, 손님들이 이 방에 저장한 가구 배치가 지워져요."
-              : room
-                ? summary
-                  ? `${summary.areaM2.toFixed(1)}㎡ · 약 ${summary.areaPyeong.toFixed(1)}평 · 천장 ${room.ceiling_height.toFixed(2)}m`
-                  : `${room.area_m2.toFixed(1)}㎡ · 약 ${room.area_pyeong.toFixed(1)}평 · 천장 ${room.ceiling_height.toFixed(2)}m`
-                : "아직 3D 방이 없어요"}
+            {room
+              ? summary
+                ? `${summary.areaM2.toFixed(1)}㎡ · 약 ${summary.areaPyeong.toFixed(1)}평 · 천장 ${room.ceiling_height.toFixed(2)}m`
+                : `${room.area_m2.toFixed(1)}㎡ · 약 ${room.area_pyeong.toFixed(1)}평 · 천장 ${room.ceiling_height.toFixed(2)}m`
+              : "아직 3D 방이 없어요"}
           </span>
         </div>
-        {isConfirming && room ? (
-          <>
-            <button type="button" onClick={() => setConfirming(null)} className="button button--outline w-[88px]">취소</button>
-            <button type="button" onClick={() => void remove(room)} disabled={deleting === room.room_id} className="button button--danger w-[88px]">
-              {deleting === room.room_id ? "빼는 중…" : "빼기"}
-            </button>
-          </>
+        {editHref && !disabled && (room || canCreate) && onOpen ? (
+          <button type="button" onClick={() => onOpen(editHref)} className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
+            {room ? "고치기" : "3D 방 만들기"}
+          </button>
+        ) : editHref && !disabled && (room || canCreate) ? (
+          <Link href={editHref} className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
+            {room ? "고치기" : "3D 방 만들기"}
+          </Link>
+        ) : editHref ? (
+          <button type="button" disabled className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
+            {room ? "고치기" : "3D 방 만들기"}
+          </button>
         ) : (
-          <>
-            {editHref && !disabled && (room || canCreate) && onOpen ? (
-              <button type="button" onClick={() => onOpen(editHref)} className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
-                {room ? "고치기" : "3D 방 만들기"}
-              </button>
-            ) : editHref && !disabled && (room || canCreate) ? (
-              <Link href={editHref} className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
-                {room ? "고치기" : "3D 방 만들기"}
-              </Link>
-            ) : editHref ? (
-              <button type="button" disabled className={cn("button w-[128px]", room ? "button--outline" : "button--primary")}>
-                {room ? "고치기" : "3D 방 만들기"}
-              </button>
-            ) : (
-              <span className="w-[128px]" aria-hidden />
-            )}
-            {/* 줄마다 같은 자리 — 방이 없는 줄도 빼기 칸을 비워 둔다 */}
-            <button
-              type="button"
-              onClick={() => room && setConfirming(room.room_id)}
-              disabled={!room || disabled}
-              aria-label={`${label} 3D 방 빼기`}
-              title="3D 방 빼기"
-              className={cn("button button--outline button--square", !room && "invisible")}
-            >
-              <IconTrash size={16} stroke={2} aria-hidden />
-            </button>
-          </>
+          <span className="w-[128px]" aria-hidden />
         )}
+        {/* 줄마다 같은 자리 — 방이 없는 줄도 빼기 칸을 비워 둔다 */}
+        <button
+          type="button"
+          onClick={() => {
+            if (!room) return;
+            setError(null);
+            setConfirming({ room, label });
+          }}
+          disabled={!room || disabled}
+          aria-label={`${label} 3D 방 빼기`}
+          title="3D 방 빼기"
+          className={cn("button button--outline button--square", !room && "invisible")}
+        >
+          <IconTrash size={16} stroke={2} aria-hidden />
+        </button>
       </li>
     );
   }
@@ -182,7 +173,21 @@ export function RoomSceneList({ spaceId, scenes, rooms, returnTo, locked = null,
         </div>
       )}
 
-      {error && <p className="text-sm text-coral" role="alert">{error}</p>}
+      {confirming && (
+        <ConfirmDialog
+          title={`‘${confirming.label}’ 3D 방을 뺄까요?`}
+          confirmLabel="빼기"
+          busyLabel="빼는 중…"
+          busy={deleting}
+          error={error}
+          onConfirm={() => void remove(confirming.room)}
+          onCancel={() => setConfirming(null)}
+        >
+          이 3D 방과, 손님들이 이 방에 저장한 가구 배치가 함께 지워져요. 되돌릴 수 없어요.
+        </ConfirmDialog>
+      )}
+
+      {error && !confirming && <p className="text-sm text-coral" role="alert">{error}</p>}
     </div>
   );
 }

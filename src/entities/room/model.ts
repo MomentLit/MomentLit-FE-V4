@@ -97,6 +97,10 @@ export interface LayoutJob {
   error: string | null;
 }
 
+export type PlanDetection =
+  | { ok: true; width: number; height: number; outer: [number, number][]; inner: [[number, number], [number, number]][] }
+  | { ok: false; reason: string | null };
+
 export interface FurnitureItem {
   /** 프론트 가구 목록의 id(예: `sofa-3`). */
   type: string;

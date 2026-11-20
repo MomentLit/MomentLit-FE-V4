@@ -1,6 +1,6 @@
 import { apiClient, publicApiClient } from "@/shared/api/client";
 import type { ApiResponse } from "@/shared/api/types";
-import type { FurnitureItem, FurnitureLayout, LayoutJob, Room, RoomUpsertRequest } from "./model";
+import type { FurnitureItem, FurnitureLayout, LayoutJob, PlanDetection, Room, RoomUpsertRequest } from "./model";
 
 /** 360° 사진에서 방 모서리 찾기를 시작한다 — 결과는 `fetchLayoutJob`으로 폴링한다. 대기열이 가득 차면 503. */
 export async function createLayoutJob(imageUrl: string): Promise<LayoutJob> {
@@ -10,6 +10,14 @@ export async function createLayoutJob(imageUrl: string): Promise<LayoutJob> {
 
 export async function fetchLayoutJob(jobId: string, signal?: AbortSignal): Promise<LayoutJob> {
   const { data } = await apiClient.get<ApiResponse<LayoutJob>>(`/rooms/layout-jobs/${jobId}`, { signal });
+  return data.data;
+}
+
+export async function detectPlanWalls(imageUrl: string, metersPerPixel?: number): Promise<PlanDetection> {
+  const { data } = await apiClient.post<ApiResponse<PlanDetection>>("/rooms/plan-detect", {
+    image_url: imageUrl,
+    meters_per_pixel: metersPerPixel,
+  }, { timeout: 25_000 });
   return data.data;
 }
 

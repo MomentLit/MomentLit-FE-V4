@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
 import Link from "next/link";
 import {
   IconArrowBackUp,
@@ -14,6 +14,7 @@ import {
   IconWalk,
 } from "@tabler/icons-react";
 import { getErrorMessage } from "@/shared/api";
+import { detectPlanWalls } from "@/entities/room";
 import { uploadImage } from "@/shared/api/upload";
 import { cn } from "@/shared/lib";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
@@ -21,6 +22,7 @@ import type { Vec2 } from "../lib/geometry";
 import type { RoomStageState, RoomView } from "../lib/stage";
 import { MAX_CEILING_HEIGHT, MIN_CEILING_HEIGHT } from "../model";
 import {
+  applyDetectedWalls,
   calibratePlan,
   createPlanDraft,
   pixelsPerMeter,
@@ -82,9 +84,11 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
   const [draft, setDraftState] = useState<PlanDraft | null>(initialDraft);
   const [view, setView] = useState<PlanView>("plan");
   const [drawMode, setDrawMode] = useState<PlanDrawMode>(initialDraft ? "none" : "scale");
+  const [editorVersion, setEditorVersion] = useState(0);
   const [scaleLine, setScaleLine] = useState<number | null>(null);
   const [scaleText, setScaleText] = useState("");
   const [uploading, setUploading] = useState(false);
+  const [detecting, setDetecting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -95,10 +99,14 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
   const lastChangeRef = useRef(0);
   const [canUndo, setCanUndo] = useState(false);
 
-  function change(next: PlanDraft) {
+  useEffect(() => {
+    if (scaleLine !== null) scaleInputRef.current?.focus();
+  }, [scaleLine]);
+
+  function change(next: PlanDraft, checkpoint = false) {
     if (!draft) return;
     const now = Date.now();
-    if (now - lastChangeRef.current > 500) {
+    if (checkpoint || now - lastChangeRef.current > 500) {
       historyRef.current.push(draft);
       setCanUndo(true);
     }
@@ -110,7 +118,10 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
     const previous = historyRef.current.pop();
     setCanUndo(historyRef.current.length > 0);
     lastChangeRef.current = 0;
-    if (previous) setDraftState(previous);
+    if (previous) {
+      setDraftState(previous);
+      setDrawMode("none");
+    }
   }
 
   async function handleFile(event: ChangeEvent<HTMLInputElement>) {
@@ -129,6 +140,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
       const url = await uploadImage(file, { privacyBlur: false });
       const next = createPlanDraft(url, width, height, draft?.name ?? defaultName);
       historyRef.current = [];
+      lastChangeRef.current = 0;
       setCanUndo(false);
       setDraftState({ ...next, ceilingHeight: draft?.ceilingHeight ?? next.ceilingHeight });
       setView("plan");
@@ -145,21 +157,57 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
   function handleScaleLine(a: Vec2, b: Vec2) {
     setScaleLine(Math.hypot(b[0] - a[0], b[1] - a[1]));
     setScaleText("");
-    // 두 점을 찍으면 길이 칸으로 바로 커서를 옮긴다
-    queueMicrotask(() => scaleInputRef.current?.focus());
+    scaleInputRef.current?.focus();
+  }
+
+  async function generateWalls(target: PlanDraft) {
+    if (detecting) return;
+    setDetecting(true);
+    setView("plan");
+    setDrawMode("none");
+    setScaleLine(null);
+    setMessage("도면에서 벽을 찾고 있어요…");
+    try {
+      const detection = await detectPlanWalls(target.imageUrl, target.calibrated ? target.metersPerPixel : undefined);
+      const next = detection.ok ? applyDetectedWalls(target, detection) : null;
+      if (!next) {
+        setMessage(!detection.ok && detection.reason ? `${detection.reason} 벽을 직접 그리거나 다시 시도해 주세요.` : "벽을 자동으로 그리지 못했어요. 직접 그리거나 다시 시도해 주세요.");
+        return;
+      }
+      historyRef.current.push(target);
+      lastChangeRef.current = 0;
+      setCanUndo(true);
+      setDraftState(next);
+      setMessage(target.calibrated
+        ? "벽 초안을 그렸어요. 도면에서 확인하고 수정해 주세요."
+        : "벽 초안을 그렸어요. 기준 길이를 재거나 벽 길이를 입력해서 실제 크기를 맞춰 주세요.");
+    } catch (error) {
+      setMessage(`${getErrorMessage(error)} 벽을 직접 그리거나 다시 시도해 주세요.`);
+    } finally {
+      setDetecting(false);
+    }
   }
 
   function applyScale() {
     if (!draft || scaleLine === null) return;
     const mm = Number(scaleText);
-    if (!(mm >= 100 && mm <= 1_000_000)) {
-      setMessage("기준 길이는 100mm 이상으로 넣어 주세요.");
+    if (!(scaleLine > 0)) {
+      setMessage("기준 길이의 양 끝을 서로 다른 점으로 찍어 주세요.");
       return;
     }
-    change(calibratePlan(draft, scaleLine, mm / 1000));
+    if (!(mm >= 100 && mm <= 1_000_000)) {
+      setMessage("기준 길이는 100~1,000,000mm로 넣어 주세요.");
+      return;
+    }
+    const calibrated = calibratePlan(draft, scaleLine, mm / 1000);
+    change(calibrated, true);
     setScaleLine(null);
-    setDrawMode(draft.outer.length === 0 ? "outer" : "none");
-    setMessage(`축척을 맞췄어요. ${draft.outer.length === 0 ? "이제 바깥벽 모서리를 차례로 누르세요." : ""}`);
+    setDrawMode("none");
+    if (draft.outer.length === 0 && draft.inner.length === 0) {
+      void generateWalls(calibrated);
+    } else {
+      setMessage("축척을 맞췄어요. 그린 벽은 도면 위에 그대로 남겨 뒀어요.");
+    }
   }
 
   function handleScaleKeyDown(event: KeyboardEvent<HTMLInputElement>) {
@@ -170,6 +218,11 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
   }
 
   function skipScale() {
+    if (!draft) return;
+    if (draft.outer.length === 0 && draft.inner.length === 0) {
+      void generateWalls(draft);
+      return;
+    }
     setScaleLine(null);
     setDrawMode(draft && draft.outer.length > 0 ? "none" : "outer");
     setMessage("축척은 나중에 맞춰도 돼요 — 벽을 고르고 실제 길이를 넣으면 그 길이로 도면 전체 축척이 맞춰져요.");
@@ -184,7 +237,8 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
 
   function restart() {
     if (!draft) return;
-    change({ ...draft, outer: [], inner: [], closed: false });
+    change({ ...draft, outer: [], inner: [], closed: false }, true);
+    setEditorVersion((version) => version + 1);
     setView("plan");
     setDrawMode("outer");
   }
@@ -214,7 +268,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
     ceilingHeight: draft?.ceilingHeight ?? 2.4,
   // floor는 draft에서 계산 — draft의 해당 값이 바뀔 때만 새로 만든다
   }), [draft?.closed, draft?.outer, draft?.inner, draft?.ceilingHeight, draft?.showFloor, floor?.url, floor?.x, floor?.z, floor?.width, floor?.height]); // eslint-disable-line react-hooks/exhaustive-deps
-  const busy = uploading || saving;
+  const busy = uploading || saving || detecting;
 
   return (
     <div className="flex h-dvh min-h-[600px] w-full flex-col bg-white">
@@ -234,6 +288,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
           ]}
           value={view}
           onChange={(next) => {
+            if (detecting) return;
             setView(next);
             if (next !== "plan") setDrawMode("none");
           }}
@@ -256,8 +311,17 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
           ) : (
             <>
               <RoomStageCanvas imageUrl={null} state={stageState} view={view === "plan" ? "miniature" : view} className="h-full w-full" />
-              {view === "plan" && (
+              {view === "plan" && detecting && floor && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-wash p-6" role="status">
+                  <svg viewBox={`0 0 ${draft.widthPx} ${draft.heightPx}`} aria-hidden className="min-h-0 w-full flex-1">
+                    <image href={floor.url} width={draft.widthPx} height={draft.heightPx} />
+                  </svg>
+                  <p className="shrink-0 text-sm text-ink">도면에서 벽을 찾고 있어요…</p>
+                </div>
+              )}
+              {view === "plan" && !detecting && (
                 <PlanEditor
+                  key={`${draft.imageUrl}:${editorVersion}`}
                   outer={draft.outer}
                   inner={draft.inner}
                   closed={draft.closed}
@@ -274,13 +338,14 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
                       : "바깥벽을 닫았어요. 길이를 아는 벽을 눌러 mm로 넣으면 축척이 맞춰져요.");
                   }}
                   onScaleLine={handleScaleLine}
+                  onDrawExit={() => setDrawMode("none")}
                   onCalibrate={(current, actual) => change(calibratePlan(draft, current, actual))}
                   className="absolute inset-0"
                 />
               )}
             </>
           )}
-          <input ref={fileInputRef} type="file" accept={PLAN_ACCEPT} onChange={(event) => void handleFile(event)} className="sr-only" aria-label="도면 이미지" />
+          <input ref={fileInputRef} type="file" accept={PLAN_ACCEPT} disabled={busy} onChange={(event) => void handleFile(event)} className="sr-only" aria-label="도면 이미지" />
         </div>
 
         <aside className="flex min-h-0 flex-col border-line lg:w-[360px] lg:shrink-0 lg:border-l">
@@ -350,6 +415,10 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
             </Section>
 
             <Section title="벽 그리기">
+              <button type="button" onClick={() => draft && void generateWalls(draft)} disabled={!draft || busy} className="button button--outline button--sm self-start">
+                <IconRefresh size={15} stroke={2} aria-hidden />
+                {detecting ? "벽 찾는 중…" : draft && (draft.outer.length > 0 || draft.inner.length > 0) ? "자동 초안으로 교체" : "벽 자동 인식"}
+              </button>
               <div className="grid grid-cols-2 gap-2">
                 <button
                   type="button"
@@ -386,8 +455,9 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
                 </button>
               </div>
               <p className="text-xs leading-relaxed text-soft">
-                바깥벽은 모서리를 차례로 찍고 첫 점을 다시 누르면 닫혀요. 안쪽 벽은 시작점과 끝점을 찍어요(문 틈은 비워 두세요).
-                둘 다 수평·수직과 기존 점에 자동으로 붙어요. 그린 뒤엔 벽을 눌러 길이를, 점을 끌어 위치를 고쳐요.
+                점을 찍을 때마다 앞 점과 벽으로 이어져요. <b className="font-semibold text-ink">Esc</b>를 누르면 이어지던 선이 끊기고,
+                다음에 찍는 점부터 새로 시작해요(바깥벽은 첫 점·마지막 점에서 다시 이어요). 한 번 더 Esc면 그리기가 끝나요.
+                바깥벽은 첫 점을 다시 누르면 닫혀요. 안쪽 벽은 기존 점·벽에 붙고, 문 틈은 끊어서 비워 두세요.
               </p>
             </Section>
 

@@ -102,6 +102,7 @@ export function PlanEditor({
   onClose,
   onScaleLine,
   onCalibrate,
+  onDrawExit,
   className,
 }: {
   outer: readonly Vec2[];
@@ -121,6 +122,8 @@ export function PlanEditor({
   onScaleLine?: (a: Vec2, b: Vec2) => void;
   /** 축척을 모를 때 벽 길이를 넣으면 — 지금 길이(m)와 실제 길이(m). */
   onCalibrate?: (current: number, actual: number) => void;
+  /** 그리는 중 끊을 선이 없을 때 Esc를 한 번 더 누르면 — 그리기를 끝낸다. */
+  onDrawExit?: () => void;
   className?: string;
 }) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -130,7 +133,10 @@ export function PlanEditor({
   const [lengthText, setLengthText] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   // 그리는 중 — 안쪽 벽 시작점, 축척 두 점, 마우스 자리(미리보기 선)
+  // 안쪽 벽은 찍는 점마다 앞 점과 이어지고(연속), Esc로 끊는다. 끊긴 뒤 다음 점이 새 시작점.
   const [pending, setPending] = useState<Vec2 | null>(null);
+  // 바깥벽을 Esc로 끊었는지 — 끊긴 뒤엔 양 끝점(첫 점·마지막 점) 중 하나를 눌러 거기서 이어 그린다
+  const [outerPaused, setOuterPaused] = useState(false);
   const [scalePoints, setScalePoints] = useState<Vec2[]>([]);
   const [hover, setHover] = useState<Vec2 | null>(null);
   const [lastDrawMode, setLastDrawMode] = useState(drawMode);
@@ -138,6 +144,7 @@ export function PlanEditor({
     // 그리기 종류가 바뀌면 그리던 것을 비운다(렌더 중 상태 맞추기)
     setLastDrawMode(drawMode);
     setPending(null);
+    setOuterPaused(false);
     setScalePoints([]);
     setSelection(null);
   }
@@ -309,6 +316,12 @@ export function PlanEditor({
   function snapForDraw(p: Vec2): Vec2 {
     const tolerance = SNAP_PX / pxPerMeter();
     if (drawMode === "outer") {
+      if (outerPaused) {
+        // 끊긴 상태 — 양 끝점 가까이면 그 점에 붙는다
+        const stick = STICK_PX / pxPerMeter();
+        const end = [outer[0], outer.at(-1)].find((v) => v && Math.hypot(v[0] - p[0], v[1] - p[1]) < stick);
+        return end ? [end[0], end[1]] : p;
+      }
       const last = outer.at(-1) ?? null;
       return snapPoint(p, last, outer.slice(0, -1), tolerance);
     }
@@ -327,6 +340,23 @@ export function PlanEditor({
     if (drawMode === "outer") {
       if (closed) return;
       const first = outer[0];
+      if (outerPaused && outer.length > 0) {
+        const stick = STICK_PX / pxPerMeter();
+        const last = outer[outer.length - 1];
+        const near = (v: Vec2) => Math.hypot(v[0] - raw[0], v[1] - raw[1]) < stick;
+        if (near(last)) {
+          setMessage(null);
+          setOuterPaused(false);
+        } else if (near(first)) {
+          // 첫 점에서 이어 그리기 — 순서를 뒤집어 첫 점을 마지막 점으로
+          emit({ outer: [...outer].reverse().map((q) => [q[0], q[1]] as Vec2) });
+          setMessage(null);
+          setOuterPaused(false);
+        } else {
+          setMessage("바깥벽은 한 줄로 이어져야 해요. 첫 점이나 마지막 점을 눌러 거기서 이어 그리세요.");
+        }
+        return;
+      }
       if (first && outer.length >= 3 && Math.hypot(first[0] - raw[0], first[1] - raw[1]) * pxPerMeter() < CLOSE_PX) {
         onClose?.();
         setHover(null);
@@ -341,8 +371,8 @@ export function PlanEditor({
       }
       if (Math.hypot(point[0] - pending[0], point[1] - pending[1]) > 0.05) {
         emit({ inner: [...inner.map(([a, b]) => [[...a], [...b]] as Segment), [pending, point]] });
+        setPending(point);
       }
-      setPending(null);
     } else if (drawMode === "scale") {
       const next = scalePoints.length >= 2 ? [raw] : [...scalePoints, raw];
       setScalePoints(next);
@@ -421,14 +451,28 @@ export function PlanEditor({
 
   // 키보드 — 벽을 고른 채 숫자를 치면 길이 입력으로, Delete 지우기, Esc 선택 풀기.
   // 리스너는 한 번만 달고 최신 선택·지우기는 ref로 읽는다.
-  /** 그리던 안쪽 벽 시작점·축척 점을 비운다. 비울 게 있었으면 true. */
+  /**
+   * Esc — 이어 그리던 선을 끊는다(안쪽 벽 시작점·바깥벽 이어 그리기·축척 점). 끊을 게 없으면 그리기를 끝낸다.
+   * 무언가 했으면 true.
+   */
   function cancelDraw() {
-    if (!pending && scalePoints.length === 0) return false;
-    setPending(null);
-    setScalePoints([]);
-    return true;
+    if (pending || scalePoints.length > 0) {
+      setPending(null);
+      setScalePoints([]);
+      return true;
+    }
+    if (drawMode === "outer" && !closed && outer.length > 0 && !outerPaused) {
+      setOuterPaused(true);
+      return true;
+    }
+    if (drawMode !== "none" && onDrawExit) {
+      onDrawExit();
+      return true;
+    }
+    return false;
   }
   const keyStateRef = useRef({ current, deleteSelected, cancelDraw });
+  // 그리기 중 Esc는 선택 해제보다 먼저 — 아래 리스너가 cancelDraw부터 부른다
   useEffect(() => {
     keyStateRef.current = { current, deleteSelected, cancelDraw };
   });
@@ -468,7 +512,7 @@ export function PlanEditor({
   const wallCount = closed ? outer.length : Math.max(0, outer.length - 1);
   const drawing = drawMode !== "none";
   // 그리는 중 미리보기 선의 시작점
-  const previewFrom: Vec2 | null = drawMode === "outer" && !closed ? outer.at(-1) ?? null
+  const previewFrom: Vec2 | null = drawMode === "outer" && !closed && !outerPaused ? outer.at(-1) ?? null
     : drawMode === "inner" ? pending
       : drawMode === "scale" && scalePoints.length === 1 ? scalePoints[0]
         : null;
@@ -647,7 +691,16 @@ export function PlanEditor({
         {drawing && hover && (
           <circle cx={hover[0]} cy={hover[1]} r={px(4)} fill={drawMode === "scale" ? "#1d6fd1" : TAPE} pointerEvents="none" />
         )}
-        {drawMode === "outer" && !closed && outer.length >= 3 && (
+        {/* 끊긴 바깥벽 — 이어 그릴 수 있는 양 끝점 */}
+        {drawMode === "outer" && !closed && outerPaused && outer.length > 0 && [outer[0], outer[outer.length - 1]].map(([x, z], i) => (
+          <circle
+            key={`end-${i}`}
+            cx={x} cy={z} r={px(STICK_PX)}
+            fill={TAPE} fillOpacity={0.25} stroke={TAPE} strokeWidth={2}
+            vectorEffect="non-scaling-stroke" pointerEvents="none"
+          />
+        ))}
+        {drawMode === "outer" && !closed && !outerPaused && outer.length >= 3 && (
           <circle
             cx={outer[0][0]} cy={outer[0][1]} r={px(CLOSE_PX)}
             fill="none" stroke={TAPE} strokeWidth={2} strokeDasharray="4 3"
@@ -716,9 +769,13 @@ export function PlanEditor({
         ) : (
           <span className="truncate text-sm text-soft">
             {drawMode === "outer"
-              ? closed ? "바깥벽이 닫혔어요." : outer.length < 3 ? `바깥벽 모서리를 차례로 누르세요 (${outer.length}개)` : `계속 찍거나 첫 점을 눌러 닫으세요 (${outer.length}개)`
+              ? closed ? "바깥벽이 닫혔어요."
+                : outerPaused ? "끊었어요. 첫 점이나 마지막 점을 눌러 거기서 이어 그려요 (Esc로 그리기 끝내기)"
+                  : outer.length === 0 ? "바깥벽 모서리를 차례로 누르세요"
+                    : outer.length < 3 ? `다음 모서리를 누르세요 (${outer.length}개 · Esc로 끊기)`
+                      : `계속 찍거나 첫 점을 눌러 닫으세요 (${outer.length}개 · Esc로 끊기)`
               : drawMode === "inner"
-                ? pending ? "벽이 끝나는 점을 누르세요 (Esc로 취소)" : "안쪽 벽이 시작하는 점을 누르세요"
+                ? pending ? "다음 점을 누르면 이어서 벽이 생겨요 (Esc로 끊기)" : "안쪽 벽이 시작할 점을 누르세요 — 기존 점·벽에 붙어요 (Esc로 그리기 끝내기)"
                 : drawMode === "scale"
                   ? scalePoints.length < 2 ? `치수가 적힌 구간의 양 끝을 누르세요 (${scalePoints.length}/2)` : "실제 길이를 mm로 넣어 주세요"
                   : "벽을 누르면 길이(mm)를 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요."}

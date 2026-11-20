@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
-import type { Room } from "@/entities/room";
+import type { PlanDetection, Room } from "@/entities/room";
 import { polygonArea } from "./lib/geometry";
 import {
+  applyDetectedWalls,
   calibratePlan,
   createPlanDraft,
   nextPlanSortOrder,
@@ -55,6 +56,32 @@ describe("도면 방 초안", () => {
     expect(validatePlanDraft(drawn())).toMatch(/축척/);
     expect(validatePlanDraft({ ...calibratePlan(drawn(), 4, 4), closed: false })).toMatch(/닫아/);
     expect(validatePlanDraft(calibratePlan(drawn(), 4, 4))).toBeNull();
+  });
+
+  it("인식 좌표에 축척과 이미지 원점을 적용하고 안쪽 벽의 문 틈을 유지한다", () => {
+    const draft = calibratePlan(createPlanDraft(PLAN, 1000, 800, "도면 1"), 5, 2.5);
+    const detected = applyDetectedWalls(draft, {
+      ok: true,
+      width: 1000,
+      height: 800,
+      outer: [[100, 100], [900, 100], [900, 700], [100, 700]],
+      inner: [[[500, 100], [500, 300]], [[500, 500], [500, 700]]],
+    });
+
+    expect(detected).toEqual({
+      ...draft,
+      closed: true,
+      outer: [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]],
+      inner: [[[0, -1.5], [0, -0.5]], [[0, 0.5], [0, 1.5]]],
+    });
+  });
+
+  it("축척 없이 인식해도 임시 축척을 실제 축척으로 확정하지 않는다", () => {
+    const draft = createPlanDraft(PLAN, 1000, 800, "도면 1");
+    const detection: PlanDetection = { ok: true, width: 1000, height: 800, outer: [[100, 100], [900, 100], [900, 700]], inner: [] };
+
+    expect(applyDetectedWalls(draft, detection)?.calibrated).toBe(false);
+    expect(applyDetectedWalls(draft, { ...detection, width: 800 })).toBeNull();
   });
 
   it("면적·벽 길이는 닫힌 바깥벽으로 계산한다", () => {

@@ -1,4 +1,4 @@
-import { PLAN_ROOM_SORT_BASE, type Room, type RoomUpsertRequest } from "@/entities/room";
+import { PLAN_ROOM_SORT_BASE, type PlanDetection, type Room, type RoomUpsertRequest } from "@/entities/room";
 import { centroid, polygonArea, round, toPyeong, wallLengths, type Vec2 } from "./lib/geometry";
 import type { Segment } from "./lib/planEdit";
 import { DEFAULT_CEILING_HEIGHT, MAX_CEILING_HEIGHT, MIN_CEILING_HEIGHT } from "./model";
@@ -67,6 +67,20 @@ export function scalePlan(draft: PlanDraft, k: number): PlanDraft {
 export function calibratePlan(draft: PlanDraft, current: number, actual: number): PlanDraft {
   if (!(current > 0) || !(actual > 0)) return draft;
   return { ...scalePlan(draft, actual / current), calibrated: true };
+}
+
+export function applyDetectedWalls(draft: PlanDraft, detection: Extract<PlanDetection, { ok: true }>): PlanDraft | null {
+  if (detection.width !== draft.widthPx || detection.height !== draft.heightPx || detection.outer.length < 3) return null;
+  const toMeters = ([x, y]: Vec2): Vec2 => [
+    draft.offset[0] + x * draft.metersPerPixel,
+    draft.offset[1] + y * draft.metersPerPixel,
+  ];
+  return {
+    ...draft,
+    outer: detection.outer.map(toMeters),
+    inner: detection.inner.map(([start, end]) => [toMeters(start), toMeters(end)]),
+    closed: true,
+  };
 }
 
 /** 1m가 도면 몇 px인지 — 화면 안내용. */

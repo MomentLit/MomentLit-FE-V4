@@ -80,58 +80,6 @@ export function ToolRail({ label, children, className }: { label: string; childr
   );
 }
 
-export interface GuideStep {
-  label: string;
-  done: boolean;
-  /** 이 단계가 지금 할 차례일 때 보여 줄 방법. */
-  how: string;
-  /** 꼭 하지 않아도 되는 단계 — 지금 할 차례를 정할 때 건너뛴다. */
-  optional?: boolean;
-}
-
-/**
- * 처음 쓰는 사람을 위한 단계 안내 — 번호, 끝난 단계는 체크, 지금 할 차례는 파랗게 + 방법 한 줄.
- * 정보 칸 맨 위에 둔다.
- */
-export function StepGuide({ steps, doneText }: {
-  steps: GuideStep[];
-  /** 꼭 할 단계를 다 마쳤을 때 보여 줄 문구. */
-  doneText: string;
-}) {
-  const currentIndex = steps.findIndex((step) => !step.done && !step.optional);
-  const current = currentIndex >= 0 ? steps[currentIndex] : null;
-  return (
-    <section aria-label="만드는 순서" className="flex flex-col gap-2.5 border-b border-line bg-[var(--primary-50)] px-4 py-3">
-      <ol className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-xs">
-        {steps.map((step, index) => {
-          const isCurrent = index === currentIndex;
-          return (
-            <li key={step.label} className="flex items-center gap-1.5">
-              {index > 0 && <span className="text-line-2" aria-hidden>›</span>}
-              <span
-                className={cn(
-                  "flex size-5 shrink-0 items-center justify-center rounded-full text-[0.68rem] font-bold",
-                  step.done ? "bg-ink text-white" : isCurrent ? "bg-[var(--main-d)] text-white" : "bg-white text-soft ring-1 ring-line-2",
-                )}
-                aria-hidden
-              >
-                {step.done ? "✓" : index + 1}
-              </span>
-              <span className={cn("whitespace-nowrap", isCurrent ? "font-bold text-[var(--main-d)]" : step.done ? "text-ink" : "text-soft")}>
-                {step.label}{step.optional && !step.done ? " (선택)" : ""}
-                <span className="sr-only">{step.done ? " — 끝남" : isCurrent ? " — 지금 할 차례" : ""}</span>
-              </span>
-            </li>
-          );
-        })}
-      </ol>
-      <p className="text-sm leading-snug text-ink" aria-live="polite">
-        {current ? current.how : doneText}
-      </p>
-    </section>
-  );
-}
-
 /** 접을 수 있는 정보 칸. 접혀 있으면 제목 옆에 한 줄 요약을 보여 준다. */
 export function PanelSection({ title, summary, defaultOpen = true, children }: {
   title: string;

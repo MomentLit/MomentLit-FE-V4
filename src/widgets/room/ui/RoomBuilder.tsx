@@ -32,7 +32,7 @@ import {
   type RoomDraft,
 } from "../model";
 import { HeightField } from "./HeightField";
-import { PanelSection as Section, PanelToggleButton, RailButton, RailDivider, StepGuide, ToolRail, type GuideStep } from "./EditorChrome";
+import { PanelSection as Section, PanelToggleButton, RailButton, RailDivider, ToolRail } from "./EditorChrome";
 import { PlanEditor, type PlanShape, type PlanTool } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { ViewSwitch } from "./ViewSwitch";
@@ -70,7 +70,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
   const [hint, setHint] = useState<string | null>(null);
   // 오른쪽 정보 칸 — 접으면 사진·미니어처를 넓게 쓴다
   const [panelOpen, setPanelOpen] = useState(true);
-  // 단계 안내 — 높이를 확인했는지(고쳤거나 천장을 쟀거나, 저장된 방을 다시 열었으면), 도면 보기를 열어 봤는지
+  // 추천 표시용 — 높이를 확인했는지(고쳤거나 천장을 쟀거나, 저장된 방을 다시 열었으면), 도면 보기를 열어 봤는지
   const [heightChecked, setHeightChecked] = useState(initialDraft !== null);
   const [planVisited, setPlanVisited] = useState(false);
   const detection = useLayoutDetection();
@@ -217,25 +217,9 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
     { id: "undo", label: "되돌리기", caption: "되돌리기", hint: "방금 한 일을 취소해요.", icon: IconArrowBackUp, onClick: undo, disabled: busy || !canUndo },
     { id: "clear", label: "모서리 처음부터", caption: "지우기", hint: "찍은 모서리와 안쪽 벽을 모두 지워요.", icon: IconEraser, onClick: clearCorners, disabled: busy || draft.corners.length === 0 },
   ];
-  const guideSteps: GuideStep[] = [
-    {
-      label: "바닥 모서리",
-      done: hasRoom,
-      how: "왼쪽 ‘자동 인식’을 누르거나, 사진에서 바닥과 벽이 만나는 모서리를 차례대로 눌러요.",
-    },
-    {
-      label: "천장 높이",
-      done: hasRoom && heightChecked,
-      how: "왼쪽 ‘천장’ 도구로 바닥 모서리 바로 위의 천장 모서리를 누르거나, 아래 ‘높이’에 실제 천장 높이를 넣어요.",
-    },
-    {
-      label: "도면에서 다듬기",
-      done: planVisited,
-      optional: true,
-      how: "왼쪽 ‘도면’을 눌러 벽 길이를 고치고, 안쪽 벽·점을 더해요.",
-    },
-  ];
-  const currentStep = guideSteps.findIndex((step) => !step.done && !step.optional);
+  // '추천' 표시 — 모서리를 찾았으면 천장 높이 확인, 그다음 도면에서 다듬기
+  const recommendCeiling = hasRoom && !heightChecked;
+  const recommendPlan = hasRoom && heightChecked && !planVisited;
   const statusText = saveError ?? (validationError && draft.corners.length >= 3 ? validationError : null);
   const status = detection.state.status === "running"
     ? detection.state.queued ? "차례를 기다리는 중이에요…" : "사진에서 방 모서리를 찾는 중이에요. 10초쯤 걸려요."
@@ -324,7 +308,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
                 hint="바닥 모서리 바로 위의 천장 모서리를 누르면 천장 높이가 맞춰져요."
                 icon={IconRuler2}
                 active={view === "photo" && pickMode === "ceiling"}
-                highlight={currentStep === 1}
+                highlight={recommendCeiling}
                 disabled={busy || draft.corners.length === 0}
                 onClick={toggleCeilingMeasure}
               />
@@ -333,7 +317,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
                 caption="도면"
                 hint="위에서 본 도면으로 벽 길이를 고치고, ‘벽’으로 칸막이를, ‘점 추가’로 점을 더해요."
                 icon={IconLayoutBoard}
-                highlight={currentStep === -1 && !planVisited}
+                highlight={recommendPlan}
                 disabled={busy || !summary}
                 onClick={() => {
                   setView("plan");
@@ -367,7 +351,6 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
 
         {panelOpen && (
           <aside className="flex min-h-0 flex-col overflow-y-auto border-line lg:w-[340px] lg:shrink-0 lg:border-l">
-            <StepGuide steps={guideSteps} doneText="준비됐어요. 미니어처로 방 모양을 확인하고 위쪽의 저장을 누르세요." />
             {(statusText || view === "plan") && (
               <div className="flex flex-col gap-1 border-b border-line bg-wash px-4 py-3 text-sm" aria-live="polite">
                 {view === "plan" && <p className="text-ink">{status}</p>}

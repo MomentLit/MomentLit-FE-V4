@@ -8,15 +8,10 @@ import { getErrorMessage } from "@/shared/api/error";
 import {
   PANORAMA_ACCEPT,
   PANORAMA_CAPTURE_STEPS,
-  PHONE_PANORAMA_MAX_FOV,
-  PHONE_PANORAMA_MAX_SHIFT,
-  PHONE_PANORAMA_MIN_FOV,
   downscaleForStitch,
-  estimatePhonePanoramaFov,
   isPanoramaRatio,
   isPhonePanoramaRatio,
   readImageRatio,
-  renderPhonePanorama,
 } from "../model";
 import { PanoramaCaptureGuide } from "./PanoramaCaptureGuide";
 import { PanoramaCaptureReview } from "./PanoramaCaptureReview";
@@ -69,10 +64,8 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
   // 넣기
   const [panoramaFile, setPanoramaFile] = useState<File | null>(null);
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null);
-  // 폰 파노라마 — 원본을 들고 있다가 각도·위아래를 바꿀 때마다 360° 사진으로 다시 만든다.
-  const [phoneSource, setPhoneSource] = useState<{ bitmap: ImageBitmap; name: string } | null>(null);
-  const [phoneFov, setPhoneFov] = useState(PHONE_PANORAMA_MAX_FOV);
-  const [phoneShift, setPhoneShift] = useState(0);
+  // 휴대폰 파노라마로 보여 받지 않은 사진의 이름 — '360° 사진 찍기'로 안내한다.
+  const [phoneRejected, setPhoneRejected] = useState<string | null>(null);
 
   // 찍기
   const [captureFiles, setCaptureFiles] = useState<(File | null)[]>(createEmptySlots);
@@ -83,30 +76,6 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
     return () => URL.revokeObjectURL(localPreviewUrl);
   }, [localPreviewUrl]);
 
-  useEffect(() => {
-    if (!phoneSource) return;
-    return () => phoneSource.bitmap.close();
-  }, [phoneSource]);
-
-  // 각도·위아래를 바꾸면 잠깐 기다렸다가(슬라이더를 끄는 동안 매번 만들지 않게) 360° 사진을 다시 만든다.
-  useEffect(() => {
-    if (!phoneSource) return;
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      renderPhonePanorama(phoneSource.bitmap, phoneFov, phoneShift, phoneSource.name)
-        .then((file) => {
-          if (cancelled) return;
-          setPanoramaFile(file);
-          setLocalPreviewUrl(URL.createObjectURL(file));
-        })
-        .catch((renderError) => !cancelled && setError(getErrorMessage(renderError)));
-    }, 250);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [phoneSource, phoneFov, phoneShift]);
-
   function goTo(next: Mode) {
     setMode(next);
     setError(null);
@@ -116,20 +85,18 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
     setError(null);
     setPanoramaFile(null);
     setLocalPreviewUrl(null);
-    setPhoneSource(null);
+    setPhoneRejected(null);
     if (!file) return;
 
     try {
       const ratio = await readImageRatio(file);
       if (isPhonePanoramaRatio(ratio)) {
-        // 휴대폰 "파노라마"로 찍은 가로로 긴 사진 — 360° 사진 가운데에 펼쳐 놓는다(위 효과가 만들어 준다).
-        setPhoneFov(estimatePhonePanoramaFov(ratio));
-        setPhoneShift(0);
-        setPhoneSource({ bitmap: await createImageBitmap(file), name: file.name });
+        // 휴대폰 "파노라마"로 찍은 가로로 긴 사진은 받지 않는다 — 위아래가 비어 둘러보기·3D 방 인식이 안 된다
+        setPhoneRejected(file.name);
         return;
       }
       if (!isPanoramaRatio(ratio)) {
-        setError("360° 사진(가로:세로 2:1)이나 휴대폰 파노라마처럼 가로로 긴 사진을 골라 주세요.");
+        setError("가로:세로가 2:1인 360° 사진을 골라 주세요.");
         return;
       }
     } catch (ratioError) {
@@ -211,7 +178,7 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
             <IconUpload size={22} stroke={1.8} className="text-main-d" aria-hidden />
             <span className="text-lg font-bold text-ink">360° 사진 넣기</span>
             <span className="text-[0.84rem] leading-[1.6] text-soft">
-              360° 카메라로 찍은 사진(가로:세로 2:1)이나 휴대폰 카메라의 파노라마 사진을 올려요.
+              360° 카메라로 찍은 사진(가로:세로 2:1)을 올려요. 휴대폰 파노라마 사진은 위아래가 비어 받지 않아요 — 휴대폰이면 ‘360° 사진 찍기’를 써 주세요.
             </span>
           </button>
           <button
@@ -234,7 +201,7 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
             <IconUpload size={28} stroke={1.5} aria-hidden />
             <span className="button button--primary">{panoramaFile ? "360° 사진 변경" : "360° 사진 선택"}</span>
             <span className="text-sm text-soft">
-              {phoneSource?.name ?? panoramaFile?.name ?? "JPG · PNG — 360° 사진(2:1) 또는 휴대폰 파노라마 사진 한 장"}
+              {panoramaFile?.name ?? phoneRejected ?? "JPG · PNG — 360° 카메라로 찍은 2:1 사진 한 장"}
             </span>
             <input
               type="file"
@@ -245,19 +212,17 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
               className="sr-only"
             />
           </label>
-          {phoneSource && (
-            // 휴대폰 파노라마는 위아래가 잘려 있어 — 우리 '360° 사진 찍기'(10장 → 2:1 360° 사진)를 먼저 권한다
-            <div className="flex flex-wrap items-center gap-3 border-l-4 border-ink bg-wash px-4 py-3">
+          {phoneRejected && (
+            // 휴대폰 파노라마는 위아래가 잘려 있어 받지 않고 — 우리 '360° 사진 찍기'(10장 → 2:1 360° 사진)로 안내한다
+            <div role="alert" className="flex flex-wrap items-center gap-3 border-l-4 border-coral bg-wash px-4 py-3">
               <p className="min-w-0 flex-1 text-sm text-ink">
-                <span className="font-semibold">휴대폰 파노라마 사진이에요.</span> 위아래가 담기지 않아 둘러볼 때 회색 빈 곳이 크게 보이고,
-                3D 방 자동 인식도 잘 안 돼요. 휴대폰으로 10장을 찍으면 위아래까지 채운 360° 사진을 만들어 드려요.
+                <span className="font-semibold">휴대폰 파노라마 사진은 올릴 수 없어요.</span> 위아래가 담기지 않아 둘러볼 때 빈 곳이 크게 보이고,
+                3D 방도 만들 수 없어요. 휴대폰으로 가이드에 맞춰 {PANORAMA_CAPTURE_STEPS.length}장을 찍으면 위아래까지 채운 360° 사진을 만들어 드려요.
               </p>
               <button
                 type="button"
                 onClick={() => {
-                  setPhoneSource(null);
-                  setPanoramaFile(null);
-                  setLocalPreviewUrl(null);
+                  setPhoneRejected(null);
                   goTo("CAPTURE");
                 }}
                 disabled={busy}
@@ -266,39 +231,6 @@ export function PanoramaUploadModal({ onClose, onConfirm }: PanoramaUploadModalP
                 <IconCamera size={16} stroke={2} aria-hidden />
                 360° 사진 찍기로 가기
               </button>
-            </div>
-          )}
-          {phoneSource && (
-            <div className="flex flex-col gap-3 border border-line p-4">
-              <p className="text-sm text-ink">
-                이 사진을 그대로 쓰려면, 찍은 각도에 맞게 펼쳐 주세요. 사진에 담기지 않은 위아래는 회색으로 채워져요.
-              </p>
-              <label className="flex flex-col gap-1 text-sm font-semibold text-ink">
-                찍은 가로 각도 — {phoneFov}°
-                <input
-                  type="range"
-                  min={PHONE_PANORAMA_MIN_FOV}
-                  max={PHONE_PANORAMA_MAX_FOV}
-                  step={5}
-                  value={phoneFov}
-                  disabled={busy}
-                  onChange={(e) => setPhoneFov(Number(e.target.value))}
-                />
-                <span className="text-xs font-normal text-soft">한 바퀴를 다 돌며 찍었으면 360°, 반 바퀴면 180°예요. 미리보기에서 물건 모양이 자연스러워지는 값을 골라요.</span>
-              </label>
-              <label className="flex flex-col gap-1 text-sm font-semibold text-ink">
-                위아래 맞추기 — {phoneShift > 0 ? `위로 ${phoneShift}°` : phoneShift < 0 ? `아래로 ${-phoneShift}°` : "가운데"}
-                <input
-                  type="range"
-                  min={-PHONE_PANORAMA_MAX_SHIFT}
-                  max={PHONE_PANORAMA_MAX_SHIFT}
-                  step={1}
-                  value={phoneShift}
-                  disabled={busy}
-                  onChange={(e) => setPhoneShift(Number(e.target.value))}
-                />
-                <span className="text-xs font-normal text-soft">휴대폰을 위나 아래로 기울여 찍었으면, 수평선이 화면 가운데 오도록 옮겨요.</span>
-              </label>
             </div>
           )}
           {localPreviewUrl && (

@@ -1,16 +1,13 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type ChangeEvent, type KeyboardEvent } from "react";
 import Link from "next/link";
 import {
   IconArrowBackUp,
   IconArrowLeft,
-  IconChevronDown,
   IconCube,
   IconEraser,
   IconLayoutBoard,
-  IconLayoutSidebarRightCollapse,
-  IconLayoutSidebarRightExpand,
   IconUpload,
   IconWalk,
   IconWand,
@@ -33,6 +30,7 @@ import {
   validatePlanDraft,
   type PlanDraft,
 } from "../planModel";
+import { PanelSection as Section, PanelToggleButton } from "./EditorChrome";
 import { HeightField } from "./HeightField";
 import { PlanEditor, type PlanDrawMode, type PlanShape, type PlanTool } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
@@ -42,33 +40,6 @@ const PLAN_ACCEPT = "image/jpeg,image/png";
 const NOMINAL_EYE_HEIGHT = 1.5;
 
 type PlanView = Exclude<RoomView, "photo"> | "plan";
-
-/** 접을 수 있는 정보 칸. 접혀 있으면 제목 옆에 한 줄 요약을 보여 준다. */
-function Section({ title, summary, defaultOpen = true, children }: {
-  title: string;
-  summary?: string;
-  defaultOpen?: boolean;
-  children: ReactNode;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-  return (
-    <section className="border-b border-line">
-      <h2>
-        <button
-          type="button"
-          onClick={() => setOpen((value) => !value)}
-          aria-expanded={open}
-          className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-wash"
-        >
-          <span className="shrink-0 text-sm font-bold text-ink">{title}</span>
-          <span className="min-w-0 flex-1 truncate text-right text-xs text-soft">{!open && summary}</span>
-          <IconChevronDown size={16} stroke={2} aria-hidden className={cn("shrink-0 text-soft transition-transform", open && "rotate-180")} />
-        </button>
-      </h2>
-      {open && <div className="flex flex-col gap-3 px-4 pb-4">{children}</div>}
-    </section>
-  );
-}
 
 function readImageSize(file: File): Promise<{ width: number; height: number }> {
   return new Promise((resolve, reject) => {
@@ -359,21 +330,11 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
             setView(next);
             if (next !== "plan") setDrawMode("none");
           }}
-          className="w-full sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
+          className="order-3 w-full sm:order-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
         />
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            onClick={() => setPanelOpen((open) => !open)}
-            aria-pressed={panelOpen}
-            aria-label={panelOpen ? "정보 접기" : "정보 펼치기"}
-            title={panelOpen ? "정보 접기" : "정보 펼치기"}
-            className="button button--outline button--sm button--icon"
-          >
-            {panelOpen
-              ? <IconLayoutSidebarRightCollapse size={16} stroke={2} aria-hidden />
-              : <IconLayoutSidebarRightExpand size={16} stroke={2} aria-hidden />}
-          </button>
+        {/* 좁은 화면에선 제목 줄 오른쪽에, 시점 바꾸기는 다음 줄 전체 폭으로 */}
+        <div className="order-2 flex items-center gap-2 sm:order-3">
+          <PanelToggleButton open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} />
           <button
             type="button"
             onClick={() => void handleSave()}

@@ -69,11 +69,18 @@ export function calibratePlan(draft: PlanDraft, current: number, actual: number)
   return { ...scalePlan(draft, actual / current), calibrated: true };
 }
 
+/**
+ * 도면 인식 결과(이미지 픽셀)를 바닥 좌표(m)로 옮겨 초안의 벽을 바꾼다. 인식한 이미지 해상도가 다르면 비율로 맞추고,
+ * 가로세로 비율부터 다르면(다른 이미지) null.
+ */
 export function applyDetectedWalls(draft: PlanDraft, detection: Extract<PlanDetection, { ok: true }>): PlanDraft | null {
-  if (detection.width !== draft.widthPx || detection.height !== draft.heightPx || detection.outer.length < 3) return null;
+  if (detection.outer.length < 3 || !(detection.width > 0) || !(detection.height > 0)) return null;
+  const kx = draft.widthPx / detection.width;
+  const ky = draft.heightPx / detection.height;
+  if (Math.abs(kx / ky - 1) > 0.01) return null;
   const toMeters = ([x, y]: Vec2): Vec2 => [
-    draft.offset[0] + x * draft.metersPerPixel,
-    draft.offset[1] + y * draft.metersPerPixel,
+    draft.offset[0] + x * kx * draft.metersPerPixel,
+    draft.offset[1] + y * ky * draft.metersPerPixel,
   ];
   return {
     ...draft,

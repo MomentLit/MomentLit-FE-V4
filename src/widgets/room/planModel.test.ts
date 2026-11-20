@@ -76,6 +76,16 @@ describe("도면 방 초안", () => {
     });
   });
 
+  it("인식한 이미지 해상도가 절반이면 비율로 맞추고, 가로세로 비율이 다르면 버린다", () => {
+    const draft = calibratePlan(createPlanDraft(PLAN, 1000, 800, "도면 1"), 1, 1);
+    const half = applyDetectedWalls(draft, {
+      ok: true, width: 500, height: 400,
+      outer: [[50, 50], [450, 50], [450, 350], [50, 350]], inner: [],
+    });
+    expect(half?.outer).toEqual([[-4, -3], [4, -3], [4, 3], [-4, 3]]);
+    expect(applyDetectedWalls(draft, { ok: true, width: 800, height: 800, outer: [[0, 0], [1, 0], [1, 1]], inner: [] })).toBeNull();
+  });
+
   it("축척 없이 인식해도 임시 축척을 실제 축척으로 확정하지 않는다", () => {
     const draft = createPlanDraft(PLAN, 1000, 800, "도면 1");
     const detection: PlanDetection = { ok: true, width: 1000, height: 800, outer: [[100, 100], [900, 100], [900, 700]], inner: [] };

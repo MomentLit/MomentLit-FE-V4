@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState, ViewTransition } from "react";
-import { IconArmchair, IconChevronLeft, IconChevronRight, IconMaximize, IconView360, IconX } from "@tabler/icons-react";
+import { IconArmchair, IconChevronLeft, IconChevronRight, IconCube, IconMaximize, IconView360, IconX } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
+import Link from "next/link";
 
 import { Card } from "@/shared/ui";
 import { Modal } from "@/shared/ui/Modal";
@@ -12,6 +14,7 @@ import { REGION_LABELS } from "@/entities/region";
 import { getSpacePhotoUrls, splitSpaceOptionName, type SpaceDetail } from "@/entities/space";
 import { PanoramaViewerModal, resolvePanoramaScenes } from "@/widgets/panorama";
 import { FurniturePlacementModal } from "@/widgets/furniture-placement";
+import { fetchRooms } from "@/entities/room";
 import { spaceMorphName, useMorphArrival } from "@/shared/hooks/useMorphLink";
 
 /** 사진이 여러 장일 때 다음 사진으로 넘어가는 간격. */
@@ -132,6 +135,9 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
   // 장면 기능 이전에 저장된 공간은 장면 목록이 비어 있어서 `panorama_url` 한 장으로 보여준다.
   const panoramaScenes = resolvePanoramaScenes(space.panorama_scenes, space.panorama_url);
   const hasPanorama = panoramaScenes.length > 0;
+  // 3D 방(장면마다 하나)은 공간과 따로 저장돼서 따로 확인한다. 없으면 빈 목록.
+  const roomsQuery = useQuery({ queryKey: ["space-rooms", space.space_id], queryFn: () => fetchRooms(space.space_id) });
+  const hasRoom = (roomsQuery.data?.length ?? 0) > 0;
 
   // 구역으로 묶인 공간이면 제목은 공통 이름만 쓰고, 구역 이름은 아래 탭과 제목 위 라벨로 보여준다.
   const { baseName, optionLabel } = splitSpaceOptionName(space.name);
@@ -236,16 +242,27 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
             </button>
           </div>
         )}
-        {hasPanorama && (
-          <button type="button" onClick={() => setPanoramaOpen(true)} className="button button--outline absolute right-4 top-4 z-10 sm:right-6 sm:top-6">
-            <IconView360 size={18} stroke={2} aria-hidden />
-            360° 보기
-          </button>
+        {(hasPanorama || hasRoom) && (
+          <div className="absolute right-4 top-4 z-10 flex flex-wrap justify-end gap-2 sm:right-6 sm:top-6">
+            {hasRoom && (
+              <Link href={`/spaces/${space.space_id}/room`} className="button button--outline">
+                <IconCube size={18} stroke={2} aria-hidden />
+                3D로 보기
+              </Link>
+            )}
+            {hasPanorama && (
+              <button type="button" onClick={() => setPanoramaOpen(true)} className="button button--outline">
+                <IconView360 size={18} stroke={2} aria-hidden />
+                360° 보기
+              </button>
+            )}
+          </div>
         )}
         <span
           className={cn(
             "relative font-mono text-[0.66rem] font-medium uppercase tracking-[0.14em]",
-            hasPanorama && "pr-32",
+            // 오른쪽 위 버튼(360° 보기·3D로 보기)과 겹치지 않게
+            hasPanorama && hasRoom ? "pr-64" : (hasPanorama || hasRoom) && "pr-32",
             hasPhoto && "text-white",
           )}
         >

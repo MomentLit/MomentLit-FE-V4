@@ -1,5 +1,6 @@
 export { RoomBuilderModal } from "./ui/RoomBuilderModal";
 export { RoomField } from "./ui/RoomField";
+export { RoomViewer } from "./ui/RoomViewer";
 export {
   keepRoomsForScenes,
   planRoomSaves,

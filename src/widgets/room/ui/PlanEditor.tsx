@@ -152,6 +152,7 @@ export function PlanEditor({
   uncalibrated = false,
   onClose,
   onScaleLine,
+  onScaleReset,
   onCalibrate,
   onDrawExit,
   className,
@@ -180,6 +181,8 @@ export function PlanEditor({
   onClose?: () => void;
   /** 축척 재기에서 두 점을 찍었을 때. */
   onScaleLine?: (a: Vec2, b: Vec2) => void;
+  /** 두 점을 찍은 뒤 새로 첫 점을 찍었을 때(다시 재기). */
+  onScaleReset?: () => void;
   /** 축척을 모를 때 벽 길이를 넣으면 — 지금 길이(m)와 실제 길이(m). */
   onCalibrate?: (current: number, actual: number) => void;
   /** 그리는 중 끊을 선이 없을 때 Esc를 한 번 더 누르면 — 그리기를 끝낸다. */
@@ -475,6 +478,10 @@ export function PlanEditor({
       const snapped = snapPoint(p, pending, vertices, tolerance);
       return nearestOnOuter(snapped, STICK_PX / pxPerMeter()) ?? snapped;
     }
+    if (drawMode === "scale" && scalePoints.length === 1) {
+      // 치수선은 거의 가로·세로 — 첫 점과 6° 안이면 정확히 수평·수직으로 맞춘다(미리보기 선도 같은 자리)
+      return snapPoint(p, scalePoints[0], [], tolerance);
+    }
     return p;
   }
 
@@ -518,7 +525,10 @@ export function PlanEditor({
     } else if (drawMode === "point") {
       handlePointClick(raw);
     } else if (drawMode === "scale") {
-      const next = scalePoints.length >= 2 ? [raw] : [...scalePoints, raw];
+      // 두 번째 점은 첫 점과 수평·수직으로 맞춘다(snapForDraw) — 새로 시작하는 첫 점은 누른 자리 그대로
+      const next = scalePoints.length === 1 ? [scalePoints[0], snapForDraw(raw)] : [raw];
+      // 다시 재기 시작 — 앞서 잰 길이 입력 칸을 닫게 알린다
+      if (next.length === 1 && scalePoints.length === 2) onScaleReset?.();
       setScalePoints(next);
       if (next.length === 2) onScaleLine?.(next[0], next[1]);
     }
@@ -956,7 +966,11 @@ export function PlanEditor({
               : drawMode === "point"
                 ? "벽(선) 위 원하는 자리를 누르면 점이 생겨요. 점은 바로 끌어서 옮길 수 있어요 (Esc로 끝내기)"
                 : drawMode === "scale"
-                  ? scalePoints.length < 2 ? `치수가 적힌 구간의 양 끝을 누르세요 (${scalePoints.length}/2)` : "실제 길이를 mm로 넣어 주세요"
+                  ? scalePoints.length === 0
+                    ? "치수가 적힌 구간의 한쪽 끝을 누르세요 (0/2)"
+                    : scalePoints.length === 1
+                      ? "반대쪽 끝을 누르세요 — 거의 가로·세로면 자동으로 반듯하게 맞춰져요 (1/2)"
+                      : "실제 길이를 mm로 넣어 주세요"
                   : "벽을 누르면 길이(mm)를 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요."}
         </span>
         {message && <span className="shrink-0 text-xs text-soft" aria-live="polite">{message}</span>}

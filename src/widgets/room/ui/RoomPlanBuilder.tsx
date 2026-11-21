@@ -399,6 +399,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
                       : "바깥벽을 닫았어요. 길이를 아는 벽을 눌러 mm로 넣으면 축척이 맞춰져요.");
                   }}
                   onScaleLine={handleScaleLine}
+                  onScaleReset={() => setScaleLine(null)}
                   onDrawExit={() => setDrawMode("none")}
                   onCalibrate={(current, actual) => change(calibratePlan(draft, current, actual))}
                   className="absolute inset-0"

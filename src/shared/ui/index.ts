@@ -6,4 +6,5 @@ export { StarRating, type StarRatingProps } from "./StarRating";
 export { Dropdown, type DropdownProps, type DropdownOption } from "./Dropdown";
 export { DatePicker, type DatePickerProps } from "./DatePicker";
 export { AiSummaryCard, type AiSummaryCardProps } from "./AiSummaryCard";
+export { AiIcon, AI_TILE_BLUE } from "./AiIcon";
 export { ConfirmDialog } from "./ConfirmDialog";

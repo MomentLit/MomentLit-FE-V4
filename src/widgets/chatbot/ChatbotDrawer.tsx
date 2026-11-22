@@ -3,11 +3,12 @@
 import { useEffect, useRef, useState, type CSSProperties, type FormEvent, type PointerEvent as ReactPointerEvent } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, ChevronDown, Send, Sparkles, X } from "lucide-react";
+import { ChevronDown, Send, X } from "lucide-react";
 import { streamChatbotReply, type ChatbotSpaceCard } from "@/entities/chatbot";
 import { useAuthStore } from "@/entities/auth";
 import { formatPriceAmount } from "@/entities/space";
 import { cn } from "@/shared/lib";
+import { AI_TILE_BLUE, AiIcon } from "@/shared/ui/AiIcon";
 
 type Corner = "tl" | "tr" | "bl" | "br";
 
@@ -454,7 +455,7 @@ export function ChatbotDrawer() {
       {open && (
         <section className="flex h-[min(620px,calc(100dvh-7rem))] w-[min(23rem,calc(100vw-2rem))] flex-col overflow-hidden rounded-3xl border border-line bg-wash shadow-2xl" aria-label="AI 공간 추천 챗봇">
           <header className="flex items-center gap-3 border-b border-line bg-white px-4 py-3">
-            <Bot size={22} strokeWidth={1.8} className="shrink-0 text-ink" aria-hidden />
+            <AiIcon size={24} tone="brand" />
             <span className="min-w-0 flex-1"><b className="block text-sm">AI 공간 추천</b><span className="block text-[0.68rem] text-soft">맞춤 공간을 찾아드려요</span></span>
             <button type="button" onClick={close} className="grid h-8 w-8 place-items-center rounded-full text-soft hover:bg-wash hover:text-ink" aria-label="챗봇 닫기"><X size={18} /></button>
           </header>
@@ -493,15 +494,16 @@ export function ChatbotDrawer() {
         aria-label={open ? "챗봇 닫기" : "맞춤 공간 추천 열기"}
         className={cn("group relative inline-flex touch-none select-none", isDragging ? "cursor-grabbing" : "cursor-grab")}
       >
-        {/* 상세 "AI 소개" 카드(AiSummaryCard)의 아이콘 배지와 같은 모양 — 보라→하늘 그라데이션 원 + 빛 번짐.
-            화면 구석에서 계속 움직이면 거슬려서 퍼지는 링(ping)은 넣지 않는다. 열려 있으면 닫기 화살표. */}
+        {/* 파랑 원에 AI 아이콘(Figma Design-V2) — 화면 구석에 떠 있는 버튼이라 원형으로 눈에 띄게. 빛 번짐은 쓰지 않는다.
+            열려 있으면 닫기 화살표. */}
         <span
           className={cn(
-            "pointer-events-none relative flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-violet to-sky text-white shadow-[0_0_22px_-2px_var(--color-violet)] transition-[transform,box-shadow] duration-200 ease-out",
-            "group-hover:scale-105 group-hover:shadow-[0_0_30px_0_var(--color-violet)] group-focus-visible:scale-105 group-active:scale-95",
+            "pointer-events-none relative flex h-12 w-12 items-center justify-center rounded-full text-white shadow-[0_4px_16px_rgba(21,23,28,.22)] transition-transform duration-200 ease-out",
+            "group-hover:scale-105 group-focus-visible:scale-105 group-active:scale-95",
           )}
+          style={{ background: AI_TILE_BLUE }}
         >
-          {open ? <ChevronDown size={20} className="relative shrink-0" /> : <Sparkles size={20} className="relative shrink-0" />}
+          {open ? <ChevronDown size={20} className="relative shrink-0" /> : <AiIcon size={28} tone="onBlue" />}
         </span>
       </button>
     </div>

@@ -218,6 +218,8 @@ export function RoomPlanView({
               fill={isSelected ? "#f2bc2e55" : "#ffffffcc"}
               stroke={isSelected ? "#c99a12" : "currentColor"}
               strokeWidth={isSelected ? 0.05 : 0.025}
+              // 천장에 단 가구는 위에서 본 바닥 위에 떠 있으니 점선
+              strokeDasharray={def.mount === "ceiling" ? "0.08 0.06" : undefined}
             />
             <text fontSize={Math.min(0.18, def.width / 4)} textAnchor="middle" dominantBaseline="middle" fill="currentColor" pointerEvents="none">
               {def.name}

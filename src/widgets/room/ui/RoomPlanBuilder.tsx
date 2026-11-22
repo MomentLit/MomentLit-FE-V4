@@ -65,12 +65,10 @@ function readImageSize(file: File): Promise<{ width: number; height: number }> {
  * 1) 도면 올리기 → 2) 기준 길이 두 점 + mm로 축척 맞추기(또는 건너뛰고 나중에 벽 길이로) → 3) '벽' 도구로 바깥벽(닫히면 이어서 안쪽 벽) 그리기,
  * 벽 길이·점 고치기 → 4) 천장 높이·바닥에 도면 깔기 → 5) 미니어처·1인칭으로 확인 후 저장.
  */
-export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, backLabel, onSave }: {
+export function RoomPlanBuilder({ initialDraft, defaultName, backHref, backLabel, onSave }: {
   initialDraft: PlanDraft | null;
   /** 새 도면 방 이름 기본값(예: "도면 1"). */
   defaultName: string;
-  /** 공간 이름. */
-  title: string;
   backHref: string;
   backLabel: string;
   onSave: (draft: PlanDraft) => Promise<void>;
@@ -328,8 +326,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
           <IconArrowLeft size={16} stroke={2} aria-hidden />
         </Link>
         <div className="min-w-[120px] flex-1">
-          <span className="block font-mono text-[0.62rem] font-medium uppercase leading-none tracking-[0.18em] text-soft">도면으로 3D 방 만들기</span>
-          <h1 className="truncate text-base font-bold leading-tight text-ink">{title} · {draft?.name.trim() || defaultName}</h1>
+          <h1 className="truncate text-base font-bold leading-tight text-ink">{draft?.name.trim() || defaultName}</h1>
         </div>
         <ViewSwitch
           options={[

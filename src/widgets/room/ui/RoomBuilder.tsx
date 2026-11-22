@@ -44,13 +44,11 @@ import { useLayoutDetection } from "./useLayoutDetection";
  * 1) 바닥 모서리 찾기(자동 또는 직접 찍기, 도면에서 수치로 고치기) → 2) 높이 맞추기 → 3) 미니어처로 확인 후 저장.
  * 저장은 부모(`onSave`)가 서버에 한다.
  */
-export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, backLabel, onSave }: {
+export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLabel, onSave }: {
   scene: PanoramaTourScene;
   /** 화면에 보일 장면 이름(예: "거실", "장면 2"). */
   sceneLabel: string;
   initialDraft: RoomDraft | null;
-  /** 공간 이름. */
-  title: string;
   /** 돌아갈 곳(들어온 곳 — 공간 수정 또는 3D 방 관리). */
   backHref: string;
   /** 돌아갈 곳 이름(예: "공간 수정") — 뒤로 가기 버튼 설명. */
@@ -234,8 +232,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
           <IconArrowLeft size={16} stroke={2} aria-hidden />
         </Link>
         <div className="min-w-[120px] flex-1">
-          <span className="block font-mono text-[0.62rem] font-medium uppercase leading-none tracking-[0.18em] text-soft">3D 방 만들기</span>
-          <h1 className="truncate text-base font-bold leading-tight text-ink">{title} · {sceneLabel}</h1>
+          <h1 className="truncate text-base font-bold leading-tight text-ink">{sceneLabel}</h1>
         </div>
         <ViewSwitch
           options={[

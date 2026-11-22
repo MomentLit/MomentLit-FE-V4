@@ -107,7 +107,6 @@ export function RoomViewer({ spaceId }: { spaceId: number }) {
         <RoomViewerBody
           key={room.room_id}
           spaceId={spaceId}
-          title={title}
           room={room}
           rooms={rooms}
           onRoomChange={setSelectedRoomId}
@@ -124,7 +123,6 @@ function ViewerHeader({ spaceId, title, children }: { spaceId: number; title: st
         <IconArrowLeft size={16} stroke={2} aria-hidden />
       </Link>
       <div className="min-w-[120px] flex-1">
-        <span className="block font-mono text-[0.62rem] font-medium uppercase leading-none tracking-[0.18em] text-soft">3D Room</span>
         <h1 className="truncate text-base font-bold leading-tight text-ink">{title}</h1>
       </div>
       {children}
@@ -151,9 +149,8 @@ function RoomTabs({ rooms, activeId, onChange }: { rooms: readonly Room[]; activ
   );
 }
 
-function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
+function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
   spaceId: number;
-  title: string;
   room: Room;
   rooms: readonly Room[];
   onRoomChange: (roomId: number) => void;
@@ -353,7 +350,7 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
 
   return (
     <>
-      <ViewerHeader spaceId={spaceId} title={title}>
+      <ViewerHeader spaceId={spaceId} title={room.name}>
         {/* 좁은 화면에선 제목이 찌그러지지 않게 다음 줄로 내려 폭을 채운다 */}
         <ViewSwitch
           options={views}
@@ -433,7 +430,7 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
             </p>
           )}
           {/* 선택한 가구 — 화면 아래 가운데에 띄워서, 고르고 풀 때 옆 패널이 밀리지 않게 */}
-          {selectedDef && (
+          {view !== "plan" && selectedDef && (
             <div
               role="toolbar"
               aria-label="선택한 가구"

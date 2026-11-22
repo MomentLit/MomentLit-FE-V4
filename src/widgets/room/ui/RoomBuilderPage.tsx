@@ -49,7 +49,6 @@ export function RoomBuilderPage({ spaceId, sceneIndex, returnTo }: { spaceId: nu
       scene={scene}
       sceneLabel={placement.name}
       initialDraft={existing ? roomToDraft(existing) : null}
-      title={space.name}
       backHref={backHref}
       backLabel={backLabel}
       onSave={save}

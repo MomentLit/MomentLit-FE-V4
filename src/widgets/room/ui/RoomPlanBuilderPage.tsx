@@ -48,7 +48,6 @@ export function RoomPlanBuilderPage({ spaceId, roomId, returnTo }: { spaceId: nu
       key={existing?.room_id ?? "new"}
       initialDraft={initialDraft}
       defaultName={defaultName}
-      title={space.name}
       backHref={backHref}
       backLabel={backLabel}
       onSave={save}

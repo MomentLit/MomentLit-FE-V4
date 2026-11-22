@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   IconArrowLeft,
   IconCube,
@@ -14,7 +14,8 @@ import {
   IconView360,
   IconWalk,
 } from "@tabler/icons-react";
-import { fetchRooms, type Room } from "@/entities/room";
+import { useAuthStore } from "@/entities/auth/store";
+import { deleteMyFurniture, fetchRooms, type Room } from "@/entities/room";
 import { fetchSpace } from "@/entities/space/api";
 import { cn } from "@/shared/lib";
 import { findFurniture, furnitureMount, isStackable, normalizeRotation } from "../lib/furniture";
@@ -23,12 +24,13 @@ import { polygonArea, toPyeong, wallLengths } from "../lib/geometry";
 import type { FurnitureMove, FurniturePlacement, RoomStageState, RoomView } from "../lib/stage";
 import { roomPlanFloorImage } from "../planModel";
 import { PanelSection as Section, PanelToggleButton } from "./EditorChrome";
+import { AddFurnitureDialog } from "./AddFurnitureDialog";
 import { FurniturePicker } from "./FurniturePicker";
 import { LayoutsPanel } from "./LayoutsPanel";
 import { RoomPlanView } from "./RoomPlanView";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { useFurnitureLayouts } from "./useFurnitureLayout";
-import { useFurnitureLibrary } from "./useFurnitureLibrary";
+import { MY_FURNITURE_QUERY_KEY, useFurnitureLibrary } from "./useFurnitureLibrary";
 import { ViewSwitch, type ViewOption } from "./ViewSwitch";
 
 type ViewerView = RoomView | "plan";
@@ -165,6 +167,17 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
   // 오른쪽 정보 칸 — 접으면 3D 화면을 넓게 쓴다
   const [panelOpen, setPanelOpen] = useState(true);
   const library = useFurnitureLibrary();
+  const queryClient = useQueryClient();
+  const openAuthModal = useAuthStore((state) => state.openAuthModal);
+  const [addingFurniture, setAddingFurniture] = useState(false);
+
+  const deleteMine = useCallback(async (id: number) => {
+    await deleteMyFurniture(id);
+    // 지운 가구가 놓여 있으면 배치에서도 뺀다(남겨 두면 빈 상자로 보인다)
+    setItems((current) => current.filter((item) => item.type !== `u-${id}`));
+    setSelected(null);
+    await queryClient.invalidateQueries({ queryKey: MY_FURNITURE_QUERY_KEY });
+  }, [queryClient, setItems]);
   // 받고 있는 가구 모델 수 — 무대가 알려 준다
   const [loadingModels, setLoadingModels] = useState(0);
   // 도면으로 만든 방은 사진이 없어 사진 시점이 없고, 벽은 무늬 없는 색·바닥엔 도면(호스트가 켰으면)을 깐다
@@ -327,6 +340,11 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
       disabled={view === "walk"}
       note={view === "walk" ? "1인칭에서는 둘러보기만 해요. 가구는 다른 시점에서 놓아 주세요." : "고른 가구는 R로 돌리고 Delete로 지워요."}
       onPick={startPlacing}
+      mine={library.mine}
+      signedIn={library.signedIn}
+      onAddMine={() => setAddingFurniture(true)}
+      onDeleteMine={deleteMine}
+      onRequireLogin={openAuthModal}
     />
   );
   const message = placingType
@@ -348,6 +366,17 @@ function RoomViewerBody({ spaceId, title, room, rooms, onRoomChange }: {
         </div>
       </ViewerHeader>
       <RoomTabs rooms={rooms} activeId={room.room_id} onChange={onRoomChange} />
+      {addingFurniture && (
+        <AddFurnitureDialog
+          onClose={() => setAddingFurniture(false)}
+          onCreated={(furniture) => {
+            setAddingFurniture(false);
+            setHint(furniture.status === "PROCESSING"
+              ? `‘${furniture.name}’을(를) 3D로 만들고 있어요. 다 되면 내 가구에 나타나요.`
+              : `‘${furniture.name}’을(를) 내 가구에 올렸어요. 골라서 방에 놓아 보세요.`);
+          }}
+        />
+      )}
 
       <div className="flex min-h-0 flex-1 flex-col lg:flex-row">
         {/* 넓은 화면 — 가구가 많아서 왼쪽 칸 하나를 가구 고르기에 쓴다 */}

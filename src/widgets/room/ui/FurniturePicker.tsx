@@ -1,6 +1,7 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState, type ComponentType } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, type ComponentType } from "react";
+import { apiClient } from "@/shared/api";
 import {
   IconAlertTriangle,
   IconArchive,
@@ -389,6 +390,24 @@ function FurnitureCard({ def, active, disabled, onPick, onDelete }: {
   onPick: (id: string) => void;
   onDelete?: () => void;
 }) {
+  const privateThumbnail = def.custom ? def.thumbnail : undefined;
+  const [preview, setPreview] = useState<{ path: string; url: string }>();
+  useEffect(() => {
+    if (!privateThumbnail) return;
+    const controller = new AbortController();
+    let url: string | undefined;
+    apiClient.get<Blob>(privateThumbnail, { responseType: "blob", signal: controller.signal }).then(({ data }) => {
+      if (controller.signal.aborted) return;
+      url = URL.createObjectURL(data);
+      setPreview({ path: privateThumbnail, url });
+    }).catch(() => undefined);
+    return () => {
+      controller.abort();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [privateThumbnail]);
+  const thumbnail = def.custom ? (preview?.path === privateThumbnail ? preview?.url : undefined) : def.thumbnail;
+
   return (
     <div className="group/card relative flex">
     <button
@@ -404,10 +423,10 @@ function FurnitureCard({ def, active, disabled, onPick, onDelete }: {
     >
       {/* 썸네일 칸은 늘 정사각형 — 이미지는 그 안에 맞춰 넣는다(세로로 긴 썸네일이 카드를 늘리지 않게) */}
       <span className="relative block aspect-square w-full overflow-hidden bg-wash">
-        {def.thumbnail ? (
-          // eslint-disable-next-line @next/next/no-img-element -- 외부(Poly Haven CDN·S3) 썸네일을 그대로 쓴다
+        {thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element -- CDN 또는 인증 후 생성한 blob URL
           <img
-            src={def.thumbnail}
+            src={thumbnail}
             alt=""
             loading="lazy"
             className="absolute inset-[7%] h-[86%] w-[86%] object-contain transition-transform group-hover:scale-105"

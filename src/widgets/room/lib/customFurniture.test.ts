@@ -13,8 +13,8 @@ const base: CustomFurniture = {
   width: 0.82,
   depth: 0.61,
   height: 0.9,
-  model_url: "https://bucket/images/m.glb",
-  thumbnail_url: "https://bucket/images/t.png",
+  model_url: "/rooms/furniture/7/model",
+  thumbnail_url: "/rooms/furniture/7/thumbnail",
   failure_reason: null,
   created_at: "2026-11-22T12:00:00",
 };
@@ -33,6 +33,11 @@ describe("내 가구", () => {
     expect(furnitureModelKey(findFurniture("u-7"))).toBe(base.model_url);
     registerCustomFurniture([]);
     expect(findFurniture("u-7")).toBeUndefined();
+  });
+
+  it("모델과 썸네일은 해당 가구의 인증 API 경로만 쓴다", () => {
+    expect(customFurnitureDef({ ...base, model_url: "https://example.com/model.glb" })).toBeNull();
+    expect(customFurnitureDef({ ...base, thumbnail_url: "/rooms/furniture/8/thumbnail" })?.thumbnail).toBeUndefined();
   });
 
   it("목록을 받기 전에도 저장된 내 가구는 배치에 남긴다", () => {

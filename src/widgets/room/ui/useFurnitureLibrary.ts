@@ -23,6 +23,7 @@ export const MY_FURNITURE_QUERY_KEY = ["my-furniture"] as const;
 export function useFurnitureLibrary() {
   const hydrated = useAuthStore((state) => state.hydrated);
   const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const userId = useAuthStore((state) => state.user?.id);
 
   const polyHaven = useQuery({
     queryKey: ["furniture-polyhaven"],
@@ -36,9 +37,9 @@ export function useFurnitureLibrary() {
     retry: 1,
   });
 
-  const signedIn = hydrated && isAuthenticated;
+  const signedIn = hydrated && isAuthenticated && Boolean(userId);
   const myFurniture = useQuery({
-    queryKey: MY_FURNITURE_QUERY_KEY,
+    queryKey: [...MY_FURNITURE_QUERY_KEY, userId],
     queryFn: fetchMyFurniture,
     enabled: signedIn,
     refetchInterval: (query) => (query.state.data?.some((item) => item.status === "PROCESSING") ? PROCESSING_POLL_MS : false),

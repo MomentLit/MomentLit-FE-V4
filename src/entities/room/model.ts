@@ -127,3 +127,30 @@ export interface FurnitureLayout {
 }
 
 export const MAX_FURNITURE_LAYOUTS = 20;
+
+/** 내 가구를 어디에 놓나(BE enum). */
+export type CustomFurnitureMount = "FLOOR" | "WALL" | "CEILING";
+export type CustomFurnitureStatus = "PROCESSING" | "READY" | "FAILED";
+
+/**
+ * 내 가구 — 사진으로 만들었거나(PHOTO) GLB 파일로 올린(FILE) 가구. 만든 사람만 본다.
+ * 3D 방 배치에서는 `type`("u-{id}")으로 가리킨다. 모델은 바닥 가운데 원점, 앞이 +z, 단위 m.
+ */
+export interface CustomFurniture {
+  id: number;
+  type: string;
+  name: string;
+  mount: CustomFurnitureMount;
+  source: "PHOTO" | "FILE";
+  status: CustomFurnitureStatus;
+  width: number | null;
+  depth: number | null;
+  height: number;
+  model_url: string | null;
+  thumbnail_url: string | null;
+  failure_reason: string | null;
+  created_at: string;
+}
+
+export const MAX_CUSTOM_FURNITURE = 20;
+export const MAX_FURNITURE_PHOTO_PER_DAY = 5;

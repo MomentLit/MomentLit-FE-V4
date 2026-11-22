@@ -1,4 +1,5 @@
 import type * as Three from "three";
+import { apiClient } from "@/shared/api";
 import type { FurnitureDef } from "./furniture";
 import { furnitureModelKey } from "./furniture";
 import { fetchPolyHavenGltf, polyHavenUrlModifier } from "./polyHaven";
@@ -7,7 +8,7 @@ import { fetchPolyHavenGltf, polyHavenUrlModifier } from "./polyHaven";
  * 모델 가구를 받아 둔다 — 같은 모델은 한 번만 받고, 놓을 때마다 `clone()`해서 기하·재질을 나눠 쓴다.
  * 나눠 쓰는 메시는 `userData.sharedModel`이 true라 무대가 가구를 지울 때 dispose하지 않는다.
  *
- * - 미리 변환한 GLB(`model`): 이미 바닥 가운데 원점·실제 크기라 그대로 쓴다(meshopt 압축).
+ * - 내 가구 GLB(`model`): 소유자 API에서 받아 실제 크기 그대로 쓴다.
  * - Poly Haven glTF(`polyHavenId`): 받은 뒤 바닥 가운데로 옮기고, 원본 단위가 틀렸으면 실제 높이에 맞춘다.
  */
 const cache = new Map<string, Promise<Three.Object3D>>();
@@ -51,6 +52,10 @@ async function load(def: FurnitureDef): Promise<Three.Object3D> {
   if (def.model) {
     const loader = new GLTFLoader();
     loader.setMeshoptDecoder(MeshoptDecoder);
+    if (def.custom) {
+      const { data } = await apiClient.get<ArrayBuffer>(def.model, { responseType: "arraybuffer" });
+      return (await loader.parseAsync(data, "")).scene;
+    }
     return (await loader.loadAsync(def.model)).scene;
   }
   if (!def.polyHavenId) throw new Error(`${def.id}: 모델이 없어요.`);

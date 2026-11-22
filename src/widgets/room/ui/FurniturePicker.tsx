@@ -1,27 +1,38 @@
 "use client";
 
-import { useDeferredValue, useMemo, useState, type ComponentType } from "react";
+import { useDeferredValue, useEffect, useMemo, useState, type ComponentType } from "react";
+import { apiClient } from "@/shared/api";
 import {
+  IconAlertTriangle,
   IconArchive,
   IconArmchair,
   IconBed,
   IconBulb,
   IconDeviceTv,
+  IconHomeHeart,
   IconLayoutGrid,
+  IconLoader2,
+  IconLogin,
   IconPackage,
   IconPlant2,
+  IconPlus,
   IconSearch,
   IconShape,
   IconTable,
+  IconTrash,
   IconX,
 } from "@tabler/icons-react";
+import type { CustomFurniture } from "@/entities/room";
+import { getErrorMessage } from "@/shared/api";
 import { cn } from "@/shared/lib";
+import { ConfirmDialog } from "@/shared/ui/ConfirmDialog";
 import { FURNITURE_CATALOG, type FurnitureCategory, type FurnitureDef } from "../lib/furniture";
 
-type Filter = "all" | FurnitureCategory | "basic";
+type Filter = "all" | "mine" | FurnitureCategory | "basic";
 
 const FILTERS: readonly { id: Filter; label: string; icon: ComponentType<{ size?: number; stroke?: number; "aria-hidden"?: boolean }> }[] = [
   { id: "all", label: "전체", icon: IconLayoutGrid },
+  { id: "mine", label: "내 가구", icon: IconHomeHeart },
   { id: "seating", label: "소파·의자", icon: IconArmchair },
   { id: "table", label: "테이블", icon: IconTable },
   { id: "bed", label: "침대", icon: IconBed },
@@ -44,6 +55,8 @@ const SEARCH_ALIASES: Record<string, string[]> = {
 
 function matchesFilter(def: FurnitureDef, filter: Filter) {
   if (filter === "all") return true;
+  if (filter === "mine") return def.custom === true;
+  if (def.custom) return false;
   if (filter === "basic") return !def.model && !def.polyHavenId;
   return def.category === filter;
 }
@@ -64,6 +77,12 @@ interface PickerProps {
   disabled: boolean;
   note?: string;
   onPick: (id: string) => void;
+  /** 내 가구 전체(만드는 중·실패 포함). 다 만든 것은 `items`에도 들어 있다. */
+  mine: readonly CustomFurniture[];
+  signedIn: boolean;
+  onAddMine: () => void;
+  onDeleteMine: (id: number) => Promise<void>;
+  onRequireLogin: () => void;
   /**
    * `rail`: 넓은 왼쪽 칸 — 왼쪽에 세로 종류 막대, 오른쪽에 목록(따로 스크롤). 부모가 높이를 정해야 한다.
    * `compact`: 좁은 화면의 아래 패널 — 종류는 가로로 넘기는 칩.
@@ -76,8 +95,27 @@ interface PickerProps {
  * 가구 고르기 — 찾기 + 종류 + 썸네일 목록. 모델은 놓을 때 받으므로 여기서는 썸네일만 받는다.
  * 찾기 시작하면 종류는 "전체"로 돌아가고, 종류마다 찾은 개수가 보인다.
  */
-export function FurniturePicker({ items, loading, failed, usesPolyHaven, placingType, disabled, note, onPick, layout = "rail", className }: PickerProps) {
+export function FurniturePicker({
+  items,
+  loading,
+  failed,
+  usesPolyHaven,
+  placingType,
+  disabled,
+  note,
+  onPick,
+  mine,
+  signedIn,
+  onAddMine,
+  onDeleteMine,
+  onRequireLogin,
+  layout = "rail",
+  className,
+}: PickerProps) {
   const [filter, setFilter] = useState<Filter>("all");
+  const [deleting, setDeleting] = useState<CustomFurniture | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const deferredQuery = useDeferredValue(query.trim().toLowerCase());
   // "전체"에서도 가구 → 조명·가전 → 장식·소품 → 기본 도형 순으로(같은 종류 안에서는 받은 순서 = 인기순)
@@ -92,9 +130,32 @@ export function FurniturePicker({ items, loading, failed, usesPolyHaven, placing
       .map(({ def }) => def);
   }, [items]);
   const found = useMemo(() => all.filter((def) => matchesQuery(def, deferredQuery)), [all, deferredQuery]);
-  const counts = useMemo(() => new Map(FILTERS.map((option) => [option.id, found.filter((def) => matchesFilter(def, option.id)).length])), [found]);
-  // 가구가 하나도 없는 종류는 숨긴다(찾기와 상관없이 전체 목록 기준)
-  const filters = FILTERS.filter((option) => option.id === "all" || all.some((def) => matchesFilter(def, option.id)));
+  // 내 가구 중 아직 놓을 수 없는 것(만드는 중·실패) — "내 가구"에서만 상태와 함께 보여 준다
+  const pendingMine = useMemo(
+    () => mine.filter((item) => item.status !== "READY" && matchesQuery({ id: item.type, name: item.name, width: 0, depth: 0 }, deferredQuery)),
+    [mine, deferredQuery],
+  );
+  const counts = useMemo(() => new Map(FILTERS.map((option) => [
+    option.id,
+    found.filter((def) => matchesFilter(def, option.id)).length + (option.id === "mine" ? pendingMine.length : 0),
+  ])), [found, pendingMine]);
+  // 가구가 하나도 없는 종류는 숨긴다(찾기와 상관없이 전체 목록 기준). 내 가구는 늘 보인다(추가하는 곳)
+  const filters = FILTERS.filter((option) => option.id === "all" || option.id === "mine" || all.some((def) => matchesFilter(def, option.id)));
+  const mineById = useMemo(() => new Map(mine.map((item) => [item.type, item])), [mine]);
+
+  async function confirmDelete() {
+    if (!deleting) return;
+    setDeleteBusy(true);
+    setDeleteError(null);
+    try {
+      await onDeleteMine(deleting.id);
+      setDeleting(null);
+    } catch (e) {
+      setDeleteError(getErrorMessage(e));
+    } finally {
+      setDeleteBusy(false);
+    }
+  }
   const visible = found.filter((def) => matchesFilter(def, filter));
   const activeLabel = FILTERS.find((option) => option.id === filter)?.label ?? "전체";
 
@@ -135,12 +196,47 @@ export function FurniturePicker({ items, loading, failed, usesPolyHaven, placing
         </p>
         <span className="shrink-0 text-xs text-soft">{visible.length}개</span>
       </div>
-      <div className="grid grid-cols-3 gap-2" role="group" aria-label="가구 목록">
-        {visible.map((def) => (
-          <FurnitureCard key={def.id} def={def} active={placingType === def.id} disabled={disabled} onPick={onPick} />
-        ))}
-      </div>
-      {visible.length === 0 && (
+      {filter === "mine" && !signedIn ? (
+        <div className="flex flex-col items-center gap-3 border border-dashed border-line-2 px-4 py-8 text-center">
+          <IconHomeHeart size={28} stroke={1.5} aria-hidden className="text-soft" />
+          <p className="text-sm text-soft">로그인하면 우리 집 가구를 사진이나 3D 파일로 만들어 놓아 볼 수 있어요.</p>
+          <button type="button" onClick={onRequireLogin} className="button button--primary button--sm">
+            <IconLogin size={15} stroke={2} aria-hidden />
+            로그인
+          </button>
+        </div>
+      ) : (
+        <div className="grid grid-cols-3 gap-2" role="group" aria-label="가구 목록">
+          {filter === "mine" && (
+            <button
+              type="button"
+              onClick={onAddMine}
+              className="flex aspect-[3/4] flex-col items-center justify-center gap-1.5 border border-dashed border-line-2 bg-white text-xs font-semibold text-ink hover:border-ink"
+            >
+              <IconPlus size={22} stroke={1.8} aria-hidden />
+              가구 추가
+              <span className="px-2 text-[0.62rem] font-normal text-soft">사진·3D 파일</span>
+            </button>
+          )}
+          {filter === "mine" && pendingMine.map((item) => (
+            <PendingCard key={item.type} item={item} onDelete={() => setDeleting(item)} />
+          ))}
+          {visible.map((def) => {
+            const own = mineById.get(def.id);
+            return (
+              <FurnitureCard
+                key={def.id}
+                def={def}
+                active={placingType === def.id}
+                disabled={disabled}
+                onPick={onPick}
+                onDelete={own ? () => setDeleting(own) : undefined}
+              />
+            );
+          })}
+        </div>
+      )}
+      {visible.length === 0 && filter !== "mine" && (
         <p className="py-10 text-center text-sm text-soft">
           {deferredQuery && found.length > 0 ? `‘${activeLabel}’에는 없어요. 다른 종류에 ${found.length}개 있어요.` : "찾는 가구가 없어요."}
         </p>
@@ -157,6 +253,23 @@ export function FurniturePicker({ items, loading, failed, usesPolyHaven, placing
         )}
       </div>
     </>
+  );
+
+  const deleteDialog = deleting && (
+    <ConfirmDialog
+      title="내 가구 지우기"
+      confirmLabel="지우기"
+      busyLabel="지우는 중…"
+      busy={deleteBusy}
+      error={deleteError}
+      onConfirm={confirmDelete}
+      onCancel={() => {
+        setDeleting(null);
+        setDeleteError(null);
+      }}
+    >
+      <p className="text-sm text-soft">‘{deleting.name}’을(를) 지울까요? 이 가구를 놓아 둔 배치에서도 보이지 않게 돼요.</p>
+    </ConfirmDialog>
   );
 
   if (layout === "compact") {
@@ -187,6 +300,7 @@ export function FurniturePicker({ items, loading, failed, usesPolyHaven, placing
           })}
         </div>
         <div>{grid}</div>
+        {deleteDialog}
       </div>
     );
   }
@@ -223,12 +337,79 @@ export function FurniturePicker({ items, loading, failed, usesPolyHaven, placing
         </nav>
         <div className="min-h-0 flex-1 overflow-y-auto p-3">{grid}</div>
       </div>
+      {deleteDialog}
     </div>
   );
 }
 
-function FurnitureCard({ def, active, disabled, onPick }: { def: FurnitureDef; active: boolean; disabled: boolean; onPick: (id: string) => void }) {
+function DeleteButton({ label, onClick }: { label: string; onClick: () => void }) {
   return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-label={`${label} 지우기`}
+      title="지우기"
+      className="absolute left-1 top-1 z-10 flex h-6 w-6 items-center justify-center border border-line bg-white/90 text-soft opacity-100 hover:text-ink focus-visible:opacity-100 sm:opacity-0 sm:group-hover/card:opacity-100"
+    >
+      <IconTrash size={13} stroke={2} aria-hidden />
+    </button>
+  );
+}
+
+/** 만드는 중이거나 실패한 내 가구 — 놓을 수 없다. */
+function PendingCard({ item, onDelete }: { item: CustomFurniture; onDelete: () => void }) {
+  const processing = item.status === "PROCESSING";
+  return (
+    <div className="group/card relative flex flex-col border border-line bg-white" aria-busy={processing}>
+      <span className="relative flex aspect-square w-full flex-col items-center justify-center gap-1.5 bg-wash px-2 text-center text-[0.66rem] text-soft">
+        {processing ? (
+          <>
+            <IconLoader2 size={22} stroke={2} aria-hidden className="animate-spin text-ink" />
+            3D로 만드는 중…
+          </>
+        ) : (
+          <>
+            <IconAlertTriangle size={20} stroke={2} aria-hidden className="text-coral" />
+            <span className="line-clamp-3">{item.failure_reason ?? "만들지 못했어요."}</span>
+          </>
+        )}
+      </span>
+      <span className="flex flex-1 flex-col gap-0.5 px-1.5 pb-1.5 pt-1">
+        <span className="line-clamp-2 min-h-[2lh] text-[0.75rem] font-semibold leading-tight text-ink">{item.name}</span>
+        <span className="text-[0.66rem] text-soft">{processing ? "40초쯤 걸려요" : "다시 만들어 주세요"}</span>
+      </span>
+      {!processing && <DeleteButton label={item.name} onClick={onDelete} />}
+    </div>
+  );
+}
+
+function FurnitureCard({ def, active, disabled, onPick, onDelete }: {
+  def: FurnitureDef;
+  active: boolean;
+  disabled: boolean;
+  onPick: (id: string) => void;
+  onDelete?: () => void;
+}) {
+  const privateThumbnail = def.custom ? def.thumbnail : undefined;
+  const [preview, setPreview] = useState<{ path: string; url: string }>();
+  useEffect(() => {
+    if (!privateThumbnail) return;
+    const controller = new AbortController();
+    let url: string | undefined;
+    apiClient.get<Blob>(privateThumbnail, { responseType: "blob", signal: controller.signal }).then(({ data }) => {
+      if (controller.signal.aborted) return;
+      url = URL.createObjectURL(data);
+      setPreview({ path: privateThumbnail, url });
+    }).catch(() => undefined);
+    return () => {
+      controller.abort();
+      if (url) URL.revokeObjectURL(url);
+    };
+  }, [privateThumbnail]);
+  const thumbnail = def.custom ? (preview?.path === privateThumbnail ? preview?.url : undefined) : def.thumbnail;
+
+  return (
+    <div className="group/card relative flex">
     <button
       type="button"
       disabled={disabled}
@@ -236,16 +417,16 @@ function FurnitureCard({ def, active, disabled, onPick }: { def: FurnitureDef; a
       aria-pressed={active}
       title={`${def.name} · ${def.width}×${def.depth}m`}
       className={cn(
-        "group relative flex flex-col border bg-white text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
+        "group relative flex w-full flex-col border bg-white text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
         active ? "border-ink ring-2 ring-ink" : "border-line hover:border-ink",
       )}
     >
       {/* 썸네일 칸은 늘 정사각형 — 이미지는 그 안에 맞춰 넣는다(세로로 긴 썸네일이 카드를 늘리지 않게) */}
       <span className="relative block aspect-square w-full overflow-hidden bg-wash">
-        {def.thumbnail ? (
-          // eslint-disable-next-line @next/next/no-img-element -- 외부(Poly Haven CDN·S3) 썸네일을 그대로 쓴다
+        {thumbnail ? (
+          // eslint-disable-next-line @next/next/no-img-element -- CDN 또는 인증 후 생성한 blob URL
           <img
-            src={def.thumbnail}
+            src={thumbnail}
             alt=""
             loading="lazy"
             className="absolute inset-[7%] h-[86%] w-[86%] object-contain transition-transform group-hover:scale-105"
@@ -264,5 +445,7 @@ function FurnitureCard({ def, active, disabled, onPick }: { def: FurnitureDef; a
         <span className="text-[0.66rem] text-soft">{def.width.toFixed(1)}×{def.depth.toFixed(1)}m</span>
       </span>
     </button>
+    {onDelete && <DeleteButton label={def.name} onClick={onDelete} />}
+    </div>
   );
 }

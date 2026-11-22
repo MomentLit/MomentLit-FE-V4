@@ -3,6 +3,7 @@
  * - 기본 가구: 모양(three.js 메시)은 stage.ts의 `buildFurniture`가 같은 id로 만든다.
  * - 모델 가구(`ph-`로 시작, Poly Haven 가구): Poly Haven API 목록 전체(`registerPolyHavenFurniture`). 썸네일만 먼저 보이고,
  *   놓을 때 Poly Haven에서 glTF를 받는다(`polyHavenId`).
+ * - 내 가구(`u-{id}`): 사용자가 사진으로 만들었거나 GLB로 올린 가구(`registerCustomFurniture`). 만든 사람만 본다.
  * - GLB 주소(`model`)가 있는 가구는 그 파일을 그대로 쓴다.
  */
 export interface FurnitureDef {
@@ -25,6 +26,8 @@ export interface FurnitureDef {
   category?: FurnitureCategory;
   /** 어디에 놓나 — 바닥(기본, 작으면 가구 위에도) / 벽에 건다 / 천장에 단다. */
   mount?: FurnitureMount;
+  /** 내 가구(사용자가 만든 가구)인지. */
+  custom?: boolean;
 }
 
 export type FurnitureMount = "floor" | "wall" | "ceiling";
@@ -50,6 +53,19 @@ export const FURNITURE_CATALOG: readonly FurnitureDef[] = [
 ];
 
 const polyHavenFurniture = new Map<string, FurnitureDef>();
+let customFurniture = new Map<string, FurnitureDef>();
+
+/** 내 가구 id 접두사(`u-{id}`, BE CustomFurniture.TYPE_PREFIX). */
+export const CUSTOM_FURNITURE_PREFIX = "u-";
+
+export function isCustomFurnitureId(id: string): boolean {
+  return id.startsWith(CUSTOM_FURNITURE_PREFIX);
+}
+
+/** 내 가구 목록 전체를 바꿔 넣는다(지운 가구는 빠진다). */
+export function registerCustomFurniture(defs: readonly FurnitureDef[]) {
+  customFurniture = new Map(defs.map((def) => [def.id, def]));
+}
 
 /** Poly Haven API 목록에서 받은 가구. */
 export function registerPolyHavenFurniture(defs: readonly FurnitureDef[]) {
@@ -57,7 +73,7 @@ export function registerPolyHavenFurniture(defs: readonly FurnitureDef[]) {
 }
 
 export function findFurniture(id: string): FurnitureDef | undefined {
-  return FURNITURE_CATALOG.find((def) => def.id === id) ?? polyHavenFurniture.get(id);
+  return FURNITURE_CATALOG.find((def) => def.id === id) ?? customFurniture.get(id) ?? polyHavenFurniture.get(id);
 }
 
 /** 가구 모양을 어디서 받는지 — 바뀌면 무대가 다시 만든다. 기본 도형 가구는 null. */
@@ -69,10 +85,10 @@ export function furnitureModelKey(def: FurnitureDef | undefined): string | null 
 
 /**
  * 서버·브라우저에 저장된 배치에서 지금 목록에 없는 가구는 뺀다.
- * 모델 가구는 카탈로그를 받기 전일 수 있어서 남겨 둔다(받기 전엔 상자로 보인다).
+ * Poly Haven 가구·내 가구는 목록을 받기 전일 수 있어서 남겨 둔다(받기 전엔 상자로 보인다).
  */
 export function knownFurniture<T extends { type: string }>(items: readonly T[]): T[] {
-  return items.filter((item) => findFurniture(item.type) || isModelFurnitureId(item.type));
+  return items.filter((item) => findFurniture(item.type) || isModelFurnitureId(item.type) || isCustomFurnitureId(item.type));
 }
 
 /** 각도를 -π~π로 맞춘다(서버는 ±7 라디안까지 받는다). */

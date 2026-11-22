@@ -109,6 +109,11 @@ export interface FurnitureItem {
   z: number;
   /** y축 회전(라디안). */
   rotation: number;
+  /**
+   * 바닥에서 가구 밑면까지 높이(m). 없으면 0(바닥). 가구 위에 올린 소품·벽에 건 액자·천장 조명에 쓴다.
+   * 예전에 저장한 배치에는 없거나 null이다.
+   */
+  y?: number | null;
 }
 
 /** 로그인한 사용자가 방마다 이름 붙여 저장한 배치. 방마다 20개까지. */

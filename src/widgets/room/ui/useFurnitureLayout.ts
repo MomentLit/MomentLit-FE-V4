@@ -27,7 +27,9 @@ interface LocalDraft {
 
 function isItem(value: unknown): value is FurnitureItem {
   const item = value as FurnitureItem | null;
-  return typeof item?.type === "string" && [item.x, item.z, item.rotation].every((v) => typeof v === "number" && Number.isFinite(v));
+  return typeof item?.type === "string"
+    && [item.x, item.z, item.rotation].every((v) => typeof v === "number" && Number.isFinite(v))
+    && (item.y == null || (typeof item.y === "number" && Number.isFinite(item.y)));
 }
 
 function readDraft(key: string): LocalDraft | null {
@@ -55,7 +57,7 @@ function writeDraft(key: string, draft: LocalDraft) {
 
 /** 서버로 보내는 값과 같게 맞춰 비교한다(소수점 차이로 "안 저장됨"이 뜨지 않게). */
 function normalize(items: readonly FurnitureItem[]): FurnitureItem[] {
-  return items.map((item) => ({ type: item.type, x: round(item.x), z: round(item.z), rotation: round(item.rotation, 4) }));
+  return items.map((item) => ({ type: item.type, x: round(item.x), z: round(item.z), y: round(item.y ?? 0), rotation: round(item.rotation, 4) }));
 }
 
 function sameItems(a: readonly FurnitureItem[], b: readonly FurnitureItem[]) {

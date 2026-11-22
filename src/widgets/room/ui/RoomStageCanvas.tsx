@@ -22,6 +22,7 @@ export function RoomStageCanvas({
   furnitureEditable = false,
   placingType = null,
   furniture = NO_FURNITURE,
+  furnitureLibraryKey = "",
   selectedFurniture = null,
   className,
   ...callbacks
@@ -34,6 +35,8 @@ export function RoomStageCanvas({
   furnitureEditable?: boolean;
   placingType?: string | null;
   furniture?: readonly StageFurniture[];
+  /** 모델 가구 목록이 바뀌면 바꿔 준다 — 목록을 받기 전에 상자로 그린 모델 가구를 모델로 다시 그린다. */
+  furnitureLibraryKey?: string;
   selectedFurniture?: number | null;
   className?: string;
 } & RoomStageCallbacks) {
@@ -61,9 +64,10 @@ export function RoomStageCanvas({
           onCeilingPick: (uv) => callbacksRef.current.onCeilingPick?.(uv),
           onHint: (message) => callbacksRef.current.onHint?.(message),
           onFurnitureSelect: (index) => callbacksRef.current.onFurnitureSelect?.(index),
-          onFurnitureMove: (index, x, z) => callbacksRef.current.onFurnitureMove?.(index, x, z),
+          onFurnitureMove: (moves) => callbacksRef.current.onFurnitureMove?.(moves),
           onFurnitureDragEnd: () => callbacksRef.current.onFurnitureDragEnd?.(),
-          onPlace: (x, z) => callbacksRef.current.onPlace?.(x, z),
+          onPlace: (placement) => callbacksRef.current.onPlace?.(placement),
+          onFurnitureLoading: (count) => callbacksRef.current.onFurnitureLoading?.(count),
         });
         setStage(created);
       })
@@ -106,7 +110,7 @@ export function RoomStageCanvas({
 
   useEffect(() => {
     stage?.setFurniture(furniture, selectedFurniture);
-  }, [stage, furniture, selectedFurniture]);
+  }, [stage, furniture, selectedFurniture, furnitureLibraryKey]);
 
   useEffect(() => {
     stage?.setView(view);

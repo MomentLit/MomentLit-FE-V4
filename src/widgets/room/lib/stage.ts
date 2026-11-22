@@ -1,6 +1,9 @@
 import type * as Three from "three";
 import type { OrbitControls as OrbitControlsType } from "three/examples/jsm/controls/OrbitControls.js";
-import { findFurniture } from "./furniture";
+import { findFurniture, furnitureModelKey, furnitureMount, isStackable, type FurnitureDef } from "./furniture";
+import { loadFurnitureModel } from "./furnitureModels";
+import { localFurnitureBox, nearestFurnitureBox } from "./furniturePick";
+import { ceilingMountY, DEFAULT_WALL_CENTER, nearestWallPlacement, wallMountedAt, wallMountY } from "./placement";
 import {
   centroid,
   directionToUv,
@@ -25,6 +28,16 @@ type ThreeModule = typeof Three;
 type OrbitControlsClass = new (camera: Three.Camera, element: HTMLElement) => OrbitControlsType;
 
 export type RoomView = "photo" | "miniature" | "walk";
+
+/** 끌고 있는 가구 — 위에 올려 둔 소품(children)은 같은 만큼 따라 움직인다. */
+interface FurnitureDrag {
+  index: number;
+  /** 누른 점과 가구 중심의 차이(바닥에 놓인 가구만). */
+  offset: Vec2;
+  children: { index: number; dx: number; dz: number; dy: number }[];
+  /** 놓을 자리를 찾을 때 무시할 가구(자신과 위의 소품). */
+  ignore: Set<number>;
+}
 /** 사진 시점에서 누르기의 의미 — 바닥 모서리 찍기 / 천장 모서리 찍기(높이 재기) / 없음. */
 export type PickMode = "corners" | "ceiling" | "none";
 
@@ -33,6 +46,20 @@ export interface StageFurniture {
   x: number;
   z: number;
   rotation: number;
+  /** 바닥에서 밑면까지 높이(m). 없으면 바닥. */
+  y?: number | null;
+}
+
+/** 가구를 놓을 자리 — 벽 가구는 벽을 보게 하는 회전도 준다. */
+export interface FurniturePlacement {
+  x: number;
+  z: number;
+  y: number;
+  rotation?: number;
+}
+
+export interface FurnitureMove extends FurniturePlacement {
+  index: number;
 }
 
 /** 도면 방 바닥에 깔 도면 이미지 자리(m) — planModel의 PlanFloorImage와 같은 모양. */
@@ -69,10 +96,13 @@ export interface RoomStageCallbacks {
   onCeilingPick?: (uv: Vec2) => void;
   onHint?: (message: string) => void;
   onFurnitureSelect?: (index: number | null) => void;
-  onFurnitureMove?: (index: number, x: number, z: number) => void;
+  /** 끌어서 옮긴 가구들 — 위에 올린 소품도 같이 오고, 받침이 사라진 소품은 내려앉는다. */
+  onFurnitureMove?: (moves: FurnitureMove[]) => void;
   /** 끌기를 마쳤을 때 — 실행 취소 기록 등에 쓴다. */
   onFurnitureDragEnd?: () => void;
-  onPlace?: (x: number, z: number) => void;
+  onPlace?: (placement: FurniturePlacement) => void;
+  /** 받고 있는 가구 모델 수가 바뀔 때 — 0이면 다 받았다. */
+  onFurnitureLoading?: (count: number) => void;
 }
 
 const TAPE = 0xf2bc2e;
@@ -138,6 +168,9 @@ export class RoomStage {
   private planFloorTexture: { url: string; texture: Three.Texture } | null = null;
   private frame = 0;
   private disposed = false;
+  /** 지금 받고 있는 모델 가구 수 — 0보다 크면 스켈레톤 상자를 깜빡인다. */
+  private loadingFurniture = 0;
+  private readonly ghostLineMaterial: Three.LineBasicMaterial;
 
   private state: RoomStageState = { outer: [], corners: [], inner: [], cameraHeight: 1.5, ceilingHeight: 2.4 };
   private view: RoomView = "photo";
@@ -168,7 +201,7 @@ export class RoomStage {
     walkPitch: number;
     moved: boolean;
     corner: number;
-    drag: { index: number; offset: Vec2 } | null;
+    drag: FurnitureDrag | null;
   } | null = null;
 
   constructor(three: ThreeModule, OrbitControls: OrbitControlsClass, container: HTMLElement, callbacks: RoomStageCallbacks = {}) {
@@ -190,6 +223,8 @@ export class RoomStage {
     this.miniatureCamera = new three.PerspectiveCamera(45, 1, 0.05, 200);
     this.walkCamera = new three.PerspectiveCamera(70, 1, 0.05, 200);
     this.raycaster = new three.Raycaster();
+    // 스켈레톤 윤곽선(LineSegments)이 기본 문턱(1m)으로 멀리서도 잡히지 않게
+    this.raycaster.params.Line = { threshold: 0.01 };
 
     const uniforms = { panorama: { value: null as Three.Texture | null }, eye: { value: new three.Vector3() } };
     this.roomMaterial = new three.ShaderMaterial({ uniforms, vertexShader: VERTEX_SHADER, fragmentShader: FRAGMENT_SHADER });
@@ -227,7 +262,10 @@ export class RoomStage {
       dark: new three.MeshStandardMaterial({ color: 0x34393e, roughness: 0.45, metalness: 0.2 }),
       leaf: new three.MeshStandardMaterial({ color: 0x4f7a4a, roughness: 0.85 }),
       pot: new three.MeshStandardMaterial({ color: 0xc8b9a6, roughness: 0.8 }),
+      // 모델 가구를 받는 동안 보이는 반투명 상자
+      ghost: new three.MeshStandardMaterial({ color: 0xf4f3ef, roughness: 1, transparent: true, opacity: 0.35, depthWrite: false }),
     };
+    this.ghostLineMaterial = new three.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 });
 
     this.roomGroup = new three.Group();
     this.markerGroup = new three.Group();
@@ -312,7 +350,9 @@ export class RoomStage {
     const floorY = -this.state.cameraHeight;
     items.forEach((item, index) => {
       let object = this.furnitureObjects[index];
-      if (object && object.userData.type !== item.type) {
+      // 모델 가구는 카탈로그를 늦게 받으면 상자로 먼저 만들어지므로, 모델 주소가 생기면 다시 만든다.
+      const model = furnitureModelKey(findFurniture(item.type));
+      if (object && (object.userData.type !== item.type || object.userData.model !== model)) {
         this.disposeObject(object);
         this.furnitureGroup.remove(object);
         object = undefined;
@@ -323,7 +363,7 @@ export class RoomStage {
         this.furnitureObjects[index] = object;
       }
       object.userData.index = index;
-      object.position.set(item.x, floorY, item.z);
+      object.position.set(item.x, floorY + (item.y ?? 0), item.z);
       object.rotation.y = item.rotation;
     });
     for (const extra of this.furnitureObjects.splice(items.length)) {
@@ -334,6 +374,7 @@ export class RoomStage {
     this.furniture = items.map((item) => ({ ...item }));
     this.selectedFurniture = selected;
     this.updateSelectionBox();
+    this.scheduleSettle();
   }
 
   dispose() {
@@ -357,6 +398,7 @@ export class RoomStage {
     this.furnitureObjects = [];
     this.removeSelectionBox();
     Object.values(this.furnitureMaterials).forEach((material) => material.dispose());
+    this.ghostLineMaterial.dispose();
     this.sky.geometry.dispose();
     this.roomMaterial.dispose();
     this.skyMaterial.dispose();
@@ -384,8 +426,8 @@ export class RoomStage {
     this.clearGroup(this.roomGroup);
     this.clearGroup(this.labelGroup);
     this.ceilingMesh = null;
-    this.furnitureObjects.forEach((object) => {
-      if (object) object.position.y = floorY;
+    this.furnitureObjects.forEach((object, index) => {
+      if (object) object.position.y = floorY + (this.furniture[index]?.y ?? 0);
     });
 
     // 편집할 모서리 표시(사진 시점)
@@ -581,6 +623,12 @@ export class RoomStage {
     const m = this.furnitureMaterials;
     const g = new three.Group();
     g.userData.type = type;
+    const def = findFurniture(type);
+    g.userData.model = furnitureModelKey(def);
+    if (def && g.userData.model) {
+      this.buildModelFurniture(g, def);
+      return g;
+    }
     const b = this.box.bind(this, g);
     switch (type) {
       case "sofa-3":
@@ -620,13 +668,58 @@ export class RoomStage {
         g.add(leaf);
         break;
       }
-      default: {
-        // 모르는 종류 — 목록 크기가 있으면 그 크기의 상자
-        const def = findFurniture(type);
+      default:
+        // 모르는 종류(받기 전인 모델 가구 포함) — 목록 크기가 있으면 그 크기의 상자
         b(def?.width ?? 0.5, 0.5, def?.depth ?? 0.5, 0, 0, 0, m.white);
-      }
     }
     return g;
+  }
+
+  /**
+   * 스켈레톤 상자(실제 크기, 깜빡이는 반투명 면 + 흰 윤곽선, 그림자 없음)를 먼저 두고, 모델을 받으면 바꾼다.
+   * 받지 못하면 흰 상자로 남는다.
+   */
+  private buildModelFurniture(group: Three.Group, def: FurnitureDef) {
+    const three = this.three;
+    const height = def.height ?? 0.5;
+    const geometry = new three.BoxGeometry(def.width, height, def.depth);
+    const face = new three.Mesh(geometry, this.furnitureMaterials.ghost);
+    face.position.y = height / 2;
+    const outline = new three.LineSegments(new three.EdgesGeometry(geometry), this.ghostLineMaterial);
+    outline.position.y = height / 2;
+    group.add(face, outline);
+    this.setFurnitureLoading(+1);
+    loadFurnitureModel(def)
+      .finally(() => this.setFurnitureLoading(-1))
+      .then((model) => {
+        // 받는 사이에 지워졌거나(무대 닫힘·가구 지움) 다른 가구로 바뀌었으면 버린다.
+        if (this.disposed || group.parent !== this.furnitureGroup) return;
+        this.disposeObject(group);
+        group.clear();
+        group.add(model);
+        delete group.userData.localBox;
+        if (this.selectedFurniture !== null && this.furnitureObjects[this.selectedFurniture] === group) this.updateSelectionBox();
+      })
+      .catch(() => {
+        if (this.disposed) return;
+        group.children.forEach((child) => {
+          const mesh = child as Three.Mesh;
+          if (mesh.isMesh) {
+            mesh.material = this.furnitureMaterials.white;
+            mesh.castShadow = mesh.receiveShadow = true;
+          } else {
+            child.visible = false;
+          }
+        });
+      });
+  }
+
+  private setFurnitureLoading(delta: number) {
+    if (this.disposed) return;
+    this.loadingFurniture = Math.max(0, this.loadingFurniture + delta);
+    this.callbacks.onFurnitureLoading?.(this.loadingFurniture);
+    // 모델이 다 오면 받침 높이가 실제 모델 기준으로 바뀌므로 다시 내려앉힌다
+    if (this.loadingFurniture === 0) this.scheduleSettle();
   }
 
   private updateSelectionBox() {
@@ -655,6 +748,8 @@ export class RoomStage {
   private disposeObject(object: Three.Object3D) {
     object.traverse((child) => {
       const mesh = child as Three.Mesh;
+      // 모델 가구의 기하·재질은 같은 모델끼리 나눠 쓴다(furnitureModels 캐시) — 지우지 않는다.
+      if (mesh.userData.sharedModel) return;
       mesh.geometry?.dispose();
       const material = mesh.material as Three.Material | Three.Material[] | undefined;
       for (const m of Array.isArray(material) ? material : material ? [material] : []) {
@@ -668,6 +763,7 @@ export class RoomStage {
 
   private isSharedMaterial(material: Three.Material) {
     return Object.values(this.furnitureMaterials).includes(material as Three.MeshStandardMaterial)
+      || material === this.ghostLineMaterial
       || material === this.planWallMaterial
       || material === this.planInnerMaterial
       || material === this.planCeilingMaterial
@@ -780,13 +876,211 @@ export class RoomStage {
     return point ? [point.x, point.z] : null;
   }
 
+  // ---------- 가구 놓을 자리 ----------
+
+  /**
+   * 누른 곳에 `type` 가구를 놓을 자리. 바닥 가구는 바닥(작으면 가구 윗면·선반 칸), 벽 가구는 누른 벽면(벽이 아니면 가장 가까운 벽),
+   * 천장 가구는 천장. 방 밖이면 null. `current`는 끄는 중인 가구(벽 가구 높이를 이어 쓴다).
+   */
+  private placementAt(event: PointerEvent, type: string, ignore: ReadonlySet<number>, current?: StageFurniture): FurniturePlacement | null {
+    const def = findFurniture(type);
+    const mount = furnitureMount(def);
+    const floorY = -this.state.cameraHeight;
+    const ceilingHeight = this.state.ceilingHeight;
+    const height = def?.height ?? 0.5;
+    const depth = def?.depth ?? 0.1;
+    this.setRay(event);
+    const ray = this.raycaster.ray;
+
+    if (mount === "wall") {
+      const wall = this.wallHit();
+      if (wall) {
+        const at = wallMountedAt([wall.point.x, wall.point.z], [wall.normal.x, wall.normal.z], depth);
+        if (pointInPolygon([at.x, at.z], this.state.outer)) {
+          return { ...at, y: wallMountY(wall.point.y - floorY, height, ceilingHeight) };
+        }
+      }
+      const floor = this.planeHit(ray, floorY);
+      const snap = floor && nearestWallPlacement(floor, this.state.outer, this.state.inner, depth);
+      if (!snap) return null;
+      return { x: snap.x, z: snap.z, rotation: snap.rotation, y: current?.y ?? wallMountY(DEFAULT_WALL_CENTER, height, ceilingHeight) };
+    }
+
+    if (mount === "ceiling") {
+      // 위를 보고 누르면 천장, 아래를 보고 누르면 바닥에서 위치를 잡는다
+      const point = ray.direction.y > 0 ? this.planeHit(ray, ceilingHeight + floorY) : this.planeHit(ray, floorY);
+      if (!point || !pointInPolygon(point, this.state.outer)) return null;
+      return { x: point[0], z: point[1], y: ceilingMountY(height, ceilingHeight) };
+    }
+
+    if (isStackable(def)) {
+      const surface = this.surfaceHit(ignore);
+      if (surface) return surface;
+    }
+    const floor = this.planeHit(ray, floorY);
+    if (!floor || !pointInPolygon(floor, this.state.outer)) return null;
+    return { x: floor[0], z: floor[1], y: 0 };
+  }
+
+  /** 광선과 높이 y 수평면이 만나는 점(바닥 평면 좌표). */
+  private planeHit(ray: Three.Ray, y: number): Vec2 | null {
+    const point = ray.intersectPlane(new this.three.Plane(new this.three.Vector3(0, 1, 0), -y), new this.three.Vector3());
+    return point ? [point.x, point.z] : null;
+  }
+
+  /** 광선이 처음 맞는 방 면이 벽이면 그 점과 방 안쪽을 보는 법선. 바닥·천장이 먼저 맞으면 null. */
+  private wallHit(): { point: Three.Vector3; normal: Three.Vector3 } | null {
+    const ray = this.raycaster.ray;
+    for (const hit of this.raycaster.intersectObjects(this.roomGroup.children, false)) {
+      const mesh = hit.object as Three.Mesh;
+      if (!mesh.isMesh || !mesh.visible || !hit.face || mesh.material instanceof this.three.ShadowMaterial) continue;
+      const normal = hit.face.normal.clone().transformDirection(mesh.matrixWorld);
+      if (normal.dot(ray.direction) > 0) normal.negate();
+      if (Math.abs(normal.y) >= 0.3) return null;
+      return { point: hit.point, normal: normal.setY(0).normalize() };
+    }
+    return null;
+  }
+
+  /** 광선이 처음 맞는 가구 면이 윗면(선반 칸 포함)이면 그 위 자리. 옆면이 먼저 맞으면 null. */
+  private surfaceHit(ignore: ReadonlySet<number>): FurniturePlacement | null {
+    const floorY = -this.state.cameraHeight;
+    const objects = this.furnitureObjects.filter((object, index): object is Three.Group => !!object && !ignore.has(index));
+    this.furnitureGroup.updateMatrixWorld(true);
+    for (const hit of this.raycaster.intersectObjects(objects, true)) {
+      const mesh = hit.object as Three.Mesh;
+      if (!mesh.isMesh || !hit.face) continue;
+      const normal = hit.face.normal.clone().transformDirection(mesh.matrixWorld);
+      if (normal.y < 0.6) return null;
+      if (!pointInPolygon([hit.point.x, hit.point.z], this.state.outer)) return null;
+      return { x: hit.point.x, z: hit.point.z, y: hit.point.y - floorY };
+    }
+    return null;
+  }
+
+  /** `index` 가구 위(윗면·선반 칸)에 올려 둔 바닥 소품들 — 그 위의 것까지. */
+  private stackedOn(index: number): number[] {
+    const result: number[] = [];
+    const visit = (baseIndex: number) => {
+      const base = this.furnitureObjects[baseIndex];
+      const baseItem = this.furniture[baseIndex];
+      if (!base || !baseItem) return;
+      base.updateMatrixWorld(true);
+      const box = localFurnitureBox(this.three, base);
+      if (box.isEmpty()) return;
+      const inverse = base.matrixWorld.clone().invert();
+      const floorY = -this.state.cameraHeight;
+      const baseY = baseItem.y ?? 0;
+      this.furniture.forEach((item, j) => {
+        if (j === index || result.includes(j) || furnitureMount(findFurniture(item.type)) !== "floor") return;
+        const y = item.y ?? 0;
+        if (y <= baseY + 0.02) return;
+        const local = new this.three.Vector3(item.x, floorY + y + 0.01, item.z).applyMatrix4(inverse);
+        const inside = local.x >= box.min.x && local.x <= box.max.x && local.z >= box.min.z && local.z <= box.max.z && local.y <= box.max.y + 0.05;
+        if (!inside) return;
+        result.push(j);
+        visit(j);
+      });
+    };
+    visit(index);
+    return result;
+  }
+
+  private startDrag(event: PointerEvent, index: number): FurnitureDrag | null {
+    const item = this.furniture[index];
+    if (!item) return null;
+    const onFloor = furnitureMount(findFurniture(item.type)) === "floor" && (item.y ?? 0) <= 0.005;
+    const hit = onFloor ? this.floorHit(event) : null;
+    const children = this.stackedOn(index).map((j) => {
+      const child = this.furniture[j];
+      return { index: j, dx: child.x - item.x, dz: child.z - item.z, dy: (child.y ?? 0) - (item.y ?? 0) };
+    });
+    return {
+      index,
+      offset: hit ? [item.x - hit[0], item.z - hit[1]] : [0, 0],
+      children,
+      ignore: new Set([index, ...children.map((child) => child.index)]),
+    };
+  }
+
+  private dragTo(event: PointerEvent, drag: FurnitureDrag) {
+    const item = this.furniture[drag.index];
+    if (!item) return;
+    const placement = this.placementAt(event, item.type, drag.ignore, item);
+    if (!placement) return;
+    let { x, z } = placement;
+    // 바닥에 놓는 가구는 누른 점과 중심의 차이를 유지한다(큰 가구가 손가락 밑으로 튀지 않게)
+    if (furnitureMount(findFurniture(item.type)) === "floor" && placement.y <= 0.005) {
+      x += drag.offset[0];
+      z += drag.offset[1];
+      if (!pointInPolygon([x, z], this.state.outer)) return;
+    }
+    const rotation = placement.rotation ?? item.rotation;
+    const moves: FurnitureMove[] = [{ index: drag.index, x, z, y: placement.y, rotation }];
+    for (const child of drag.children) {
+      const childItem = this.furniture[child.index];
+      if (!childItem) continue;
+      moves.push({ index: child.index, x: x + child.dx, z: z + child.dz, y: placement.y + child.dy, rotation: childItem.rotation });
+    }
+    this.callbacks.onFurnitureMove?.(moves);
+  }
+
+  private settleQueued = false;
+
+  /** 다음 틈에 한 번 내려앉힌다(같은 틈에 여러 번 불려도 한 번). */
+  private scheduleSettle() {
+    if (this.settleQueued) return;
+    this.settleQueued = true;
+    queueMicrotask(() => {
+      this.settleQueued = false;
+      this.settle();
+    });
+  }
+
+  /**
+   * 가구 위에 올린 소품 중 받침이 사라졌거나(지움·옮김) 높이가 달라진 것을 바로 밑 면(없으면 바닥)으로 내려앉힌다.
+   * 모델을 받는 중이면(받침이 아직 상자라 높이가 다를 수 있다) 다 받은 뒤에 한다.
+   */
+  private settle() {
+    if (this.disposed || this.loadingFurniture > 0 || this.pointer?.drag) return;
+    const three = this.three;
+    const floorY = -this.state.cameraHeight;
+    const raycaster = new three.Raycaster();
+    raycaster.params.Line = { threshold: 0.01 };
+    const down = new three.Vector3(0, -1, 0);
+    this.furnitureGroup.updateMatrixWorld(true);
+    const moves: FurnitureMove[] = [];
+    this.furniture.forEach((item, index) => {
+      const y = item.y ?? 0;
+      if (y <= 0.005 || furnitureMount(findFurniture(item.type)) !== "floor") return;
+      raycaster.set(new three.Vector3(item.x, floorY + y + 0.03, item.z), down);
+      const others = this.furnitureObjects.filter((object, j): object is Three.Group => !!object && j !== index);
+      let support = 0;
+      for (const hit of raycaster.intersectObjects(others, true)) {
+        const mesh = hit.object as Three.Mesh;
+        if (!mesh.isMesh || !hit.face) continue;
+        if (hit.face.normal.clone().transformDirection(mesh.matrixWorld).y < 0.6) continue;
+        support = hit.point.y - floorY;
+        break;
+      }
+      if (Math.abs(support - y) > 0.01) moves.push({ index, x: item.x, z: item.z, y: support, rotation: item.rotation });
+    });
+    if (moves.length) this.callbacks.onFurnitureMove?.(moves);
+  }
+
+  /**
+   * 누른 곳의 가구 번호. 메시에 맞으면 그 가구, 아니면 가구마다의 상자(회전 따라감)로 다시 본다 —
+   * 의자 등받이 사이·선반 칸처럼 모델의 빈 곳을 눌러도 고를 수 있게.
+   */
   private furnitureAt(event: PointerEvent): number | null {
     this.setRay(event);
     const hits = this.raycaster.intersectObjects(this.furnitureGroup.children, true);
-    if (!hits.length) return null;
-    let object: Three.Object3D = hits[0].object;
-    while (object.parent && object.parent !== this.furnitureGroup) object = object.parent;
-    return typeof object.userData.index === "number" ? object.userData.index : null;
+    if (hits.length) {
+      let object: Three.Object3D = hits[0].object;
+      while (object.parent && object.parent !== this.furnitureGroup) object = object.parent;
+      if (typeof object.userData.index === "number") return object.userData.index;
+    }
+    return nearestFurnitureBox(this.three, this.raycaster.ray, this.furnitureObjects);
   }
 
   /** 화면에서 손가락·마우스 가까이 있는 모서리 번호. 없으면 -1. */
@@ -811,15 +1105,13 @@ export class RoomStage {
 
   private handlePointerDown = (event: PointerEvent) => {
     const corner = this.view === "photo" && this.pickMode === "corners" && this.state.corners.length > 0 ? this.cornerNear(event) : -1;
-    let drag: { index: number; offset: Vec2 } | null = null;
+    let drag: FurnitureDrag | null = null;
 
     if (corner < 0 && this.furnitureEditable && this.view !== "walk" && !this.placingType) {
       const index = this.furnitureAt(event);
       if (index !== null) {
         this.callbacks.onFurnitureSelect?.(index);
-        const hit = this.floorHit(event);
-        const item = this.furniture[index];
-        if (hit && item) drag = { index, offset: [item.x - hit[0], item.z - hit[1]] };
+        drag = this.startDrag(event, index);
         this.controls.enabled = false;
       }
     }
@@ -847,12 +1139,7 @@ export class RoomStage {
     if (!pointer.moved) return;
 
     if (pointer.drag) {
-      const hit = this.floorHit(event);
-      if (hit) {
-        const x = hit[0] + pointer.drag.offset[0];
-        const z = hit[1] + pointer.drag.offset[1];
-        if (pointInPolygon([x, z], this.state.outer)) this.callbacks.onFurnitureMove?.(pointer.drag.index, x, z);
-      }
+      this.dragTo(event, pointer.drag);
       return;
     }
 
@@ -883,7 +1170,10 @@ export class RoomStage {
     this.controls.enabled = this.view === "miniature";
     if (!pointer) return;
     if (pointer.drag) {
-      if (pointer.moved) this.callbacks.onFurnitureDragEnd?.();
+      if (pointer.moved) {
+        this.callbacks.onFurnitureDragEnd?.();
+        this.scheduleSettle();
+      }
       return;
     }
     if (pointer.moved || pointer.corner >= 0) return;
@@ -899,12 +1189,13 @@ export class RoomStage {
     }
 
     if (this.placingType) {
-      const hit = this.floorHit(event);
-      if (!hit || !pointInPolygon(hit, this.state.outer)) {
-        this.callbacks.onHint?.("방 안쪽 바닥을 눌러 주세요.");
+      const placement = this.placementAt(event, this.placingType, new Set());
+      if (!placement) {
+        const mount = furnitureMount(findFurniture(this.placingType));
+        this.callbacks.onHint?.(mount === "wall" ? "방 안쪽 벽을 눌러 주세요." : "방 안쪽을 눌러 주세요.");
         return;
       }
-      this.callbacks.onPlace?.(hit[0], hit[1]);
+      this.callbacks.onPlace?.(placement);
       return;
     }
 
@@ -956,6 +1247,12 @@ export class RoomStage {
     this.frame = requestAnimationFrame(this.tick);
     this.timer.update(timestamp);
     const dt = Math.min(0.05, this.timer.getDelta());
+    if (this.loadingFurniture > 0) {
+      // 스켈레톤처럼 천천히 숨 쉬듯 깜빡인다(약 1.2초 주기)
+      const wave = 0.5 + 0.5 * Math.sin(this.timer.getElapsed() * 5.2);
+      this.furnitureMaterials.ghost.opacity = 0.15 + 0.35 * wave;
+      this.ghostLineMaterial.opacity = 0.45 + 0.5 * wave;
+    }
     if (this.view === "photo") {
       const cp = Math.cos(this.pitch);
       this.photoCamera.position.set(0, 0, 0);

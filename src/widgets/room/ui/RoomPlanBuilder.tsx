@@ -7,12 +7,14 @@ import {
   IconArrowLeft,
   IconCube,
   IconEraser,
+  IconHelp,
   IconLayoutBoard,
   IconUpload,
   IconWalk,
   IconWand,
 } from "@tabler/icons-react";
 import { getErrorMessage } from "@/shared/api";
+import { ConfirmDialog } from "@/shared/ui";
 import { detectPlanWalls } from "@/entities/room";
 import { uploadImage } from "@/shared/api/upload";
 import { cn } from "@/shared/lib";
@@ -33,6 +35,7 @@ import {
 import { PanelSection as Section, PanelToggleButton } from "./EditorChrome";
 import { HeightField } from "./HeightField";
 import { PlanEditor, type PlanDrawMode, type PlanShape, type PlanTool } from "./PlanEditor";
+import { PlanTutorial, shouldAutoOpenPlanTutorial } from "./PlanTutorial";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { ViewSwitch } from "./ViewSwitch";
 
@@ -91,6 +94,12 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
   const historyRef = useRef<PlanDraft[]>([]);
   const lastChangeRef = useRef(0);
   const [canUndo, setCanUndo] = useState(false);
+  const [confirmRestart, setConfirmRestart] = useState(false);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  // 처음 온 사람에게만 그리는 법을 띄운다 — 저장소는 브라우저에서만 읽을 수 있어 마운트 뒤에 본다
+  useEffect(() => {
+    if (shouldAutoOpenPlanTutorial()) queueMicrotask(() => setTutorialOpen(true));
+  }, []);
 
   useEffect(() => {
     if (scaleLine !== null) scaleInputRef.current?.focus();
@@ -278,7 +287,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
       busy: detecting,
     },
     { id: "undo", label: "되돌리기", caption: "되돌리기", hint: "방금 한 일을 취소해요.", icon: IconArrowBackUp, onClick: undo, disabled: busy || !canUndo },
-    { id: "restart", label: "처음부터 다시 그리기", caption: "지우기", hint: "그린 벽을 모두 지우고 바깥벽부터 다시 그려요.", icon: IconEraser, onClick: restart, disabled: !draft || busy || !hasWalls },
+    { id: "restart", label: "벽 전체 지우기", caption: "전체 삭제", hint: "그린 벽을 모두 지우고 바깥벽부터 다시 그려요. 하나만 지우려면 ‘선택 삭제’를 써요.", icon: IconEraser, onClick: () => setConfirmRestart(true), disabled: !draft || busy || !hasWalls },
   ];
   // 도구 막대 옆 칸 — 축척 재기 중일 때만
   const scalePanel = scaleLine !== null ? (
@@ -338,6 +347,16 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
         />
         {/* 좁은 화면에선 제목 줄 오른쪽에, 시점 바꾸기는 다음 줄 전체 폭으로 */}
         <div className="order-2 flex items-center gap-2 sm:order-3">
+          <button
+            type="button"
+            onClick={() => setTutorialOpen(true)}
+            aria-label="도면 그리는 법"
+            title="도면 그리는 법"
+            className="button button--outline button--sm"
+          >
+            <IconHelp size={16} stroke={2} aria-hidden />
+            <span className="hidden sm:inline">그리는 법</span>
+          </button>
           <PanelToggleButton open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} />
           <button
             type="button"
@@ -498,6 +517,10 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
             </Section>
 
             <Section title="그리는 법" defaultOpen={false}>
+              <button type="button" onClick={() => setTutorialOpen(true)} className="button button--outline button--sm mb-2 self-start">
+                <IconHelp size={15} stroke={2} aria-hidden />
+                그림으로 보기
+              </button>
               <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-soft">
                 <li>도구는 도면 왼쪽 막대에 있어요. 마우스를 올리면 설명이 보이고, ‘추천’이 붙은 도구가 지금 쓰면 좋은 도구예요.</li>
                 <li>‘벽’ 도구 하나로 그려요. 점을 찍을 때마다 앞 점과 벽으로 이어지고, <b className="font-semibold text-ink">Esc</b>로 선을 끊고, 한 번 더 누르면 그리기가 끝나요.</li>
@@ -509,6 +532,20 @@ export function RoomPlanBuilder({ initialDraft, defaultName, title, backHref, ba
           </aside>
         )}
       </div>
+      {tutorialOpen && <PlanTutorial onClose={() => setTutorialOpen(false)} />}
+      {confirmRestart && (
+        <ConfirmDialog
+          title="벽 전체 지우기"
+          confirmLabel="전체 지우기"
+          onConfirm={() => {
+            setConfirmRestart(false);
+            restart();
+          }}
+          onCancel={() => setConfirmRestart(false)}
+        >
+          그린 바깥벽과 안쪽 벽을 모두 지우고 처음부터 다시 그려요. 하나만 지우려면 그것을 고르고 ‘선택 삭제’나 Delete를 누르세요. 지운 뒤에도 ‘되돌리기’로 살릴 수 있어요.
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

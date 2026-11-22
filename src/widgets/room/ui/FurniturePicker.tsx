@@ -30,18 +30,34 @@ import { FURNITURE_CATALOG, type FurnitureCategory, type FurnitureDef } from "..
 
 type Filter = "all" | "mine" | FurnitureCategory | "basic";
 
-const FILTERS: readonly { id: Filter; label: string; icon: ComponentType<{ size?: number; stroke?: number; "aria-hidden"?: boolean }> }[] = [
-  { id: "all", label: "전체", icon: IconLayoutGrid },
-  { id: "mine", label: "내 가구", icon: IconHomeHeart },
-  { id: "seating", label: "소파·의자", icon: IconArmchair },
-  { id: "table", label: "테이블", icon: IconTable },
-  { id: "bed", label: "침대", icon: IconBed },
-  { id: "storage", label: "수납", icon: IconArchive },
-  { id: "lighting", label: "조명", icon: IconBulb },
-  { id: "electronics", label: "가전", icon: IconDeviceTv },
-  { id: "decor", label: "장식", icon: IconPlant2 },
-  { id: "props", label: "소품", icon: IconPackage },
-  { id: "basic", label: "기본 도형", icon: IconShape },
+/**
+ * 종류마다 사이트 스펙트럼 색 — 아이콘 칸 바탕과 고른 표시에 쓴다(색 위 글자는 늘 ink).
+ * Tailwind가 클래스를 찾을 수 있게 이름을 통째로 적는다.
+ */
+const TONE = {
+  ink: { tile: "bg-ink text-white", bar: "bg-ink", soft: "bg-line" },
+  sky: { tile: "bg-sky text-ink", bar: "bg-sky", soft: "bg-sky/25" },
+  lime: { tile: "bg-lime text-ink", bar: "bg-lime", soft: "bg-lime/25" },
+  lemon: { tile: "bg-lemon text-ink", bar: "bg-lemon", soft: "bg-lemon/30" },
+  coral: { tile: "bg-coral text-ink", bar: "bg-coral", soft: "bg-coral/25" },
+  rose: { tile: "bg-rose text-ink", bar: "bg-rose", soft: "bg-rose/25" },
+  violet: { tile: "bg-violet text-ink", bar: "bg-violet", soft: "bg-violet/25" },
+  plain: { tile: "bg-line-2 text-ink", bar: "bg-line-2", soft: "bg-line" },
+} as const;
+type Tone = keyof typeof TONE;
+
+const FILTERS: readonly { id: Filter; label: string; tone: Tone; icon: ComponentType<{ size?: number; stroke?: number; "aria-hidden"?: boolean }> }[] = [
+  { id: "all", label: "전체", tone: "ink", icon: IconLayoutGrid },
+  { id: "mine", label: "내 가구", tone: "rose", icon: IconHomeHeart },
+  { id: "seating", label: "소파·의자", tone: "sky", icon: IconArmchair },
+  { id: "table", label: "테이블", tone: "coral", icon: IconTable },
+  { id: "bed", label: "침대", tone: "violet", icon: IconBed },
+  { id: "storage", label: "수납", tone: "lime", icon: IconArchive },
+  { id: "lighting", label: "조명", tone: "lemon", icon: IconBulb },
+  { id: "electronics", label: "가전", tone: "sky", icon: IconDeviceTv },
+  { id: "decor", label: "장식", tone: "rose", icon: IconPlant2 },
+  { id: "props", label: "소품", tone: "violet", icon: IconPackage },
+  { id: "basic", label: "기본 도형", tone: "plain", icon: IconShape },
 ];
 
 /** 한국어로 찾아도 영어 이름·태그(Poly Haven)에 걸리게 */
@@ -211,7 +227,7 @@ export function FurniturePicker({
             <button
               type="button"
               onClick={onAddMine}
-              className="flex aspect-[3/4] flex-col items-center justify-center gap-1.5 border border-dashed border-line-2 bg-white text-xs font-semibold text-ink hover:border-ink"
+              className="flex min-h-40 flex-col items-center justify-center gap-1.5 border border-dashed border-line-2 bg-white text-xs font-semibold text-ink hover:border-ink"
             >
               <IconPlus size={22} stroke={1.8} aria-hidden />
               가구 추가
@@ -288,13 +304,15 @@ export function FurniturePicker({
                 aria-selected={selected}
                 onClick={() => setFilter(option.id)}
                 className={cn(
-                  "flex h-9 shrink-0 items-center gap-1.5 border px-3 text-[0.8rem] font-semibold whitespace-nowrap",
-                  selected ? "border-ink bg-ink text-white" : "border-line bg-white text-ink",
+                  "flex h-9 shrink-0 items-center gap-1.5 border px-2 pr-3 text-[0.8rem] font-semibold whitespace-nowrap",
+                  selected ? "border-ink bg-white text-ink ring-1 ring-inset ring-ink" : "border-line bg-white text-ink",
                 )}
               >
-                <Icon size={15} stroke={2} aria-hidden />
+                <span className={cn("flex size-6 items-center justify-center", selected ? TONE[option.tone].tile : TONE[option.tone].soft)}>
+                  <Icon size={15} stroke={2} aria-hidden />
+                </span>
                 {option.label}
-                <span className={cn("text-[0.7rem] font-normal", selected ? "text-white/70" : "text-soft")}>{counts.get(option.id)}</span>
+                <span className="text-[0.7rem] font-normal text-soft">{counts.get(option.id)}</span>
               </button>
             );
           })}
@@ -327,8 +345,10 @@ export function FurniturePicker({
                   count === 0 && !selected && "opacity-40",
                 )}
               >
-                {selected && <span className="absolute inset-y-1.5 left-0 w-[3px] bg-ink" aria-hidden />}
-                <Icon size={20} stroke={selected ? 2.1 : 1.7} aria-hidden />
+                {selected && <span className={cn("absolute inset-y-1.5 left-0 w-[3px]", TONE[option.tone].bar)} aria-hidden />}
+                <span className={cn("flex size-8 items-center justify-center transition-colors", selected ? TONE[option.tone].tile : TONE[option.tone].soft)}>
+                  <Icon size={18} stroke={selected ? 2.1 : 1.8} aria-hidden />
+                </span>
                 <span>{option.label}</span>
                 <span className="text-[0.62rem] font-normal text-soft">{count}</span>
               </button>
@@ -418,7 +438,7 @@ function FurnitureCard({ def, active, disabled, onPick, onDelete }: {
       title={`${def.name} · ${def.width}×${def.depth}m`}
       className={cn(
         "group relative flex w-full flex-col border bg-white text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50",
-        active ? "border-ink ring-2 ring-ink" : "border-line hover:border-ink",
+        active ? "border-[var(--main-d)] ring-2 ring-[var(--main-d)]" : "border-line hover:border-[var(--main-d)]",
       )}
     >
       {/* 썸네일 칸은 늘 정사각형 — 이미지는 그 안에 맞춰 넣는다(세로로 긴 썸네일이 카드를 늘리지 않게) */}

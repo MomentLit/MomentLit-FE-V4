@@ -99,7 +99,15 @@ const railReservePx = (width: number) => (width >= 640 ? 96 : 62);
 /** 화면에서 끌기·스냅 허용 거리(px). */
 const SNAP_PX = 8;
 const DRAG_THRESHOLD_PX = 4;
-const TAPE = "#f2bc2e";
+/**
+ * 도면 색 = 의미 — 바깥벽은 노랑, 안쪽 벽(칸막이)은 보라, 고른 것은 브랜드 파랑, 축척 잴 때는 분홍.
+ * 사이트 스펙트럼 색에서 가져오되 흰 바탕·도면 위에서 보이게 조금 진한 단계를 쓴다.
+ */
+const OUTER = "var(--yellow-600)";
+const OUTER_FILL = "rgba(230,176,51,.12)";
+const INNER = "#9a7cf2";
+const SELECT = "var(--main-d)";
+const SCALE = "#e46fcb";
 
 function isTypingTarget(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName));
@@ -715,8 +723,8 @@ export function PlanEditor({
         {closed && outer.length >= 3 ? (
           <polygon
             points={outer.map((p) => p.join(",")).join(" ")}
-            fill={background ? "rgba(242,188,46,.12)" : "var(--wash, #f4f4f2)"}
-            stroke="currentColor"
+            fill={background ? OUTER_FILL : "var(--wash, #f4f4f2)"}
+            stroke={OUTER}
             strokeWidth={5}
             strokeLinejoin="miter"
             vectorEffect="non-scaling-stroke"
@@ -725,7 +733,7 @@ export function PlanEditor({
           <polyline
             points={outer.map((p) => p.join(",")).join(" ")}
             fill="none"
-            stroke="currentColor"
+            stroke={OUTER}
             strokeWidth={5}
             strokeLinejoin="miter"
             vectorEffect="non-scaling-stroke"
@@ -739,7 +747,7 @@ export function PlanEditor({
           return (
             <g key={`wall-${i}`} pointerEvents={blocksHits ? "none" : undefined}>
               {selected && (
-                <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={TAPE} strokeWidth={7} vectorEffect="non-scaling-stroke" />
+                <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={SELECT} strokeWidth={7} vectorEffect="non-scaling-stroke" />
               )}
               <line
                 x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
@@ -757,7 +765,7 @@ export function PlanEditor({
           const selected = current?.kind === "inner" && current.index === i;
           return (
             <g key={`inner-${i}`} pointerEvents={blocksHits ? "none" : undefined}>
-              <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={selected ? TAPE : "currentColor"} strokeWidth={4} vectorEffect="non-scaling-stroke" />
+              <line x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]} stroke={selected ? SELECT : INNER} strokeWidth={4} vectorEffect="non-scaling-stroke" />
               <line
                 x1={a[0]} y1={a[1]} x2={b[0]} y2={b[1]}
                 stroke="transparent"
@@ -793,7 +801,7 @@ export function PlanEditor({
               fontWeight={selected ? 700 : 500}
               textAnchor="middle"
               dominantBaseline="middle"
-              fill={selected ? "#a37a00" : "currentColor"}
+              fill={selected ? SELECT : "currentColor"}
               transform={`rotate(${upright} ${tx} ${tz})`}
               pointerEvents="none"
             >
@@ -812,7 +820,7 @@ export function PlanEditor({
               cx={x}
               cy={z}
               r={px(selected ? 7 : 6)}
-              fill={selected ? TAPE : "white"}
+              fill={selected ? SELECT : "white"}
               stroke="currentColor"
               strokeWidth={2}
               vectorEffect="non-scaling-stroke"
@@ -827,7 +835,7 @@ export function PlanEditor({
         {drawing && previewFrom && hover && (
           <line
             x1={previewFrom[0]} y1={previewFrom[1]} x2={hover[0]} y2={hover[1]}
-            stroke={drawMode === "scale" ? "#1d6fd1" : TAPE}
+            stroke={drawMode === "scale" ? SCALE : drawMode === "inner" ? INNER : OUTER}
             strokeWidth={3}
             strokeDasharray="6 5"
             vectorEffect="non-scaling-stroke"
@@ -835,35 +843,35 @@ export function PlanEditor({
           />
         )}
         {drawing && hover && (
-          <circle cx={hover[0]} cy={hover[1]} r={px(4)} fill={drawMode === "scale" ? "#1d6fd1" : TAPE} pointerEvents="none" />
+          <circle cx={hover[0]} cy={hover[1]} r={px(4)} fill={drawMode === "scale" ? SCALE : drawMode === "inner" ? INNER : OUTER} pointerEvents="none" />
         )}
         {/* 끊긴 바깥벽 — 이어 그릴 수 있는 양 끝점 */}
         {drawMode === "outer" && !closed && outerPaused && outer.length > 0 && [outer[0], outer[outer.length - 1]].map(([x, z], i) => (
           <circle
             key={`end-${i}`}
             cx={x} cy={z} r={px(STICK_PX)}
-            fill={TAPE} fillOpacity={0.25} stroke={TAPE} strokeWidth={2}
+            fill={OUTER} fillOpacity={0.25} stroke={OUTER} strokeWidth={2}
             vectorEffect="non-scaling-stroke" pointerEvents="none"
           />
         ))}
         {drawMode === "outer" && !closed && !outerPaused && outer.length >= 3 && (
           <circle
             cx={outer[0][0]} cy={outer[0][1]} r={px(CLOSE_PX)}
-            fill="none" stroke={TAPE} strokeWidth={2} strokeDasharray="4 3"
+            fill="none" stroke={OUTER} strokeWidth={2} strokeDasharray="4 3"
             vectorEffect="non-scaling-stroke" pointerEvents="none"
           />
         )}
-        {pending && <circle cx={pending[0]} cy={pending[1]} r={px(6)} fill={TAPE} stroke="currentColor" strokeWidth={2} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
+        {pending && <circle cx={pending[0]} cy={pending[1]} r={px(6)} fill={INNER} stroke="currentColor" strokeWidth={2} vectorEffect="non-scaling-stroke" pointerEvents="none" />}
         {scalePoints.length > 0 && (
           <g pointerEvents="none">
             {scalePoints.length === 2 && (
               <line
                 x1={scalePoints[0][0]} y1={scalePoints[0][1]} x2={scalePoints[1][0]} y2={scalePoints[1][1]}
-                stroke="#1d6fd1" strokeWidth={3} vectorEffect="non-scaling-stroke"
+                stroke={SCALE} strokeWidth={3} vectorEffect="non-scaling-stroke"
               />
             )}
             {scalePoints.map(([x, z], i) => (
-              <circle key={`s-${i}`} cx={x} cy={z} r={px(6)} fill="#1d6fd1" stroke="white" strokeWidth={2} vectorEffect="non-scaling-stroke" />
+              <circle key={`s-${i}`} cx={x} cy={z} r={px(6)} fill={SCALE} stroke="white" strokeWidth={2} vectorEffect="non-scaling-stroke" />
             ))}
           </g>
         )}
@@ -873,6 +881,23 @@ export function PlanEditor({
             <span className="text-sm font-bold text-ink">{area.toFixed(1)}㎡</span> · 약 {toPyeong(area).toFixed(1)}평
             {ceilingHeight ? ` · 천장 ${ceilingHeight.toFixed(2)}m` : ""}
           </div>
+        )}
+
+        {/* 색 = 의미 — 무엇이 어떤 색인지 */}
+        {(outer.length > 0 || inner.length > 0 || drawMode === "scale") && (
+          <ul className="pointer-events-none absolute bottom-3 right-3 flex flex-wrap items-center gap-x-3 gap-y-1 border border-line bg-white/90 px-2.5 py-1.5 text-[0.68rem] font-medium text-soft" aria-label="도면 색 안내">
+            {[
+              { label: "바깥벽", color: OUTER },
+              { label: "안쪽 벽", color: INNER },
+              { label: "고른 것", color: SELECT },
+              ...(drawMode === "scale" ? [{ label: "축척", color: SCALE }] : []),
+            ].map((item) => (
+              <li key={item.label} className="flex items-center gap-1.5">
+                <span className="h-[3px] w-3.5" style={{ background: item.color }} aria-hidden />
+                {item.label}
+              </li>
+            ))}
+          </ul>
         )}
 
         {/* 왼쪽 도구 막대 — 도구(고르기·그리기·점 추가·축척), 동작(자동 인식·되돌리기 등), 화면 맞춤 */}
@@ -890,6 +915,14 @@ export function PlanEditor({
               onClick={() => changeMode(toolMode === mode && mode !== "none" ? "none" : mode)}
             />
           ))}
+          <RailButton
+            label="고른 것만 지우기"
+            caption="선택 삭제"
+            hint="고른 점이나 안쪽 벽 하나만 지워요(Delete). 바깥벽은 점을 지워서 고쳐요."
+            icon={IconTrash}
+            disabled={!current || current.kind === "outer"}
+            onClick={deleteSelected}
+          />
           {actions.length > 0 && <RailDivider />}
           {actions.map((action) => (
             <RailButton

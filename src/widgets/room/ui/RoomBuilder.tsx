@@ -2,6 +2,7 @@
 
 import { useCallback, useMemo, useRef, useState } from "react";
 import { getErrorMessage } from "@/shared/api";
+import { ConfirmDialog } from "@/shared/ui";
 import Link from "next/link";
 import {
   IconArrowBackUp,
@@ -66,6 +67,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
   const historyRef = useRef<Pick<RoomDraft, "corners" | "inner">[]>([]);
   const lastChangeRef = useRef(0);
   const [canUndo, setCanUndo] = useState(false);
+  const [confirmClear, setConfirmClear] = useState(false);
   const [pickMode, setPickMode] = useState<PickMode>("corners");
   const [hint, setHint] = useState<string | null>(null);
   // 오른쪽 정보 칸 — 접으면 사진·미니어처를 넓게 쓴다
@@ -215,7 +217,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
       busy: detecting,
     },
     { id: "undo", label: "되돌리기", caption: "되돌리기", hint: "방금 한 일을 취소해요.", icon: IconArrowBackUp, onClick: undo, disabled: busy || !canUndo },
-    { id: "clear", label: "모서리 처음부터", caption: "지우기", hint: "찍은 모서리와 안쪽 벽을 모두 지워요.", icon: IconEraser, onClick: clearCorners, disabled: busy || draft.corners.length === 0 },
+    { id: "clear", label: "모서리 전체 지우기", caption: "전체 삭제", hint: "찍은 모서리와 안쪽 벽을 모두 지워요.", icon: IconEraser, onClick: () => setConfirmClear(true), disabled: busy || draft.corners.length === 0 },
   ];
   // '추천' 표시 — 모서리를 찾았으면 천장 높이 확인, 그다음 도면에서 다듬기
   const recommendCeiling = hasRoom && !heightChecked;
@@ -336,7 +338,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
                 onClick={() => void handleDetect()}
               />
               <RailButton label="되돌리기" caption="되돌리기" hint="방금 한 일을 취소해요." icon={IconArrowBackUp} disabled={busy || !canUndo} onClick={undo} />
-              <RailButton label="모서리 처음부터" caption="지우기" hint="찍은 모서리와 안쪽 벽을 모두 지워요." icon={IconEraser} disabled={busy || draft.corners.length === 0} onClick={clearCorners} />
+              <RailButton label="모서리 전체 지우기" caption="전체 삭제" hint="찍은 모서리와 안쪽 벽을 모두 지워요." icon={IconEraser} disabled={busy || draft.corners.length === 0} onClick={() => setConfirmClear(true)} />
             </ToolRail>
           )}
           {view !== "plan" && (
@@ -422,6 +424,19 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, title, backHref, 
           </aside>
         )}
       </div>
+      {confirmClear && (
+        <ConfirmDialog
+          title="모서리 전체 지우기"
+          confirmLabel="전체 지우기"
+          onConfirm={() => {
+            setConfirmClear(false);
+            clearCorners();
+          }}
+          onCancel={() => setConfirmClear(false)}
+        >
+          찍은 모서리와 안쪽 벽을 모두 지워요. 하나만 지우려면 ‘도면’에서 점이나 안쪽 벽을 고르고 ‘선택 삭제’나 Delete를 누르세요. 지운 뒤에도 ‘되돌리기’로 살릴 수 있어요.
+        </ConfirmDialog>
+      )}
     </div>
   );
 }

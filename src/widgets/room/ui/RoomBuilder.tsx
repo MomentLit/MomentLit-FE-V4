@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getErrorMessage } from "@/shared/api";
 import { ConfirmDialog } from "@/shared/ui";
 import Link from "next/link";
@@ -63,8 +63,13 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [draft, setDraft] = useState<RoomDraft>(() => initialDraft ?? createRoomDraft(scene.image_url));
+  const latestDraftRef = useRef(draft);
+  useLayoutEffect(() => {
+    latestDraftRef.current = draft;
+  }, [draft]);
   // "plan" — 위에서 본 도면에서 벽 길이·꼭짓점을 수치로 고친다
   const [view, setView] = useState<RoomView | "plan">("photo");
+  const [planFitVersion, setPlanFitVersion] = useState(0);
   // 되돌리기 기록(모서리·안쪽 벽). 끌기처럼 잇따른 변경은 한 번으로 묶는다.
   const historyRef = useRef<RoomDraft[]>([]);
   const lastChangeRef = useRef(0);
@@ -109,7 +114,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     const result = await detection.detect(draft.sceneImageUrl);
     if (!result) return;
     const corners = floorCornersFromLayout(result.uv);
-    rememberDraft(draft);
+    rememberDraft(latestDraftRef.current);
     setDraft((current) => withCeilingHeight({
       ...current,
       imageUrl: result.image_url,
@@ -183,6 +188,9 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     setCanUndo(historyRef.current.length > 0);
     lastChangeRef.current = 0;
     if (previous) {
+      if (previous.cameraHeight !== draft.cameraHeight) {
+        setPlanFitVersion((version) => version + 1);
+      }
       setDraft(previous);
       setHint("방금 변경을 되돌렸어요.");
     }
@@ -326,6 +334,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
           />
           {view === "plan" && summary && (
             <PlanEditor
+              key={planFitVersion}
               outer={summary.outer}
               inner={summary.inner}
               onChange={handlePlanChange}

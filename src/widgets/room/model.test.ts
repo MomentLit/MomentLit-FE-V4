@@ -9,6 +9,7 @@ import {
   planRoomSaves,
   roomPlacement,
   roomToDraft,
+  scaleRoomFromWall,
   setRoomForScene,
   summarizeRoom,
   toRoomRequest,
@@ -29,6 +30,41 @@ function draftOf(points: [number, number][], h = 1.5): RoomDraft {
 }
 
 const RECT: [number, number][] = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]];
+
+describe("벽 하나로 파노라마 방 크기 맞추기", () => {
+  it.each([null, { z0: 0.9, z1: -1.5 }])("천장 비율(%j) 유무와 관계없이 사진에서 보이는 모서리를 유지한다", (layoutRatio) => {
+    const draft = { ...draftOf(RECT), layoutRatio, inner: innerToRelative([[[0, -1.5], [0, 0.5]]], 1.5) };
+    const current = summarizeRoom(draft)!;
+    const result = scaleRoomFromWall(draft, current.wallLengths[0], 6);
+    expect(result.error).toBeUndefined();
+    const scaled = result.draft!;
+    const next = summarizeRoom(scaled)!;
+    expect(scaled.corners).toBe(draft.corners);
+    expect(scaled.imageUrl).toBe(draft.imageUrl);
+    expect(scaled.layoutRatio).toBe(layoutRatio);
+    expect(scaled.cameraHeight).toBeCloseTo(2.25);
+    expect(scaled.ceilingHeight).toBeCloseTo(3.6);
+    expect(next.wallLengths[0]).toBeCloseTo(6);
+    expect(next.wallLengths[1]).toBeCloseTo(4.5);
+    expect(next.inner[0][1][1]).toBeCloseTo(0.75);
+    for (const [index, [outerX, outerZ]] of next.outer.entries()) {
+      const [originalX, originalZ] = current.outer[index];
+      const originalUv = directionToUv([originalX, draft.ceilingHeight - draft.cameraHeight, originalZ]);
+      const scaledUv = directionToUv([outerX, scaled.ceilingHeight - scaled.cameraHeight, outerZ]);
+      expect(scaledUv[0]).toBeCloseTo(originalUv[0], 8);
+      expect(scaledUv[1]).toBeCloseTo(originalUv[1], 8);
+    }
+  });
+
+  it.each([[0, 6], [4, Infinity], [4, -1], [4, 2], [4, 8]])("유효하지 않거나 높이 제한을 넘는 축척(%s → %s)은 적용하지 않는다", (current, actual) => {
+    const draft = draftOf(RECT);
+    const result = scaleRoomFromWall(draft, current, actual);
+    expect(result.draft).toBeUndefined();
+    expect(result.error).toBeTruthy();
+    expect(draft.cameraHeight).toBe(1.5);
+    expect(draft.ceilingHeight).toBe(2.4);
+  });
+});
 
 describe("파노라마 방의 안쪽 벽", () => {
   it("촬영 높이 기준으로 저장해서, 촬영 높이를 바꾸면 바깥벽과 같은 비율로 커진다", () => {

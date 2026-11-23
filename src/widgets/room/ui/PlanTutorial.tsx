@@ -1,9 +1,8 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore, type ReactNode } from "react";
-import { IconArrowLeft, IconArrowRight, IconCheck, IconX } from "@tabler/icons-react";
-import { Modal } from "@/shared/ui/Modal";
-import { cn } from "@/shared/lib";
+import type { ReactNode } from "react";
+import { IconCheck, IconX } from "@tabler/icons-react";
+import { RoomTutorial, shouldAutoOpenRoomTutorial, type RoomTutorialStep } from "./RoomTutorial";
 
 /** 도면 편집기의 색과 같게 — 바깥벽 노랑, 안쪽 벽 보라, 고른 것 파랑. */
 const TAPE = "var(--yellow-600)";
@@ -18,32 +17,7 @@ const SEEN_KEY = "momentlit.planTutorialSeen";
 
 /** 처음 들어온 사람에게만 자동으로 띄울지 — 브라우저 저장소가 막혀 있으면 띄우지 않는다. */
 export function shouldAutoOpenPlanTutorial() {
-  try {
-    return window.localStorage.getItem(SEEN_KEY) === null;
-  } catch {
-    return false;
-  }
-}
-
-function markSeen() {
-  try {
-    window.localStorage.setItem(SEEN_KEY, "1");
-  } catch {
-    // 저장소가 막혀 있으면 다음에 또 볼 뿐이다
-  }
-}
-
-const REDUCED_MOTION = "(prefers-reduced-motion: reduce)";
-
-function subscribeReducedMotion(onChange: () => void) {
-  const query = window.matchMedia(REDUCED_MOTION);
-  query.addEventListener("change", onChange);
-  return () => query.removeEventListener("change", onChange);
-}
-
-/** 움직임 줄이기를 켰으면 그림을 다 그린 상태로 멈춰 보여 준다. */
-function useReducedMotion() {
-  return useSyncExternalStore(subscribeReducedMotion, () => window.matchMedia(REDUCED_MOTION).matches, () => false);
+  return shouldAutoOpenRoomTutorial(SEEN_KEY);
 }
 
 // ---------- 그림 조각 — SMIL로 한 시간축 위에서 차례로 나타난다(GIF처럼 반복) ----------
@@ -235,13 +209,7 @@ function StepEdit() {
   );
 }
 
-interface Step {
-  title: string;
-  body: ReactNode;
-  image: (reduced: boolean) => ReactNode;
-}
-
-const STEPS: Step[] = [
+const STEPS = [
   {
     title: "‘벽’ 도구로 모서리를 차례로 눌러요",
     body: "왼쪽 막대에서 ‘벽’을 고르고 방 모서리를 한 바퀴 돌며 눌러요. 누를 때마다 앞 점과 벽으로 이어져요. 잘못 찍었으면 ‘되돌리기’를 눌러요.",
@@ -291,87 +259,9 @@ const STEPS: Step[] = [
     ),
     image: () => <StepEdit />,
   },
-];
+] satisfies [RoomTutorialStep, ...RoomTutorialStep[]];
 
 /** 도면 그리는 법 — 장면마다 움직이는 그림과 짧은 설명을 넘겨 본다. */
 export function PlanTutorial({ onClose }: { onClose: () => void }) {
-  const [index, setIndex] = useState(0);
-  const reduced = useReducedMotion();
-  const step = STEPS[index];
-  const last = index === STEPS.length - 1;
-
-  function close() {
-    markSeen();
-    onClose();
-  }
-
-  useEffect(() => {
-    function handleKeyDown(event: KeyboardEvent) {
-      if (event.key === "ArrowRight") setIndex((i) => Math.min(i + 1, STEPS.length - 1));
-      else if (event.key === "ArrowLeft") setIndex((i) => Math.max(i - 1, 0));
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, []);
-
-  return (
-    <Modal
-      label="도면 그리는 법"
-      onClose={close}
-      panelClassName="flex w-full max-w-[520px] flex-col gap-4 border border-line bg-white p-5 sm:p-6"
-    >
-      <div className="flex items-center justify-between gap-3">
-        <span className="font-mono text-[0.62rem] font-medium uppercase tracking-[0.18em] text-soft">
-          도면 그리는 법 · {index + 1}/{STEPS.length}
-        </span>
-        <button type="button" onClick={close} aria-label="닫기" className="button button--outline button--sm button--icon">
-          <IconX size={16} stroke={2} aria-hidden />
-        </button>
-      </div>
-
-      {/* key로 장면을 새로 그려 — 넘길 때마다 그림이 처음부터 돈다 */}
-      <div key={index} className="aspect-[8/5] w-full border border-line bg-wash p-2">
-        {step.image(reduced)}
-      </div>
-
-      <div className="flex min-h-[104px] flex-col gap-1.5" aria-live="polite">
-        <h2 className="text-base font-bold text-ink">{step.title}</h2>
-        <p className="text-sm leading-relaxed text-soft">{step.body}</p>
-      </div>
-
-      <div className="flex items-center justify-between gap-3">
-        <div className="flex gap-1.5" role="tablist" aria-label="장면">
-          {STEPS.map((s, i) => (
-            <button
-              key={s.title}
-              type="button"
-              role="tab"
-              aria-selected={i === index}
-              aria-label={`${i + 1}. ${s.title}`}
-              onClick={() => setIndex(i)}
-              className={cn("h-2 transition-all", i === index ? "w-5 bg-ink" : "w-2 bg-line-2 hover:bg-soft")}
-            />
-          ))}
-        </div>
-        <div className="flex gap-2">
-          {index > 0 && (
-            <button type="button" onClick={() => setIndex(index - 1)} className="button button--outline button--sm">
-              <IconArrowLeft size={15} stroke={2} aria-hidden />
-              이전
-            </button>
-          )}
-          {last ? (
-            <button type="button" onClick={close} className="button button--primary button--sm">
-              시작하기
-            </button>
-          ) : (
-            <button type="button" onClick={() => setIndex(index + 1)} className="button button--primary button--sm">
-              다음
-              <IconArrowRight size={15} stroke={2} aria-hidden />
-            </button>
-          )}
-        </div>
-      </div>
-    </Modal>
-  );
+  return <RoomTutorial label="도면 그리는 법" seenKey={SEEN_KEY} steps={STEPS} onClose={onClose} />;
 }

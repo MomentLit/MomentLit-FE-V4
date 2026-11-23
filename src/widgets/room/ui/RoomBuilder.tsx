@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { getErrorMessage } from "@/shared/api";
 import { ConfirmDialog } from "@/shared/ui";
 import Link from "next/link";
@@ -9,10 +9,12 @@ import {
   IconArrowLeft,
   IconCube,
   IconEraser,
+  IconHelp,
   IconLayoutBoard,
   IconRuler2,
   IconVectorTriangle,
   IconView360,
+  IconWalk,
   IconWand,
 } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
@@ -25,6 +27,7 @@ import {
   MAX_CEILING_HEIGHT,
   MIN_CAMERA_HEIGHT,
   MIN_CEILING_HEIGHT,
+  scaleRoomFromWall,
   summarizeRoom,
   validateRoomDraft,
   withCameraHeight,
@@ -34,6 +37,7 @@ import {
 } from "../model";
 import { HeightField } from "./HeightField";
 import { PanelSection as Section, PanelToggleButton, RailButton, RailDivider, ToolRail } from "./EditorChrome";
+import { PanoramaTutorial, shouldAutoOpenPanoramaTutorial } from "./PanoramaTutorial";
 import { PlanEditor, type PlanShape, type PlanTool } from "./PlanEditor";
 import { RoomStageCanvas } from "./RoomStageCanvas";
 import { ViewSwitch } from "./ViewSwitch";
@@ -62,7 +66,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
   // "plan" — 위에서 본 도면에서 벽 길이·꼭짓점을 수치로 고친다
   const [view, setView] = useState<RoomView | "plan">("photo");
   // 되돌리기 기록(모서리·안쪽 벽). 끌기처럼 잇따른 변경은 한 번으로 묶는다.
-  const historyRef = useRef<Pick<RoomDraft, "corners" | "inner">[]>([]);
+  const historyRef = useRef<RoomDraft[]>([]);
   const lastChangeRef = useRef(0);
   const [canUndo, setCanUndo] = useState(false);
   const [confirmClear, setConfirmClear] = useState(false);
@@ -70,6 +74,10 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
   const [hint, setHint] = useState<string | null>(null);
   // 오른쪽 정보 칸 — 접으면 사진·미니어처를 넓게 쓴다
   const [panelOpen, setPanelOpen] = useState(true);
+  const [tutorialOpen, setTutorialOpen] = useState(false);
+  useEffect(() => {
+    if (shouldAutoOpenPanoramaTutorial()) queueMicrotask(() => setTutorialOpen(true));
+  }, []);
   // 추천 표시용 — 높이를 확인했는지(고쳤거나 천장을 쟀거나, 저장된 방을 다시 열었으면), 도면 보기를 열어 봤는지
   const [heightChecked, setHeightChecked] = useState(initialDraft !== null);
   const [planVisited, setPlanVisited] = useState(false);
@@ -89,12 +97,19 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     [draft.corners, draft.cameraHeight, draft.ceilingHeight, summary],
   );
 
+  const rememberDraft = useCallback((previous: RoomDraft) => {
+    historyRef.current.push(previous);
+    lastChangeRef.current = 0;
+    setCanUndo(true);
+  }, []);
+
   async function handleDetect() {
     setHint(null);
     // 이미 자동 인식으로 수평을 맞춘 사진이어도, 다시 찾을 땐 원래 장면 사진으로 한다.
     const result = await detection.detect(draft.sceneImageUrl);
     if (!result) return;
     const corners = floorCornersFromLayout(result.uv);
+    rememberDraft(draft);
     setDraft((current) => withCeilingHeight({
       ...current,
       imageUrl: result.image_url,
@@ -103,19 +118,18 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     }, current.ceilingHeight));
     setView("photo");
     setPickMode("corners");
-    setHint(`모서리 ${corners.length}개를 찾았어요. 어긋난 점은 끌어서 고치고, 천장 높이를 맞춰 주세요.`);
+    setHint(`바닥 모서리 ${corners.length}개와 천장 비율을 찾았어요. 어긋난 점만 고치고, 실측값이 있으면 크기를 맞춰 보세요.`);
   }
 
   /** 모서리(와 안쪽 벽)를 바꾸고 되돌리기 기록에 남긴다 — 0.5초 안에 잇따른 변경(끌기)은 한 번으로 친다. */
   const changeShape = useCallback((corners: Vec2[], inner?: RoomDraft["inner"]) => {
     const now = Date.now();
     if (now - lastChangeRef.current > 500) {
-      historyRef.current.push({ corners: draft.corners, inner: draft.inner });
-      setCanUndo(true);
+      rememberDraft(draft);
     }
     lastChangeRef.current = now;
     setDraft((current) => ({ ...current, corners, inner: inner ?? current.inner }));
-  }, [draft.corners, draft.inner]);
+  }, [draft, rememberDraft]);
 
   const handleCornersChange = useCallback((corners: Vec2[]) => {
     setHint(null);
@@ -130,6 +144,16 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     changeShape(outer.map(([x, z]) => directionToUv([x, -draft.cameraHeight, z])), innerToRelative(inner, draft.cameraHeight));
   }, [changeShape, draft.cameraHeight]);
 
+  function handleScaleOuterWall(current: number, actual: number) {
+    if (saving || detecting) return "작업이 끝난 뒤 다시 시도해 주세요.";
+    const result = scaleRoomFromWall(draft, current, actual);
+    if (!result.draft) return result.error;
+    rememberDraft(draft);
+    setDraft(result.draft);
+    setHint(null);
+    return null;
+  }
+
   const handleCeilingPick = useCallback((uv: Vec2) => {
     const floorPoints = outerFromCorners(draft.corners, draft.cameraHeight) ?? [];
     const measured = measureCeilingHeight(uv, floorPoints, draft.cameraHeight);
@@ -137,7 +161,12 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
       setHint("이미 찍은 바닥 모서리 바로 위의 천장 모서리를 눌러 주세요.");
       return;
     }
-    const ceilingHeight = round(Math.max(MIN_CEILING_HEIGHT, Math.min(MAX_CEILING_HEIGHT, measured)), 2);
+    if (!(measured >= MIN_CEILING_HEIGHT && measured <= MAX_CEILING_HEIGHT)) {
+      setHint(`천장 높이가 ${MIN_CEILING_HEIGHT}~${MAX_CEILING_HEIGHT}m 범위를 벗어나요. 바닥 모서리 바로 위의 점을 다시 눌러 주세요.`);
+      return;
+    }
+    const ceilingHeight = round(measured, 2);
+    rememberDraft(draft);
     // 잰 결과도 "천장·바닥 거리 비율"이라, 이후엔 높이 하나를 바꾸면 다른 하나가 따라온다.
     setDraft({
       ...draft,
@@ -147,19 +176,21 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     setHint(`천장 높이를 ${ceilingHeight.toFixed(2)}m로 맞췄어요.`);
     setHeightChecked(true);
     setPickMode("corners");
-  }, [draft]);
+  }, [draft, rememberDraft]);
 
   function undo() {
     const previous = historyRef.current.pop();
     setCanUndo(historyRef.current.length > 0);
     lastChangeRef.current = 0;
-    if (previous) setDraft((current) => ({ ...current, ...previous }));
+    if (previous) {
+      setDraft(previous);
+      setHint("방금 변경을 되돌렸어요.");
+    }
   }
 
   function clearCorners() {
     if (draft.corners.length > 0) {
-      historyRef.current.push({ corners: draft.corners, inner: draft.inner });
-      setCanUndo(true);
+      rememberDraft(draft);
     }
     setDraft((current) => ({ ...current, corners: [], inner: [], layoutRatio: null, imageUrl: current.sceneImageUrl }));
     setView("photo");
@@ -178,8 +209,17 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     setHint("이미 찍은 바닥 모서리 바로 위의 천장 모서리를 눌러 주세요.");
   }
 
+  function openPlan() {
+    setView("plan");
+    setPickMode("corners");
+    setPlanVisited(true);
+    setHint(null);
+  }
+
   const guide = view === "plan"
-    ? "벽을 눌러 길이(mm)를 고치거나 점을 끌어 옮겨요. 고친 모양은 사진 시점과 미니어처에도 바로 반영돼요."
+    ? "실제로 잰 바깥벽 하나를 눌러 길이를 넣으면, 사진을 바꾸지 않고 방 전체 크기를 맞춰요."
+    : view === "walk"
+    ? "화면을 끌어 천장을 확인해 보세요. 어긋나면 ‘천장 맞추기’로 고칠 수 있어요."
     : pickMode === "ceiling"
     ? "천장과 벽이 만나는 모서리를 눌러 주세요."
     : draft.corners.length < 3
@@ -218,8 +258,8 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     { id: "clear", label: "모서리 전체 지우기", caption: "전체 삭제", hint: "찍은 모서리와 안쪽 벽을 모두 지워요.", icon: IconEraser, onClick: () => setConfirmClear(true), disabled: busy || draft.corners.length === 0 },
   ];
   // '추천' 표시 — 모서리를 찾았으면 천장 높이 확인, 그다음 도면에서 다듬기
-  const recommendCeiling = hasRoom && !heightChecked;
-  const recommendPlan = hasRoom && heightChecked && !planVisited;
+  const recommendCeiling = hasRoom && !draft.layoutRatio && !heightChecked;
+  const recommendPlan = hasRoom && (!!draft.layoutRatio || heightChecked) && !planVisited;
   const statusText = saveError ?? (validationError && draft.corners.length >= 3 ? validationError : null);
   const status = detection.state.status === "running"
     ? detection.state.queued ? "차례를 기다리는 중이에요…" : "사진에서 방 모서리를 찾는 중이에요. 10초쯤 걸려요."
@@ -238,18 +278,27 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
           options={[
             { id: "photo", label: "사진 시점", icon: IconView360 },
             { id: "miniature", label: "미니어처", icon: IconCube, disabled: !summary },
+            { id: "walk", label: "1인칭", icon: IconWalk, disabled: validationError !== null },
             { id: "plan", label: "도면", icon: IconLayoutBoard, disabled: !summary },
           ]}
           value={view}
           onChange={(next) => {
+            if (next === "plan") {
+              openPlan();
+              return;
+            }
             setView(next);
+            setHint(null);
             if (next !== "photo") setPickMode("corners");
-            if (next === "plan") setPlanVisited(true);
           }}
           className="order-3 w-full sm:order-2 sm:w-auto [&>button]:flex-1 sm:[&>button]:flex-none"
         />
         {/* 좁은 화면에선 제목 줄 오른쪽에, 시점 바꾸기는 다음 줄 전체 폭으로 */}
         <div className="order-2 flex items-center gap-2 sm:order-3">
+          <button type="button" onClick={() => setTutorialOpen(true)} aria-label="파노라마 방 만드는 법" title="파노라마 방 만드는 법" className="button button--outline button--sm">
+            <IconHelp size={16} stroke={2} aria-hidden />
+            <span className="hidden sm:inline">만드는 법</span>
+          </button>
           <PanelToggleButton open={panelOpen} onToggle={() => setPanelOpen((open) => !open)} />
           <button
             type="button"
@@ -282,7 +331,9 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
               onChange={handlePlanChange}
               ceilingHeight={draft.ceilingHeight}
               modes={["none", "wall", "point"]}
+              shortcutsEnabled={!tutorialOpen}
               actions={actions}
+              onScaleOuterWall={handleScaleOuterWall}
               className="absolute inset-0"
             />
           )}
@@ -302,27 +353,23 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
                 }}
               />
               <RailButton
-                label="천장 재기"
+                label="천장 맞추기"
                 caption="천장"
                 hint="바닥 모서리 바로 위의 천장 모서리를 누르면 천장 높이가 맞춰져요."
                 icon={IconRuler2}
                 active={view === "photo" && pickMode === "ceiling"}
                 highlight={recommendCeiling}
-                disabled={busy || draft.corners.length === 0}
+                disabled={busy || !summary}
                 onClick={toggleCeilingMeasure}
               />
               <RailButton
-                label="도면에서 다듬기"
+                label="도면에서 실제 크기 맞추기"
                 caption="도면"
-                hint="위에서 본 도면으로 벽 길이를 고치고, ‘벽’으로 칸막이를, ‘점 추가’로 점을 더해요."
+                hint="실제로 잰 바깥벽 하나의 길이로 방 전체 크기를 맞춰요. 치수를 모르면 건너뛰어도 돼요."
                 icon={IconLayoutBoard}
                 highlight={recommendPlan}
                 disabled={busy || !summary}
-                onClick={() => {
-                  setView("plan");
-                  setPickMode("corners");
-                  setPlanVisited(true);
-                }}
+                onClick={openPlan}
               />
               <RailDivider />
               <RailButton
@@ -357,7 +404,26 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
               </div>
             )}
 
-            <Section title="높이" summary={`천장 ${draft.ceilingHeight.toFixed(2)}m · 촬영 ${draft.cameraHeight.toFixed(2)}m`}>
+            {summary && (
+              <Section title="크기와 천장 맞추기">
+                <div className="flex flex-col gap-2.5">
+                  <button type="button" onClick={openPlan} disabled={busy} className="button button--primary button--sm self-start">
+                    <IconLayoutBoard size={16} aria-hidden /> 도면에서 실제 크기 맞추기
+                  </button>
+                  <p className="text-xs leading-relaxed text-soft">실제로 잰 바깥벽 하나의 길이를 넣으세요. 치수를 모르면 지금 크기로 저장해도 돼요.</p>
+                  <button type="button" onClick={toggleCeilingMeasure} disabled={busy} className="button button--outline button--sm self-start">
+                    <IconRuler2 size={16} aria-hidden /> {pickMode === "ceiling" ? "천장 맞추기 취소" : "사진에서 천장 맞추기"}
+                  </button>
+                  <p className="text-xs leading-relaxed text-soft">
+                    {draft.layoutRatio
+                      ? "사진에서 찾은 천장 비율을 적용했어요. 1인칭에서 어긋나 보일 때만 꼭짓점을 다시 찍으세요."
+                      : "1인칭에서 천장이 어긋나면 바닥 모서리 바로 위의 천장 꼭짓점 하나를 찍으세요."}
+                  </p>
+                </div>
+              </Section>
+            )}
+
+            <Section title="높이 직접 입력" summary={`천장 ${draft.ceilingHeight.toFixed(2)}m · 촬영 ${draft.cameraHeight.toFixed(2)}m`} defaultOpen={false}>
               <div className="flex gap-3">
                 <HeightField
                   label="천장 높이"
@@ -366,6 +432,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
                   max={MAX_CEILING_HEIGHT}
                   disabled={busy}
                   onCommit={(value) => {
+                    rememberDraft(draft);
                     setDraft((current) => withCeilingHeight(current, value));
                     setHeightChecked(true);
                   }}
@@ -377,6 +444,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
                   max={MAX_CAMERA_HEIGHT}
                   disabled={busy}
                   onCommit={(value) => {
+                    rememberDraft(draft);
                     setDraft((current) => withCameraHeight(current, value));
                     setHeightChecked(true);
                   }}
@@ -414,13 +482,14 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
               <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-soft">
                 <li>도구는 화면 왼쪽 막대에 있어요. 마우스를 올리면 설명이 보이고, ‘추천’이 붙은 도구가 지금 쓰면 좋은 도구예요.</li>
                 <li>‘자동으로 모서리 찾기’를 누르거나, 사진 시점에서 바닥과 벽이 만나는 모서리를 차례대로 눌러요. 찍은 점은 끌어서 옮겨요.</li>
-                <li>‘천장 재기’로 바닥 모서리 바로 위의 천장 모서리를 누르면 천장 높이가 맞춰져요.</li>
-                <li>‘도면’에서는 벽을 눌러 길이(mm)를 고치고, ‘점 추가’로 원하는 자리에 점을 넣고, ‘벽’으로 칸막이(안쪽 벽)를 그려요.</li>
+                <li>‘도면’에서 바깥벽 하나의 실측 길이를 넣으면 전체 크기가 맞춰져요. 모양은 점을 끌어서 고쳐요.</li>
+                <li>‘1인칭’에서 천장이 어긋나면 ‘천장 맞추기’로 바닥 모서리 바로 위의 천장 꼭짓점을 누르세요.</li>
               </ul>
             </Section>
           </aside>
         )}
       </div>
+      {tutorialOpen && <PanoramaTutorial onClose={() => setTutorialOpen(false)} />}
       {confirmClear && (
         <ConfirmDialog
           title="모서리 전체 지우기"

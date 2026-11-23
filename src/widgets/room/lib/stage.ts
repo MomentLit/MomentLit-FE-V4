@@ -835,6 +835,7 @@ export class RoomStage {
 
   private handleKeyDown = (event: KeyboardEvent) => {
     if (this.view !== "walk" || isTypingTarget(event.target) || !WALK_KEYS.has(event.code)) return;
+    if (event.target instanceof Element && event.target.closest('[aria-modal="true"]')) return;
     this.walk.keys.add(event.code);
     event.preventDefault();
   };

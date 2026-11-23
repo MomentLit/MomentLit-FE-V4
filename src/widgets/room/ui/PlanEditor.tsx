@@ -163,6 +163,7 @@ export function PlanEditor({
   onScaleLine,
   onScaleReset,
   onCalibrate,
+  onScaleOuterWall,
   onDrawExit,
   className,
 }: {
@@ -195,6 +196,7 @@ export function PlanEditor({
   onScaleReset?: () => void;
   /** 축척을 모를 때 벽 길이를 넣으면 — 지금 길이(m)와 실제 길이(m). */
   onCalibrate?: (current: number, actual: number) => void;
+  onScaleOuterWall?: (current: number, actual: number) => string | null;
   /** 그리는 중 끊을 선이 없을 때 Esc를 한 번 더 누르면 — 그리기를 끝낸다. */
   onDrawExit?: () => void;
   className?: string;
@@ -552,15 +554,27 @@ export function PlanEditor({
       ? [inner[current.index][0], inner[current.index][1]]
       : null;
   const selectedLengthMm = selectedEnds ? Math.round(wallLength(selectedEnds[0], selectedEnds[1]) * 1000) : null;
+  const scaleFromWall = current?.kind === "outer" ? onScaleOuterWall : undefined;
 
   function applyLength() {
     if (!current || current.kind === "vertex" || lengthText === null) return;
-    const mm = Math.round(Number(lengthText));
-    setLengthText(null);
+    const mm = Math.round(Number(lengthText) * (scaleFromWall ? 1000 : 1));
     if (!(mm >= 100 && mm <= 100_000)) {
-      setMessage("벽 길이는 100~100,000mm로 넣어 주세요.");
+      setMessage(scaleFromWall ? "실측 길이는 0.1~100m로 넣어 주세요." : "벽 길이는 100~100,000mm로 넣어 주세요.");
+      if (!scaleFromWall) setLengthText(null);
       return;
     }
+    if (scaleFromWall && selectedEnds) {
+      const currentLength = wallLength(selectedEnds[0], selectedEnds[1]);
+      const error = scaleFromWall(currentLength, mm / 1000);
+      setMessage(error ?? "사진의 모서리를 유지하면서 방 전체 크기를 맞췄어요.");
+      if (error) return;
+      const scale = mm / 1000 / currentLength;
+      setView((previous) => ({ x: previous.x * scale, z: previous.z * scale, w: previous.w * scale, h: previous.h * scale }));
+      setLengthText(null);
+      return;
+    }
+    setLengthText(null);
     if (uncalibrated && onCalibrate && selectedEnds) {
       // 축척을 아직 모르면 — 이 벽을 늘이지 않고, 이 길이로 도면 전체 축척을 맞춘다
       onCalibrate(wallLength(selectedEnds[0], selectedEnds[1]), mm / 1000);
@@ -808,7 +822,7 @@ export function PlanEditor({
               transform={`rotate(${upright} ${tx} ${tz})`}
               pointerEvents="none"
             >
-              {selected ? `${Math.round(length * 1000).toLocaleString()}mm` : `${length.toFixed(2)}m`}
+              {selected && !onScaleOuterWall ? `${Math.round(length * 1000).toLocaleString()}mm` : `${length.toFixed(2)}m`}
             </text>
           );
         })}
@@ -949,26 +963,33 @@ export function PlanEditor({
             <span className="text-sm font-bold text-ink">{selectionTitle}</span>
             {current.kind !== "vertex" && selectedLengthMm !== null && (
               <label className="flex items-center gap-2 text-sm text-ink">
-                길이
+                {scaleFromWall ? "실측 길이" : "길이"}
                 <input
                   ref={lengthInputRef}
                   type="number"
-                  inputMode="numeric"
-                  min={100}
-                  step={10}
-                  value={lengthText ?? String(selectedLengthMm)}
+                  inputMode={scaleFromWall ? "decimal" : "numeric"}
+                  min={scaleFromWall ? 0.1 : 100}
+                  step={scaleFromWall ? 0.001 : 10}
+                  value={lengthText ?? (scaleFromWall ? String(selectedLengthMm / 1000) : String(selectedLengthMm))}
                   onChange={(event) => setLengthText(event.target.value)}
-                  onBlur={applyLength}
+                  onBlur={scaleFromWall ? undefined : applyLength}
                   onKeyDown={handleLengthKeyDown}
                   className={cn(fieldInputClass, "w-24 py-1.5")}
-                  aria-label="벽 길이(mm)"
+                  aria-label={scaleFromWall ? "실측 벽 길이(m)" : "벽 길이(mm)"}
                 />
-                mm
+                {scaleFromWall ? "m" : "mm"}
               </label>
+            )}
+            {scaleFromWall && (
+              <button type="button" onClick={applyLength} disabled={lengthText === null} className="button button--primary button--sm self-start">
+                실제 크기 맞추기
+              </button>
             )}
             <p className="text-xs leading-relaxed text-soft">
               {current.kind === "vertex"
                 ? "끌어서 옮기고, Delete로 지워요."
+                : scaleFromWall
+                  ? "벽 하나의 실측값을 넣으면 사진은 그대로 두고 방과 천장을 함께 맞춰요. 모양만 바꾸려면 모서리 점을 끌어 주세요."
                 : "숫자를 치면 바로 길이를 바꿔요. 점을 넣으려면 ‘선 위에 점 추가’ 도구로 원하는 자리를 누르세요."}
             </p>
             {current.kind !== "outer" && (
@@ -1007,7 +1028,9 @@ export function PlanEditor({
                     : scalePoints.length === 1
                       ? "반대쪽 끝을 누르세요 — 거의 가로·세로면 자동으로 반듯하게 맞춰져요 (1/2)"
                       : "실제 길이를 mm로 넣어 주세요"
-                  : "벽을 누르면 길이(mm)를 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요."}
+                  : onScaleOuterWall
+                    ? "바깥벽을 눌러 실제 크기를 맞추거나, 점을 끌어 방 모양을 고쳐요."
+                    : "벽을 누르면 길이(mm)를 고칠 수 있어요. 점은 끌어서 옮기고, 빈 곳을 끌면 화면이 움직여요."}
         </span>
         {message && <span className="shrink-0 text-xs text-soft" aria-live="polite">{message}</span>}
       </div>

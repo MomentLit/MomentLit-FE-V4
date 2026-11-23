@@ -77,6 +77,22 @@ export function withCameraHeight(draft: RoomDraft, cameraHeight: number): RoomDr
   return { ...draft, cameraHeight: camera, ceilingHeight: round(ceilingFromCameraHeight(camera, z0, z1), 2) };
 }
 
+export function scaleRoomFromWall(draft: RoomDraft, currentLength: number, actualLength: number):
+  { draft: RoomDraft; error?: never } | { draft?: never; error: string } {
+  if (!Number.isFinite(currentLength) || currentLength <= 0 || !Number.isFinite(actualLength) || actualLength <= 0) {
+    return { error: "기준으로 쓸 벽과 실제 길이를 다시 확인해 주세요." };
+  }
+  const scale = actualLength / currentLength;
+  const cameraHeight = draft.cameraHeight * scale;
+  const ceilingHeight = draft.ceilingHeight * scale;
+  if (!(cameraHeight >= MIN_CAMERA_HEIGHT && cameraHeight <= MAX_CAMERA_HEIGHT
+    && ceilingHeight >= MIN_CEILING_HEIGHT && ceilingHeight <= MAX_CEILING_HEIGHT
+    && cameraHeight < ceilingHeight)) {
+    return { error: "이 길이로는 촬영·천장 높이가 지원 범위를 벗어나요. 벽 길이나 사진의 모서리를 다시 확인해 주세요." };
+  }
+  return { draft: { ...draft, cameraHeight, ceilingHeight } };
+}
+
 export interface RoomSummary {
   outer: Vec2[];
   /** 안쪽 벽(m). */

@@ -161,6 +161,7 @@ export class RoomStage {
   private ceilingMesh: Three.Mesh | null = null;
   private selectionBox: Three.BoxHelper | null = null;
   private texture: Three.Texture | null = null;
+  private imageRequest = 0;
   private readonly planWallMaterial: Three.MeshStandardMaterial;
   private readonly planInnerMaterial: Three.MeshStandardMaterial;
   private readonly planCeilingMaterial: Three.MeshStandardMaterial;
@@ -297,10 +298,11 @@ export class RoomStage {
 
   /** 사진을 불러온다. S3 사진이라 CORS(crossOrigin)로 받아야 WebGL 텍스처로 쓸 수 있다. */
   async setImage(url: string): Promise<void> {
+    const request = ++this.imageRequest;
     const loader = new this.three.TextureLoader();
     loader.setCrossOrigin("anonymous");
     const texture = await loader.loadAsync(url);
-    if (this.disposed) {
+    if (this.disposed || request !== this.imageRequest) {
       texture.dispose();
       return;
     }
@@ -835,6 +837,7 @@ export class RoomStage {
 
   private handleKeyDown = (event: KeyboardEvent) => {
     if (this.view !== "walk" || isTypingTarget(event.target) || !WALK_KEYS.has(event.code)) return;
+    if (event.target instanceof Element && event.target.closest('[aria-modal="true"]')) return;
     this.walk.keys.add(event.code);
     event.preventDefault();
   };

@@ -150,6 +150,7 @@ export function PlanEditor({
   onChange,
   ceilingHeight,
   closed = true,
+  shortcutsEnabled = true,
   drawMode: controlledMode,
   onDrawModeChange,
   modes = ["none", "point"],
@@ -171,6 +172,7 @@ export function PlanEditor({
   ceilingHeight?: number;
   /** 바깥벽이 닫혔는지 — 그리는 중이면 false(마지막 점과 첫 점 사이 벽이 없다). */
   closed?: boolean;
+  shortcutsEnabled?: boolean;
   drawMode?: PlanDrawMode;
   onDrawModeChange?: (mode: PlanDrawMode) => void;
   /** 도구 막대에 보일 도구(순서대로). */
@@ -629,6 +631,7 @@ export function PlanEditor({
     keyStateRef.current = { current, deleteSelected, cancelDraw };
   });
   useEffect(() => {
+    if (!shortcutsEnabled) return;
     function handleKeyDown(event: KeyboardEvent) {
       const { current, deleteSelected, cancelDraw } = keyStateRef.current;
       if (event.key === "Escape" && !isTypingTarget(event.target) && cancelDraw()) {
@@ -651,7 +654,7 @@ export function PlanEditor({
     }
     window.addEventListener("keydown", handleKeyDown, true);
     return () => window.removeEventListener("keydown", handleKeyDown, true);
-  }, []);
+  }, [shortcutsEnabled]);
 
   // ---------- 그리기 ----------
 

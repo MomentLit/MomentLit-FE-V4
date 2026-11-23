@@ -396,6 +396,7 @@ export function RoomPlanBuilder({ initialDraft, defaultName, backHref, backLabel
                   outer={draft.outer}
                   inner={draft.inner}
                   closed={draft.closed}
+                  shortcutsEnabled={!tutorialOpen}
                   drawMode={drawMode}
                   onDrawModeChange={changeDrawMode}
                   modes={["none", "wall", "point", "scale"]}

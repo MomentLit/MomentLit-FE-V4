@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, ViewTransition } from "react";
-import { IconArmchair, IconChevronLeft, IconChevronRight, IconCube, IconMaximize, IconView360, IconX } from "@tabler/icons-react";
+import { IconChevronLeft, IconChevronRight, IconCube, IconMaximize, IconView360, IconX } from "@tabler/icons-react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
 
@@ -13,7 +13,6 @@ import { SPACE_CATEGORY_COLORS, SPACE_CATEGORY_LABELS } from "@/entities/space-c
 import { REGION_LABELS } from "@/entities/region";
 import { getSpacePhotoUrls, splitSpaceOptionName, type SpaceDetail } from "@/entities/space";
 import { PanoramaViewerModal, resolvePanoramaScenes } from "@/widgets/panorama";
-import { FurniturePlacementModal } from "@/widgets/furniture-placement";
 import { fetchRooms } from "@/entities/room";
 import { useAuthStore } from "@/entities/auth";
 import { spaceMorphName, useMorphArrival } from "@/shared/hooks/useMorphLink";
@@ -64,8 +63,8 @@ function ContainedPhoto({ src }: { src: string }) {
   );
 }
 
-/** 원본 보기 — 위치 조절과 상관없이 올린 사진 전체를 크게 보여준다. 좌우 화살표 키로도 넘긴다. 보고 있는 사진에 가구를 배치해 볼 수 있다. */
-function PhotoViewer({ photos, index, onIndexChange, onArrange, onClose }: { photos: string[]; index: number; onIndexChange: (index: number) => void; onArrange: () => void; onClose: () => void }) {
+/** 원본 보기 — 위치 조절과 상관없이 올린 사진 전체를 크게 보여준다. 좌우 화살표 키로도 넘긴다. */
+function PhotoViewer({ photos, index, onIndexChange, onClose }: { photos: string[]; index: number; onIndexChange: (index: number) => void; onClose: () => void }) {
   const multiple = photos.length > 1;
   const move = (delta: number) => onIndexChange((index + delta + photos.length) % photos.length);
 
@@ -83,15 +82,9 @@ function PhotoViewer({ photos, index, onIndexChange, onArrange, onClose }: { pho
     <Modal label="사진 원본 보기" onClose={onClose} panelClassName="relative flex w-full max-w-[1400px] flex-col items-center gap-3 bg-transparent p-0">
       <div className="flex w-full items-center justify-between gap-3 text-white">
         <span className="font-mono text-sm" aria-live="polite">{multiple ? `${index + 1} / ${photos.length}` : "원본"}</span>
-        <div className="flex items-center gap-2">
-          <button type="button" onClick={onArrange} className="button button--inverse">
-            <IconArmchair size={18} stroke={2} aria-hidden />
-            가구 배치해 보기
-          </button>
-          <button type="button" onClick={onClose} aria-label="닫기" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 hover:bg-white/30">
-            <IconX size={20} stroke={2.5} aria-hidden />
-          </button>
-        </div>
+        <button type="button" onClick={onClose} aria-label="닫기" className="flex h-10 w-10 items-center justify-center rounded-full bg-white/15 hover:bg-white/30">
+          <IconX size={20} stroke={2.5} aria-hidden />
+        </button>
       </div>
       <div className="relative flex w-full items-center justify-center">
         {/* eslint-disable-next-line @next/next/no-img-element -- 외부 S3 URL */}
@@ -130,8 +123,6 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
   const currentIndex = Math.min(photoIndex, Math.max(0, photos.length - 1));
   const [paused, setPaused] = useState(false);
   const [viewerIndex, setViewerIndex] = useState<number | null>(null);
-  // 원본 보기에서 "가구 배치해 보기"를 누른 사진. 원본 보기 대신 배치 화면을 띄운다.
-  const [arrangeIndex, setArrangeIndex] = useState<number | null>(null);
   const [panoramaOpen, setPanoramaOpen] = useState(false);
   // 장면 기능 이전에 저장된 공간은 장면 목록이 비어 있어서 `panorama_url` 한 장으로 보여준다.
   const panoramaScenes = resolvePanoramaScenes(space.panorama_scenes, space.panorama_url);
@@ -153,11 +144,11 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
 
   // 사진이 바뀔 때마다 타이머를 새로 건다 — 화살표로 넘긴 직후 바로 또 넘어가지 않게.
   useEffect(() => {
-    if (photos.length < 2 || paused || viewerIndex !== null || arrangeIndex !== null) return;
+    if (photos.length < 2 || paused || viewerIndex !== null) return;
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const timer = window.setTimeout(() => setPhotoIndex((index) => (index + 1) % photos.length), AUTOPLAY_MS);
     return () => window.clearTimeout(timer);
-  }, [arrangeIndex, currentIndex, paused, photos.length, viewerIndex]);
+  }, [currentIndex, paused, photos.length, viewerIndex]);
 
   return (
     <>
@@ -294,15 +285,8 @@ export function DetailHero({ space, hasOptions = false }: { space: SpaceDetail; 
           photos={photos}
           index={viewerIndex}
           onIndexChange={setViewerIndex}
-          onArrange={() => {
-            setArrangeIndex(viewerIndex);
-            setViewerIndex(null);
-          }}
           onClose={() => setViewerIndex(null)}
         />
-      )}
-      {arrangeIndex !== null && photos[arrangeIndex] && (
-        <FurniturePlacementModal photoSrc={parsePhotoUrl(photos[arrangeIndex]).src} title={space.name} onClose={() => setArrangeIndex(null)} />
       )}
       {panoramaOpen && hasPanorama && (
         <PanoramaViewerModal scenes={panoramaScenes} title={space.name} onClose={() => setPanoramaOpen(false)} />

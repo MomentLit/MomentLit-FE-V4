@@ -106,7 +106,7 @@ export interface CreateFurnitureFromPhotoRequest {
   side?: File | null;
 }
 
-/** 사진으로 내 가구 만들기 — 바로 PROCESSING으로 돌아오고, 서버가 40초 안팎 걸려 만든다. 하루 5번, 대기열이 가득하면 503. */
+/** 사진으로 내 가구 만들기 — 바로 PROCESSING으로 돌아오고, 서버가 2분쯤 걸려 만든다. 하루 5번, 대기열이 가득하면 503. */
 export async function createFurnitureFromPhoto(request: CreateFurnitureFromPhotoRequest): Promise<CustomFurniture> {
   const form = new FormData();
   form.append("name", request.name);

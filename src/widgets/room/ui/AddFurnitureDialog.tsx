@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { IconCamera, IconCube, IconRotate, IconRotateClockwise2, IconX } from "@tabler/icons-react";
+import { IconCamera, IconCube, IconHelp, IconRotate, IconRotateClockwise2, IconX } from "@tabler/icons-react";
 import {
   createFurnitureFromFile,
   createFurnitureFromPhoto,
@@ -13,6 +13,7 @@ import {
 import { getErrorMessage } from "@/shared/api";
 import { cn } from "@/shared/lib";
 import { Modal } from "@/shared/ui/Modal";
+import { FurniturePhotoTutorial, shouldAutoOpenFurniturePhotoTutorial } from "./FurniturePhotoTutorial";
 import { ModelFilePreview, MAX_MODEL_BYTES, type ExportModel, type ModelDimensions } from "./ModelFilePreview";
 import { MY_FURNITURE_QUERY_KEY } from "./useFurnitureLibrary";
 
@@ -31,12 +32,19 @@ function cmToMeters(value: string): number | null {
 }
 
 /**
- * 내 가구 추가 — 사진으로 만들기(서버가 40초 안팎에 3D로) / 3D 파일(GLB) 올리기(미리보기에서 세우고 크기 맞춤).
+ * 내 가구 추가 — 사진으로 만들기(서버가 2분쯤 걸려 3D로) / 3D 파일(GLB) 올리기(미리보기에서 세우고 크기 맞춤).
  * 만든 가구는 본인만 보고 쓴다.
  */
 export function AddFurnitureDialog({ onClose, onCreated }: { onClose: () => void; onCreated: (furniture: CustomFurniture) => void }) {
   const [tab, setTab] = useState<Tab>("photo");
   const [busy, setBusy] = useState(false);
+  // 사진 찍는 법 — 처음 열 때 한 번 저절로. 모달이 겹치면 Esc가 둘 다 닫으므로 이 창 대신 보여 준다(사진 입력값은 photoDraft에 남는다).
+  const [guideOpen, setGuideOpen] = useState(false);
+  const photoDraft = usePhotoDraft();
+  useEffect(() => {
+    if (shouldAutoOpenFurniturePhotoTutorial()) queueMicrotask(() => setGuideOpen(true));
+  }, []);
+  if (guideOpen) return <FurniturePhotoTutorial onClose={() => setGuideOpen(false)} />;
   return (
     <Modal label="내 가구 추가" onClose={onClose} canClose={!busy} panelClassName="flex w-full max-w-[640px] flex-col gap-5 overflow-y-auto border border-line bg-white p-5 sm:p-7">
       <div className="flex items-start justify-between gap-3">
@@ -66,7 +74,7 @@ export function AddFurnitureDialog({ onClose, onCreated }: { onClose: () => void
         ))}
       </div>
       {tab === "photo"
-        ? <PhotoForm busy={busy} setBusy={setBusy} onCreated={onCreated} />
+        ? <PhotoForm busy={busy} setBusy={setBusy} onCreated={onCreated} onOpenGuide={() => setGuideOpen(true)} draft={photoDraft} />
         : <FileForm busy={busy} setBusy={setBusy} onCreated={onCreated} />}
     </Modal>
   );
@@ -156,8 +164,8 @@ function PhotoPicker({ label, hint, file, onChange, disabled, required }: {
   );
 }
 
-function PhotoForm({ busy, setBusy, onCreated }: FormProps) {
-  const queryClient = useQueryClient();
+/** 사진으로 만들기 입력값 — 촬영 가이드를 보는 동안 폼이 사라져도 남도록 대화상자가 들고 있는다. */
+function usePhotoDraft() {
   const [name, setName] = useState("");
   const [mount, setMount] = useState<CustomFurnitureMount>("FLOOR");
   const [front, setFront] = useState<File | null>(null);
@@ -165,6 +173,14 @@ function PhotoForm({ busy, setBusy, onCreated }: FormProps) {
   const [heightCm, setHeightCm] = useState("");
   const [widthCm, setWidthCm] = useState("");
   const [depthCm, setDepthCm] = useState("");
+  return { name, setName, mount, setMount, front, setFront, side, setSide, heightCm, setHeightCm, widthCm, setWidthCm, depthCm, setDepthCm };
+}
+
+type PhotoDraft = ReturnType<typeof usePhotoDraft>;
+
+function PhotoForm({ busy, setBusy, onCreated, onOpenGuide, draft }: FormProps & { onOpenGuide: () => void; draft: PhotoDraft }) {
+  const queryClient = useQueryClient();
+  const { name, setName, mount, setMount, front, setFront, side, setSide, heightCm, setHeightCm, widthCm, setWidthCm, depthCm, setDepthCm } = draft;
   const [error, setError] = useState<string | null>(null);
 
   const height = cmToMeters(heightCm);
@@ -195,10 +211,19 @@ function PhotoForm({ busy, setBusy, onCreated }: FormProps) {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="border border-line bg-wash px-4 py-3 text-xs leading-relaxed text-soft">
-        <p className="font-semibold text-ink">이렇게 찍으면 잘 나와요</p>
-        <p>가구 중간 높이에서 · 2~3m 떨어져 · 가구 전체가 화면에 · 배경이 단순한 곳에서 정면으로 찍어 주세요.</p>
-        <p>사진 한 장으로 뒷면을 짐작해 만들어서 모양이 조금 거칠 수 있어요. 하루 {MAX_FURNITURE_PHOTO_PER_DAY}번까지 만들 수 있어요.</p>
+      <div className="flex flex-col gap-1 border border-line bg-wash px-4 py-3 text-xs leading-relaxed text-soft">
+        <div className="flex items-center justify-between gap-2">
+          <p className="font-semibold text-ink">찍기 전에 꼭 확인해 주세요</p>
+          <button type="button" onClick={onOpenGuide} disabled={busy} className="button button--outline button--sm shrink-0">
+            <IconHelp size={15} stroke={2} aria-hidden /> 촬영 가이드
+          </button>
+        </div>
+        <ul className="list-disc pl-4">
+          <li><b className="font-semibold text-ink">무채색 배경</b> — 흰색·회색처럼 무늬 없는 벽이나 바닥 앞에서 찍어요.</li>
+          <li><b className="font-semibold text-ink">만들 가구 하나만</b> — 다른 가구·화분·사람이 같이 찍히면 그것까지 만들어져요.</li>
+          <li>가구 중간 높이에서 2~3m 떨어져, 가구 전체가 화면에 들어오게 정면이나 살짝 대각선으로 찍어요.</li>
+        </ul>
+        <p>사진 한 장으로 뒷면을 짐작해 만들어서 뒷모습은 조금 다를 수 있어요. 하루 {MAX_FURNITURE_PHOTO_PER_DAY}번까지 만들 수 있어요.</p>
       </div>
       <NameAndMount name={name} setName={setName} mount={mount} setMount={setMount} disabled={busy} />
       <div className="grid gap-4 sm:grid-cols-2">
@@ -218,7 +243,7 @@ function PhotoForm({ busy, setBusy, onCreated }: FormProps) {
       </div>
       {error && <p role="alert" className="text-sm text-coral">{error}</p>}
       <div className="flex items-center justify-end gap-2">
-        <p className="mr-auto text-xs text-soft">만들기에 40초쯤 걸려요. 그동안 다른 가구를 놓고 있어도 돼요.</p>
+        <p className="mr-auto text-xs text-soft">만들기에 2분쯤 걸려요. 그동안 다른 가구를 놓고 있어도 돼요.</p>
         <button type="button" onClick={submit} disabled={!ready || busy} className="button button--primary">
           {busy ? "보내는 중…" : "3D로 만들기"}
         </button>

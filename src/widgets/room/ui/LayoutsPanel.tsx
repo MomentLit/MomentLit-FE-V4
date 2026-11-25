@@ -6,6 +6,7 @@ import { MAX_FURNITURE_LAYOUTS, type FurnitureLayout } from "@/entities/room";
 import { cn } from "@/shared/lib";
 import { ConfirmDialog } from "@/shared/ui";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
+import { formatLayoutSavedAt } from "../lib/layoutTime";
 import type { useFurnitureLayouts } from "./useFurnitureLayout";
 
 type Layouts = ReturnType<typeof useFurnitureLayouts>;
@@ -14,12 +15,6 @@ type Layouts = ReturnType<typeof useFurnitureLayouts>;
 type Pending = { kind: "load"; layout: FurnitureLayout } | { kind: "new" } | { kind: "delete"; layout: FurnitureLayout };
 
 const NAME_MAX = 50;
-
-function formatUpdatedAt(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  return `${date.getMonth() + 1}/${date.getDate()} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
 
 /** 내 배치 — 이름 붙여 여러 개 저장하고, 불러와서 고치고, 덮어쓰거나 지운다. */
 export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
@@ -199,7 +194,7 @@ export function LayoutsPanel({ layouts }: { layouts: Layouts }) {
                 >
                   <span className="block truncate text-sm font-semibold text-ink">{layout.name}</span>
                   <span className="block text-xs text-soft">
-                    가구 {layout.items.length}개 · {formatUpdatedAt(layout.updated_at)}
+                    가구 {layout.items.length}개 · {formatLayoutSavedAt(layout.updated_at)}
                   </span>
                 </button>
                 <button

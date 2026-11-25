@@ -3,10 +3,13 @@
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { getErrorMessage } from "@/shared/api";
 import { ConfirmDialog } from "@/shared/ui";
+import { Modal } from "@/shared/ui/Modal";
 import Link from "next/link";
 import {
   IconArrowBackUp,
   IconArrowLeft,
+  IconCircleCheckFilled,
+  IconCircleDashed,
   IconCube,
   IconEraser,
   IconHelp,
@@ -27,6 +30,7 @@ import {
   MAX_CEILING_HEIGHT,
   MIN_CAMERA_HEIGHT,
   MIN_CEILING_HEIGHT,
+  planScaleOf,
   scaleRoomFromWall,
   summarizeRoom,
   validateRoomDraft,
@@ -61,7 +65,8 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
   onSave: (draft: RoomDraft) => Promise<void>;
 }) {
   const [saving, setSaving] = useState(false);
-  const [saveError, setSaveError] = useState<string | null>(null);
+  // 막힌 이유를 확실히 알리는 모달 — 크기·천장 맞추기 실패, 저장 실패 등
+  const [notice, setNotice] = useState<{ title: string; message: string } | null>(null);
   const [draft, setDraft] = useState<RoomDraft>(() => initialDraft ?? createRoomDraft(scene.image_url));
   const latestDraftRef = useRef(draft);
   useLayoutEffect(() => {
@@ -83,23 +88,24 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
   useEffect(() => {
     if (shouldAutoOpenPanoramaTutorial()) queueMicrotask(() => setTutorialOpen(true));
   }, []);
-  // 추천 표시용 — 높이를 확인했는지(고쳤거나 천장을 쟀거나, 저장된 방을 다시 열었으면), 도면 보기를 열어 봤는지
+  // 추천 표시용 — 높이를 확인했는지(고쳤거나 천장을 쟀거나, 저장된 방을 다시 열었으면)
   const [heightChecked, setHeightChecked] = useState(initialDraft !== null);
-  const [planVisited, setPlanVisited] = useState(false);
   const detection = useLayoutDetection();
   const detecting = detection.state.status === "running";
 
   const summary = useMemo(() => summarizeRoom(draft), [draft]);
   const validationError = validateRoomDraft(draft);
+  const planScale = planScaleOf(draft);
   const stageState = useMemo<RoomStageState>(
     () => ({
-      outer: outerOfCorners(draft.corners, draft.cameraHeight),
+      outer: outerOfCorners(draft.corners, planScale),
       corners: draft.corners,
       inner: summary?.inner ?? [],
       cameraHeight: draft.cameraHeight,
       ceilingHeight: draft.ceilingHeight,
+      photoScale: planScale,
     }),
-    [draft.corners, draft.cameraHeight, draft.ceilingHeight, summary],
+    [draft.corners, draft.cameraHeight, draft.ceilingHeight, planScale, summary],
   );
 
   const rememberDraft = useCallback((previous: RoomDraft) => {
@@ -120,10 +126,12 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
       imageUrl: result.image_url,
       corners,
       layoutRatio: { z0: result.z0, z1: result.z1 },
+      // 수평을 맞춘 새 사진이라 이전 실측 크기는 다시 맞춘다
+      planScale: null,
     }, current.ceilingHeight));
     setView("photo");
     setPickMode("corners");
-    setHint(`바닥 모서리 ${corners.length}개와 천장 비율을 찾았어요. 어긋난 점만 고치고, 실측값이 있으면 크기를 맞춰 보세요.`);
+    setHint(`바닥 모서리 ${corners.length}개와 천장 비율을 찾았어요. 어긋난 점을 고친 뒤 ‘도면’에서 실측 벽 길이를 넣어 크기를 맞춰 주세요.`);
   }
 
   /** 모서리(와 안쪽 벽)를 바꾸고 되돌리기 기록에 남긴다 — 0.5초 안에 잇따른 변경(끌기)은 한 번으로 친다. */
@@ -146,40 +154,69 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
    * 그래서 촬영 높이를 바꿔도 모양이 유지된다.
    */
   const handlePlanChange = useCallback(({ outer, inner }: PlanShape) => {
-    changeShape(outer.map(([x, z]) => directionToUv([x, -draft.cameraHeight, z])), innerToRelative(inner, draft.cameraHeight));
-  }, [changeShape, draft.cameraHeight]);
+    changeShape(outer.map(([x, z]) => directionToUv([x, -planScale, z])), innerToRelative(inner, planScale));
+  }, [changeShape, planScale]);
 
   function handleScaleOuterWall(current: number, actual: number) {
     if (saving || detecting) return "작업이 끝난 뒤 다시 시도해 주세요.";
     const result = scaleRoomFromWall(draft, current, actual);
-    if (!result.draft) return result.error;
+    if (!result.draft) {
+      setNotice({ title: "방 크기를 맞출 수 없어요", message: result.error });
+      return result.error;
+    }
     rememberDraft(draft);
     setDraft(result.draft);
-    setHint(null);
+    setHint(draft.ceilingConfirmed ? null : "바닥 크기를 맞췄어요. 이제 오른쪽에서 실제 천장 높이를 넣어 주세요.");
+    setPanelOpen(true);
     return null;
   }
 
-  const handleCeilingPick = useCallback((uv: Vec2) => {
-    const floorPoints = outerFromCorners(draft.corners, draft.cameraHeight) ?? [];
-    const measured = measureCeilingHeight(uv, floorPoints, draft.cameraHeight);
-    if (measured === null || measured <= draft.cameraHeight) {
-      setHint("이미 찍은 바닥 모서리 바로 위의 천장 모서리를 눌러 주세요.");
+  /** 천장 높이 입력 — 사진의 천장 비율을 알면 촬영 높이(사진을 세로로 맞추는 값)도 같이 맞춘다. 바닥 크기는 그대로. */
+  function handleCeilingCommit(value: number) {
+    if (!(value >= MIN_CEILING_HEIGHT && value <= MAX_CEILING_HEIGHT)) {
+      setNotice({ title: "천장 높이를 확인해 주세요", message: `천장 높이는 ${MIN_CEILING_HEIGHT}~${MAX_CEILING_HEIGHT}m로 넣어 주세요. 넣은 값: ${value}m` });
       return;
     }
-    if (!(measured >= MIN_CEILING_HEIGHT && measured <= MAX_CEILING_HEIGHT)) {
-      setHint(`천장 높이가 ${MIN_CEILING_HEIGHT}~${MAX_CEILING_HEIGHT}m 범위를 벗어나요. 바닥 모서리 바로 위의 점을 다시 눌러 주세요.`);
+    const next = { ...withCeilingHeight(draft, value), ceilingConfirmed: true };
+    if (!(next.cameraHeight >= MIN_CAMERA_HEIGHT && next.cameraHeight <= MAX_CAMERA_HEIGHT && next.cameraHeight < next.ceilingHeight)) {
+      setNotice({
+        title: "천장 높이를 적용할 수 없어요",
+        message: `사진에서 찾은 천장 비율로는 천장 ${value}m일 때 촬영 높이가 ${next.cameraHeight.toFixed(2)}m가 돼요(허용 ${MIN_CAMERA_HEIGHT}~${MAX_CAMERA_HEIGHT}m). 천장 높이를 다시 확인하거나 ‘사진에서 천장 맞추기’로 천장 모서리를 다시 찍어 주세요.`,
+      });
       return;
     }
-    const ceilingHeight = round(measured, 2);
     rememberDraft(draft);
-    // 잰 결과도 "천장·바닥 거리 비율"이라, 이후엔 높이 하나를 바꾸면 다른 하나가 따라온다.
-    setDraft({
-      ...draft,
-      ceilingHeight,
-      layoutRatio: { z0: ceilingHeight - draft.cameraHeight, z1: -draft.cameraHeight },
-    });
-    setHint(`천장 높이를 ${ceilingHeight.toFixed(2)}m로 맞췄어요.`);
+    setDraft(next);
     setHeightChecked(true);
+    setHint(null);
+  }
+
+  const handleCeilingPick = useCallback((uv: Vec2) => {
+    // 사진 속 비율로 잰다(촬영 높이 1) — 가로 축척과 상관없다.
+    const unitFloor = outerFromCorners(draft.corners, 1) ?? [];
+    const ratio = measureCeilingHeight(uv, unitFloor, 1);
+    if (ratio === null || ratio <= 1.01) {
+      setNotice({ title: "천장 모서리를 다시 눌러 주세요", message: "이미 찍은 바닥 모서리 바로 위(같은 세로줄)의 천장 모서리를 눌러야 해요." });
+      return;
+    }
+    const layoutRatio = { z0: ratio - 1, z1: -1 };
+    // 천장 높이를 이미 넣었으면 그 높이는 두고 촬영 높이를 맞추고, 아니면 지금 촬영 높이로 천장을 잰다.
+    const next = draft.ceilingConfirmed
+      ? withCeilingHeight({ ...draft, layoutRatio }, draft.ceilingHeight)
+      : { ...draft, layoutRatio, ceilingHeight: round(draft.cameraHeight * ratio, 2) };
+    if (!(next.ceilingHeight >= MIN_CEILING_HEIGHT && next.ceilingHeight <= MAX_CEILING_HEIGHT
+      && next.cameraHeight >= MIN_CAMERA_HEIGHT && next.cameraHeight <= MAX_CAMERA_HEIGHT)) {
+      setNotice({
+        title: "천장 높이가 범위를 벗어나요",
+        message: `이 점으로 재면 천장 ${next.ceilingHeight.toFixed(2)}m · 촬영 ${next.cameraHeight.toFixed(2)}m가 돼요(천장 ${MIN_CEILING_HEIGHT}~${MAX_CEILING_HEIGHT}m, 촬영 ${MIN_CAMERA_HEIGHT}~${MAX_CAMERA_HEIGHT}m). 바닥 모서리 바로 위의 점을 다시 눌러 주세요.`,
+      });
+      return;
+    }
+    rememberDraft(draft);
+    setDraft(next);
+    setHint(draft.ceilingConfirmed
+      ? `천장 모서리에 맞춰 사진 높이를 맞췄어요(천장 ${next.ceilingHeight.toFixed(2)}m).`
+      : `천장을 ${next.ceilingHeight.toFixed(2)}m로 쟀어요. 실제 천장 높이를 넣으면 정확해져요.`);
     setPickMode("corners");
   }, [draft, rememberDraft]);
 
@@ -188,7 +225,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     setCanUndo(historyRef.current.length > 0);
     lastChangeRef.current = 0;
     if (previous) {
-      if (previous.cameraHeight !== draft.cameraHeight) {
+      if (planScaleOf(previous) !== planScaleOf(draft)) {
         setPlanFitVersion((version) => version + 1);
       }
       setDraft(previous);
@@ -200,7 +237,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     if (draft.corners.length > 0) {
       rememberDraft(draft);
     }
-    setDraft((current) => ({ ...current, corners: [], inner: [], layoutRatio: null, imageUrl: current.sceneImageUrl }));
+    setDraft((current) => ({ ...current, corners: [], inner: [], layoutRatio: null, planScale: null, imageUrl: current.sceneImageUrl }));
     setView("photo");
     setPickMode("corners");
     setHint(null);
@@ -220,12 +257,11 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
   function openPlan() {
     setView("plan");
     setPickMode("corners");
-    setPlanVisited(true);
     setHint(null);
   }
 
   const guide = view === "plan"
-    ? "실제로 잰 바깥벽 하나를 눌러 길이를 넣으면, 사진을 바꾸지 않고 방 전체 크기를 맞춰요."
+    ? "실제로 잰 바깥벽 하나를 눌러 길이(m)를 넣고 Enter — 바닥 크기만 맞추고 천장 높이는 그대로 둬요."
     : view === "walk"
     ? "화면을 끌어 천장을 확인해 보세요. 어긋나면 ‘천장 맞추기’로 고칠 수 있어요."
     : pickMode === "ceiling"
@@ -237,13 +273,16 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
       : `모서리 ${draft.corners.length}개 — 미니어처로 방 모양을 확인해 보세요.`;
 
   async function handleSave() {
+    if (validationError) {
+      setNotice({ title: "아직 저장할 수 없어요", message: validationError });
+      setPanelOpen(true);
+      return;
+    }
     setSaving(true);
-    setSaveError(null);
     try {
       await onSave(draft);
     } catch (error) {
-      setSaveError(getErrorMessage(error));
-      setPanelOpen(true);
+      setNotice({ title: "저장하지 못했어요", message: getErrorMessage(error) });
       setSaving(false);
     }
   }
@@ -266,9 +305,12 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     { id: "clear", label: "모서리 전체 지우기", caption: "전체 삭제", hint: "찍은 모서리와 안쪽 벽을 모두 지워요.", icon: IconEraser, onClick: () => setConfirmClear(true), disabled: busy || draft.corners.length === 0 },
   ];
   // '추천' 표시 — 모서리를 찾았으면 천장 높이 확인, 그다음 도면에서 다듬기
-  const recommendCeiling = hasRoom && !draft.layoutRatio && !heightChecked;
-  const recommendPlan = hasRoom && (!!draft.layoutRatio || heightChecked) && !planVisited;
-  const statusText = saveError ?? (validationError && draft.corners.length >= 3 ? validationError : null);
+  const sizeDone = draft.planScale !== null;
+  const ceilingDone = draft.ceilingConfirmed;
+  const recommendPlan = hasRoom && !sizeDone;
+  const recommendCeiling = hasRoom && sizeDone && !ceilingDone && !draft.layoutRatio && !heightChecked;
+  const canWalk = !!summary && draft.cameraHeight < draft.ceilingHeight;
+  const statusText = validationError && draft.corners.length >= 3 ? validationError : null;
   const status = detection.state.status === "running"
     ? detection.state.queued ? "차례를 기다리는 중이에요…" : "사진에서 방 모서리를 찾는 중이에요. 10초쯤 걸려요."
     : detection.state.status === "failed" ? detection.state.message : hint ?? guide;
@@ -286,7 +328,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
           options={[
             { id: "photo", label: "사진 시점", icon: IconView360 },
             { id: "miniature", label: "미니어처", icon: IconCube, disabled: !summary },
-            { id: "walk", label: "1인칭", icon: IconWalk, disabled: validationError !== null },
+            { id: "walk", label: "1인칭", icon: IconWalk, disabled: !canWalk },
             { id: "plan", label: "도면", icon: IconLayoutBoard, disabled: !summary },
           ]}
           value={view}
@@ -311,9 +353,10 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
           <button
             type="button"
             onClick={() => void handleSave()}
-            disabled={busy || validationError !== null}
+            disabled={busy}
+            aria-disabled={validationError !== null}
             title={validationError ?? undefined}
-            className="button button--primary button--sm"
+            className={cn("button button--primary button--sm", validationError && "opacity-50")}
           >
             {saving ? "저장 중…" : "저장"}
           </button>
@@ -374,7 +417,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
               <RailButton
                 label="도면에서 실제 크기 맞추기"
                 caption="도면"
-                hint="실제로 잰 바깥벽 하나의 길이로 방 전체 크기를 맞춰요. 치수를 모르면 건너뛰어도 돼요."
+                hint="실제로 잰 바깥벽 하나의 길이로 바닥 크기를 맞춰요. 저장하려면 꼭 해야 해요."
                 icon={IconLayoutBoard}
                 highlight={recommendPlan}
                 disabled={busy || !summary}
@@ -409,43 +452,49 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
             {(statusText || view === "plan") && (
               <div className="flex flex-col gap-1 border-b border-line bg-wash px-4 py-3 text-sm" aria-live="polite">
                 {view === "plan" && <p className="text-ink">{status}</p>}
-                {statusText && <p className={saveError ? "text-coral" : "text-soft"}>{saveError ? statusText : `저장하려면 — ${statusText}`}</p>}
+                {statusText && <p className="text-soft">{`저장하려면 — ${statusText}`}</p>}
               </div>
             )}
 
             {summary && (
-              <Section title="크기와 천장 맞추기">
-                <div className="flex flex-col gap-2.5">
-                  <button type="button" onClick={openPlan} disabled={busy} className="button button--primary button--sm self-start">
-                    <IconLayoutBoard size={16} aria-hidden /> 도면에서 실제 크기 맞추기
-                  </button>
-                  <p className="text-xs leading-relaxed text-soft">실제로 잰 바깥벽 하나의 길이를 넣으세요. 치수를 모르면 지금 크기로 저장해도 돼요.</p>
-                  <button type="button" onClick={toggleCeilingMeasure} disabled={busy} className="button button--outline button--sm self-start">
-                    <IconRuler2 size={16} aria-hidden /> {pickMode === "ceiling" ? "천장 맞추기 취소" : "사진에서 천장 맞추기"}
-                  </button>
-                  <p className="text-xs leading-relaxed text-soft">
-                    {draft.layoutRatio
-                      ? "사진에서 찾은 천장 비율을 적용했어요. 1인칭에서 어긋나 보일 때만 꼭짓점을 다시 찍으세요."
-                      : "1인칭에서 천장이 어긋나면 바닥 모서리 바로 위의 천장 꼭짓점 하나를 찍으세요."}
-                  </p>
-                </div>
+              <Section title="크기와 천장 맞추기 (필수)">
+                <ol className="flex flex-col gap-4">
+                  <li className="flex flex-col gap-2">
+                    <StepTitle done={sizeDone} index={1}>실측 벽 길이로 바닥 크기 맞추기</StepTitle>
+                    <button type="button" onClick={openPlan} disabled={busy} className={cn("button button--sm self-start", sizeDone ? "button--outline" : "button--primary")}>
+                      <IconLayoutBoard size={16} aria-hidden /> {sizeDone ? "도면에서 다시 맞추기" : "도면에서 실제 크기 맞추기"}
+                    </button>
+                    <p className="text-xs leading-relaxed text-soft">
+                      실제로 잰 바깥벽 하나를 눌러 길이(m)를 넣으세요. 바닥 크기만 바뀌고 천장 높이는 그대로예요.
+                    </p>
+                  </li>
+                  <li className="flex flex-col gap-2">
+                    <StepTitle done={ceilingDone} index={2}>실제 천장 높이 넣기</StepTitle>
+                    <HeightField
+                      label="천장 높이"
+                      value={draft.ceilingHeight}
+                      min={MIN_CEILING_HEIGHT}
+                      max={MAX_CEILING_HEIGHT}
+                      clamp={false}
+                      disabled={busy}
+                      onCommit={handleCeilingCommit}
+                    />
+                    {!ceilingDone && <p className="text-xs font-semibold text-coral">값을 확인한 뒤 Enter를 눌러야 적용돼요(기본값 {draft.ceilingHeight.toFixed(2)}m를 그대로 쓰려면 Enter).</p>}
+                    <button type="button" onClick={toggleCeilingMeasure} disabled={busy} className="button button--outline button--sm self-start">
+                      <IconRuler2 size={16} aria-hidden /> {pickMode === "ceiling" ? "천장 맞추기 취소" : "사진에서 천장 맞추기"}
+                    </button>
+                    <p className="text-xs leading-relaxed text-soft">
+                      {draft.layoutRatio
+                        ? "사진의 천장 비율을 알고 있어서, 천장 높이에 맞춰 사진도 세로로 맞춰져요. 1인칭에서 어긋나 보이면 천장 모서리를 다시 찍으세요."
+                        : "1인칭에서 천장선이 어긋나면 바닥 모서리 바로 위의 천장 꼭짓점 하나를 찍으세요."}
+                    </p>
+                  </li>
+                </ol>
               </Section>
             )}
 
-            <Section title="높이 직접 입력" summary={`천장 ${draft.ceilingHeight.toFixed(2)}m · 촬영 ${draft.cameraHeight.toFixed(2)}m`} defaultOpen={false}>
+            <Section title="촬영 높이(고급)" summary={`촬영 ${draft.cameraHeight.toFixed(2)}m`} defaultOpen={false}>
               <div className="flex gap-3">
-                <HeightField
-                  label="천장 높이"
-                  value={draft.ceilingHeight}
-                  min={MIN_CEILING_HEIGHT}
-                  max={MAX_CEILING_HEIGHT}
-                  disabled={busy}
-                  onCommit={(value) => {
-                    rememberDraft(draft);
-                    setDraft((current) => withCeilingHeight(current, value));
-                    setHeightChecked(true);
-                  }}
-                />
                 <HeightField
                   label="촬영 높이"
                   value={draft.cameraHeight}
@@ -460,9 +509,11 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
                 />
               </div>
               <p className="text-xs leading-relaxed text-soft">
-                {draft.layoutRatio
-                  ? "천장 높이만 맞추면 촬영 높이와 방 크기가 함께 정해져요."
-                  : "방 크기는 사진을 찍은 높이(촬영 높이)에 비례해요. 보통 가슴 높이 1.5m 안팎이에요."}
+                {sizeDone
+                  ? "바닥 크기는 실측 벽 길이로 정해졌어요. 촬영 높이는 사진을 벽에 세로로 맞추는 데만 써요."
+                  : draft.layoutRatio
+                  ? "천장 높이를 넣으면 촬영 높이가 함께 정해져요."
+                  : "실측 벽 길이를 넣기 전에는 방 크기가 촬영 높이에 비례해요. 보통 가슴 높이 1.5m 안팎이에요."}
               </p>
             </Section>
 
@@ -491,7 +542,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
               <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-soft">
                 <li>도구는 화면 왼쪽 막대에 있어요. 마우스를 올리면 설명이 보이고, ‘추천’이 붙은 도구가 지금 쓰면 좋은 도구예요.</li>
                 <li>‘자동으로 모서리 찾기’를 누르거나, 사진 시점에서 바닥과 벽이 만나는 모서리를 차례대로 눌러요. 찍은 점은 끌어서 옮겨요.</li>
-                <li>‘도면’에서 바깥벽 하나의 실측 길이를 넣으면 전체 크기가 맞춰져요. 모양은 점을 끌어서 고쳐요.</li>
+                <li>‘도면’에서 바깥벽 하나의 실측 길이를 넣어 바닥 크기를 맞추고, 오른쪽에 실제 천장 높이를 넣어요. 둘 다 해야 저장돼요.</li>
                 <li>‘1인칭’에서 천장이 어긋나면 ‘천장 맞추기’로 바닥 모서리 바로 위의 천장 꼭짓점을 누르세요.</li>
               </ul>
             </Section>
@@ -499,6 +550,17 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
         )}
       </div>
       {tutorialOpen && <PanoramaTutorial onClose={() => setTutorialOpen(false)} />}
+      {notice && (
+        <Modal
+          label={notice.title}
+          onClose={() => setNotice(null)}
+          panelClassName="flex w-full max-w-[420px] flex-col gap-4 border border-line bg-white p-6"
+        >
+          <h2 className="text-base font-bold text-ink">{notice.title}</h2>
+          <p className="text-sm leading-relaxed text-soft" role="alert">{notice.message}</p>
+          <button type="button" onClick={() => setNotice(null)} className="button button--primary">확인</button>
+        </Modal>
+      )}
       {confirmClear && (
         <ConfirmDialog
           title="모서리 전체 지우기"
@@ -513,5 +575,16 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
         </ConfirmDialog>
       )}
     </div>
+  );
+}
+
+function StepTitle({ done, index, children }: { done: boolean; index: number; children: string }) {
+  const Icon = done ? IconCircleCheckFilled : IconCircleDashed;
+  return (
+    <p className="flex items-center gap-1.5 text-sm font-semibold text-ink">
+      <Icon size={18} aria-hidden className={done ? "text-primary-500" : "text-soft"} />
+      {index}. {children}
+      <span className={cn("ml-auto text-xs font-medium", done ? "text-primary-500" : "text-coral")}>{done ? "완료" : "필요"}</span>
+    </p>
   );
 }

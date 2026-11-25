@@ -22,6 +22,7 @@ import { findFurniture, furnitureMount, isStackable, normalizeRotation } from ".
 import { ceilingMountY, DEFAULT_WALL_CENTER, itemsOnTop, nearestWallPlacement, wallMountY } from "../lib/placement";
 import { polygonArea, toPyeong, wallLengths } from "../lib/geometry";
 import type { FurnitureMove, FurniturePlacement, RoomStageState, RoomView } from "../lib/stage";
+import { savedPlanScale } from "../model";
 import { roomPlanFloorImage } from "../planModel";
 import { PanelSection as Section, PanelToggleButton } from "./EditorChrome";
 import { AddFurnitureDialog } from "./AddFurnitureDialog";
@@ -194,6 +195,10 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
     inner: room.geometry.inner,
     cameraHeight: room.camera_height ?? 1.5,
     ceilingHeight: room.ceiling_height,
+    // 실측 벽 길이로 바닥 크기를 맞춘 방은 가로 축척이 촬영 높이와 달라 사진을 세로로 늘여 입힌다
+    photoScale: room.source === "PANORAMA" && room.geometry.corners
+      ? savedPlanScale(room.geometry.outer, room.geometry.corners) ?? undefined
+      : undefined,
   }), [room]);
 
   const area = polygonArea(room.geometry.outer);

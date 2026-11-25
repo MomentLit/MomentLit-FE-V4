@@ -4,13 +4,15 @@ import { useState, type KeyboardEvent } from "react";
 import { fieldInputClass } from "@/widgets/registration-form/FormField";
 
 /** 높이 입력 — 타이핑 중엔 자유롭게 두고, 칸을 벗어나거나 Enter를 누를 때 범위 안으로 맞춰 반영한다. */
-export function HeightField({ label, value, min, max, onCommit, disabled }: {
+export function HeightField({ label, value, min, max, onCommit, disabled, clamp = true }: {
   label: string;
   value: number;
   min: number;
   max: number;
   onCommit: (value: number) => void;
   disabled?: boolean;
+  /** false면 범위를 벗어난 값도 그대로 넘긴다 — 부모가 이유를 알려 준다. */
+  clamp?: boolean;
 }) {
   const [text, setText] = useState<string | null>(null);
 
@@ -18,7 +20,7 @@ export function HeightField({ label, value, min, max, onCommit, disabled }: {
     if (text === null) return;
     const parsed = Number(text);
     setText(null);
-    if (Number.isFinite(parsed) && parsed > 0) onCommit(Math.max(min, Math.min(max, parsed)));
+    if (Number.isFinite(parsed) && parsed > 0) onCommit(clamp ? Math.max(min, Math.min(max, parsed)) : parsed);
   }
 
   function handleKeyDown(event: KeyboardEvent<HTMLInputElement>) {

@@ -21,10 +21,13 @@ import {
 
 const IMAGE = "https://bucket.s3.ap-northeast-2.amazonaws.com/images/pano.jpg";
 
+/** 크기·천장 맞추기를 마친 초안. */
 function draftOf(points: [number, number][], h = 1.5): RoomDraft {
   return {
     ...createRoomDraft(IMAGE),
     cameraHeight: h,
+    planScale: h,
+    ceilingConfirmed: true,
     corners: points.map(([x, z]) => directionToUv([x, -h, z])),
   };
 }
@@ -32,45 +35,45 @@ function draftOf(points: [number, number][], h = 1.5): RoomDraft {
 const RECT: [number, number][] = [[-2, -1.5], [2, -1.5], [2, 1.5], [-2, 1.5]];
 
 describe("벽 하나로 파노라마 방 크기 맞추기", () => {
-  it.each([null, { z0: 0.9, z1: -1.5 }])("천장 비율(%j) 유무와 관계없이 사진에서 보이는 모서리를 유지한다", (layoutRatio) => {
-    const draft = { ...draftOf(RECT), layoutRatio, inner: innerToRelative([[[0, -1.5], [0, 0.5]]], 1.5) };
+  it.each([null, { z0: 0.9, z1: -1.5 }])("천장 비율(%j)과 관계없이 바닥 크기만 바꾸고 높이는 그대로 둔다", (layoutRatio) => {
+    const draft = { ...draftOf(RECT), planScale: null, layoutRatio, inner: innerToRelative([[[0, -1.5], [0, 0.5]]], 1.5) };
     const current = summarizeRoom(draft)!;
-    const result = scaleRoomFromWall(draft, current.wallLengths[0], 6);
+    const result = scaleRoomFromWall(draft, current.wallLengths[0], 10);
     expect(result.error).toBeUndefined();
     const scaled = result.draft!;
     const next = summarizeRoom(scaled)!;
     expect(scaled.corners).toBe(draft.corners);
-    expect(scaled.imageUrl).toBe(draft.imageUrl);
     expect(scaled.layoutRatio).toBe(layoutRatio);
-    expect(scaled.cameraHeight).toBeCloseTo(2.25);
-    expect(scaled.ceilingHeight).toBeCloseTo(3.6);
-    expect(next.wallLengths[0]).toBeCloseTo(6);
-    expect(next.wallLengths[1]).toBeCloseTo(4.5);
-    expect(next.inner[0][1][1]).toBeCloseTo(0.75);
-    for (const [index, [outerX, outerZ]] of next.outer.entries()) {
-      const [originalX, originalZ] = current.outer[index];
-      const originalUv = directionToUv([originalX, draft.ceilingHeight - draft.cameraHeight, originalZ]);
-      const scaledUv = directionToUv([outerX, scaled.ceilingHeight - scaled.cameraHeight, outerZ]);
-      expect(scaledUv[0]).toBeCloseTo(originalUv[0], 8);
-      expect(scaledUv[1]).toBeCloseTo(originalUv[1], 8);
-    }
+    expect(scaled.cameraHeight).toBe(1.5);
+    expect(scaled.ceilingHeight).toBe(2.4);
+    expect(scaled.planScale).toBeCloseTo(3.75);
+    expect(next.wallLengths[0]).toBeCloseTo(10);
+    expect(next.wallLengths[1]).toBeCloseTo(7.5);
+    expect(next.inner[0][1][1]).toBeCloseTo(1.25);
   });
 
-  it.each([[0, 6], [4, Infinity], [4, -1], [4, 2], [4, 8]])("유효하지 않거나 높이 제한을 넘는 축척(%s → %s)은 적용하지 않는다", (current, actual) => {
+  it("크기를 맞춘 뒤 천장 높이를 바꿔도 바닥 크기는 그대로다", () => {
+    const draft = { ...draftOf(RECT), planScale: null, layoutRatio: { z0: 0.9, z1: -1.5 } };
+    const scaled = scaleRoomFromWall(draft, 4, 10).draft!;
+    const raised = withCeilingHeight(scaled, 2.8);
+    expect(raised.cameraHeight).toBeCloseTo(1.75);
+    expect(summarizeRoom(raised)!.wallLengths[0]).toBeCloseTo(10);
+  });
+
+  it.each([[0, 6], [4, Infinity], [4, -1], [4, 1000]])("유효하지 않거나 너무 큰 축척(%s → %s)은 적용하지 않는다", (current, actual) => {
     const draft = draftOf(RECT);
     const result = scaleRoomFromWall(draft, current, actual);
     expect(result.draft).toBeUndefined();
     expect(result.error).toBeTruthy();
-    expect(draft.cameraHeight).toBe(1.5);
-    expect(draft.ceilingHeight).toBe(2.4);
+    expect(draft.planScale).toBe(1.5);
   });
 });
 
 describe("파노라마 방의 안쪽 벽", () => {
-  it("촬영 높이 기준으로 저장해서, 촬영 높이를 바꾸면 바깥벽과 같은 비율로 커진다", () => {
+  it("가로 축척 기준으로 저장해서, 축척을 바꾸면 바깥벽과 같은 비율로 커진다", () => {
     const draft = { ...draftOf(RECT), inner: innerToRelative([[[0, -1.5], [0, 0.5]]], 1.5) };
     expect(summarizeRoom(draft)!.inner[0][1][1]).toBeCloseTo(0.5);
-    const taller = summarizeRoom({ ...draft, cameraHeight: 3 })!;
+    const taller = summarizeRoom({ ...draft, planScale: 3 })!;
     expect(taller.inner[0][1][1]).toBeCloseTo(1);
     expect(taller.outer[2][0]).toBeCloseTo(4);
   });
@@ -85,6 +88,11 @@ describe("파노라마 방의 안쪽 벽", () => {
 });
 
 describe("방 초안", () => {
+  it("실측 크기와 천장 높이를 맞추지 않으면 저장할 수 없다", () => {
+    expect(validateRoomDraft({ ...draftOf(RECT), planScale: null })).toMatch(/길이/);
+    expect(validateRoomDraft({ ...draftOf(RECT), ceilingConfirmed: false })).toMatch(/천장/);
+  });
+
   it("모서리가 3개 미만이면 저장할 수 없다", () => {
     expect(validateRoomDraft(draftOf(RECT.slice(0, 2)))).toMatch(/3개/);
   });
@@ -140,6 +148,16 @@ describe("방 초안", () => {
     expect(summarizeRoom(reopened)!.areaM2).toBeCloseTo(12, 2);
     expect(isSameRoomDraft(reopened, roomToDraft(room))).toBe(true);
     expect(isSameRoomDraft(reopened, withCeilingHeight(reopened, 2.7))).toBe(false);
+  });
+
+  it("실측으로 크기를 맞춘 방은 다시 열어도 같은 크기다", () => {
+    const scaled = scaleRoomFromWall(draftOf(RECT), 4, 10).draft!;
+    const request = toRoomRequest(scaled, { name: "거실", sortOrder: 0 });
+    const room: Room = { room_id: 7, space_id: 1, area_m2: 75, area_pyeong: 22, updated_at: "2026-11-25T00:00:00", ...request };
+    const reopened = roomToDraft(room)!;
+    expect(reopened.cameraHeight).toBe(1.5);
+    expect(reopened.planScale).toBeCloseTo(3.75, 3);
+    expect(summarizeRoom(reopened)!.wallLengths[0]).toBeCloseTo(10, 2);
   });
 });
 

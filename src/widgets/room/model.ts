@@ -2,6 +2,7 @@ import type { PanoramaUv, Room, RoomUpsertRequest } from "@/entities/room";
 import type { PanoramaTourScene } from "@/widgets/panorama/model";
 import {
   cameraHeightFromCeiling,
+  floorPointFromUv,
   ceilingFromCameraHeight,
   outerFromCorners,
   polygonArea,
@@ -19,6 +20,8 @@ export const MIN_CAMERA_HEIGHT = 0.3;
 export const MAX_CAMERA_HEIGHT = 2.5;
 /** 서버의 최소 면적과 같다. */
 const MIN_AREA_M2 = 0.5;
+/** 서버의 좌표 상한(m)과 같다. */
+const MAX_COORDINATE = 100;
 
 /**
  * 호스트가 만드는 중인(또는 저장된) 파노라마 방. 바닥 모서리를 사진 좌표로 들고 있다가
@@ -41,10 +44,22 @@ export interface RoomDraft {
    */
   layoutRatio: { z0: number; z1: number } | null;
   /**
-   * 안쪽 벽(도면에서 그린 칸막이). 촬영 높이를 1로 본 바닥 좌표 — 바깥벽(모서리 사진 좌표)처럼 촬영 높이를 바꾸면
+   * 가로 축척(m) — 실측 벽 길이로 정한 값. 사진 속 바닥 좌표(촬영 높이 1 기준)에 곱하면 실제 m가 된다.
+   * null이면 아직 실측으로 맞추지 않아 촬영 높이를 따라간다. 정해진 뒤엔 천장·촬영 높이를 바꿔도 바닥 크기는 그대로다.
+   */
+  planScale: number | null;
+  /** 호스트가 실제 천장 높이를 넣었는지 — 저장하려면 필요하다. */
+  ceilingConfirmed: boolean;
+  /**
+   * 안쪽 벽(도면에서 그린 칸막이). 가로 축척을 1로 본 바닥 좌표 — 바깥벽(모서리 사진 좌표)처럼 축척을 바꾸면
    * 같은 비율로 커지고 작아진다. 실제 m는 `summarizeRoom().inner`.
    */
   inner: [Vec2, Vec2][];
+}
+
+/** 바닥 좌표의 가로 축척 — 실측으로 맞췄으면 그 값, 아니면 촬영 높이. */
+export function planScaleOf(draft: RoomDraft): number {
+  return draft.planScale ?? draft.cameraHeight;
 }
 
 /** 장면 사진으로 새 방 초안을 만든다. 처음에는 그 사진에 모서리를 찍는다. */
@@ -57,6 +72,8 @@ export function createRoomDraft(sceneImageUrl: string): RoomDraft {
     ceilingHeight: DEFAULT_CEILING_HEIGHT,
     cameraHeight: DEFAULT_CAMERA_HEIGHT,
     layoutRatio: null,
+    planScale: null,
+    ceilingConfirmed: false,
     inner: [],
   };
 }
@@ -77,20 +94,25 @@ export function withCameraHeight(draft: RoomDraft, cameraHeight: number): RoomDr
   return { ...draft, cameraHeight: camera, ceilingHeight: round(ceilingFromCameraHeight(camera, z0, z1), 2) };
 }
 
+/**
+ * 실측 벽 길이로 바닥 크기(가로 축척)만 맞춘다. 천장·촬영 높이는 건드리지 않는다 — 높이는 그다음 천장 높이로 따로 맞춘다.
+ * 사진은 그만큼 세로로 늘여 입힌다.
+ */
 export function scaleRoomFromWall(draft: RoomDraft, currentLength: number, actualLength: number):
   { draft: RoomDraft; error?: never } | { draft?: never; error: string } {
   if (!Number.isFinite(currentLength) || currentLength <= 0 || !Number.isFinite(actualLength) || actualLength <= 0) {
     return { error: "기준으로 쓸 벽과 실제 길이를 다시 확인해 주세요." };
   }
-  const scale = actualLength / currentLength;
-  const cameraHeight = draft.cameraHeight * scale;
-  const ceilingHeight = draft.ceilingHeight * scale;
-  if (!(cameraHeight >= MIN_CAMERA_HEIGHT && cameraHeight <= MAX_CAMERA_HEIGHT
-    && ceilingHeight >= MIN_CEILING_HEIGHT && ceilingHeight <= MAX_CEILING_HEIGHT
-    && cameraHeight < ceilingHeight)) {
-    return { error: "이 길이로는 촬영·천장 높이가 지원 범위를 벗어나요. 벽 길이나 사진의 모서리를 다시 확인해 주세요." };
+  const next: RoomDraft = { ...draft, planScale: planScaleOf(draft) * (actualLength / currentLength) };
+  const summary = summarizeRoom(next);
+  if (!summary) return { error: "바닥과 벽이 만나는 모서리만 찍어 주세요." };
+  const far = Math.max(...summary.outer.flat().map(Math.abs), ...summary.inner.flat(2).map(Math.abs));
+  if (far > MAX_COORDINATE) {
+    return {
+      error: `이 길이로 맞추면 방이 사진 찍은 자리에서 ${MAX_COORDINATE}m 넘게 뻗어요. 고른 벽과 실측 길이(m)가 맞는지, 모서리가 지평선 가까이 찍히지 않았는지 확인해 주세요.`,
+    };
   }
-  return { draft: { ...draft, cameraHeight, ceilingHeight } };
+  return { draft: next };
 }
 
 export interface RoomSummary {
@@ -105,10 +127,10 @@ export interface RoomSummary {
 /** 모서리가 3개 이상이고 모두 바닥이면 평면을 계산한다. */
 export function summarizeRoom(draft: RoomDraft): RoomSummary | null {
   if (draft.corners.length < 3) return null;
-  const outer = outerFromCorners(draft.corners, draft.cameraHeight);
+  const k = planScaleOf(draft);
+  const outer = outerFromCorners(draft.corners, k);
   if (!outer) return null;
   const areaM2 = polygonArea(outer);
-  const k = draft.cameraHeight;
   const inner = draft.inner.map(([a, b]) => [[a[0] * k, a[1] * k], [b[0] * k, b[1] * k]] as [Vec2, Vec2]);
   return { outer, inner, areaM2, areaPyeong: toPyeong(areaM2), wallLengths: wallLengths(outer) };
 }
@@ -116,6 +138,8 @@ export function summarizeRoom(draft: RoomDraft): RoomSummary | null {
 /** 저장할 수 없는 이유. 저장할 수 있으면 null. */
 export function validateRoomDraft(draft: RoomDraft): string | null {
   if (draft.corners.length < 3) return "바닥 모서리를 3개 이상 찍어 주세요.";
+  if (draft.planScale === null) return "‘도면’에서 실제로 잰 벽 하나의 길이를 넣어 방 크기를 맞춰 주세요.";
+  if (!draft.ceilingConfirmed) return "실제 천장 높이를 넣어 주세요.";
   if (!(draft.ceilingHeight >= MIN_CEILING_HEIGHT && draft.ceilingHeight <= MAX_CEILING_HEIGHT)) {
     return `천장 높이는 ${MIN_CEILING_HEIGHT}~${MAX_CEILING_HEIGHT}m로 입력해 주세요.`;
   }
@@ -123,6 +147,7 @@ export function validateRoomDraft(draft: RoomDraft): string | null {
     return `촬영 높이는 ${MIN_CAMERA_HEIGHT}~${MAX_CAMERA_HEIGHT}m로 입력해 주세요.`;
   }
   if (draft.cameraHeight >= draft.ceilingHeight) return "촬영 높이는 천장 높이보다 낮아야 해요.";
+  if (draft.planScale <= 0) return "방 크기를 다시 맞춰 주세요.";
   const summary = summarizeRoom(draft);
   if (!summary) return "바닥과 벽이 만나는 모서리만 찍어 주세요.";
   if (summary.areaM2 < MIN_AREA_M2) return "방이 너무 작아요. 모서리를 다시 확인해 주세요.";
@@ -154,6 +179,7 @@ export function toRoomRequest(draft: RoomDraft, placement: { name: string; sortO
 /** 저장된 방 → 다시 편집할 초안. 모서리 사진 좌표가 없는(도면) 방이면 null. */
 export function roomToDraft(room: Room): RoomDraft | null {
   if (room.source !== "PANORAMA" || !room.image_url || !room.geometry.corners || room.camera_height == null) return null;
+  const scale = savedPlanScale(room.geometry.outer, room.geometry.corners) ?? room.camera_height;
   return {
     sceneImageUrl: room.scene_image_url ?? room.image_url,
     roomId: room.room_id,
@@ -162,16 +188,32 @@ export function roomToDraft(room: Room): RoomDraft | null {
     ceilingHeight: room.ceiling_height,
     cameraHeight: room.camera_height,
     layoutRatio: null,
-    inner: (room.geometry.inner ?? []).map(([a, b]) => [
-      [a[0] / room.camera_height!, a[1] / room.camera_height!],
-      [b[0] / room.camera_height!, b[1] / room.camera_height!],
-    ] as [Vec2, Vec2]),
+    planScale: scale,
+    ceilingConfirmed: true,
+    inner: innerToRelative(room.geometry.inner ?? [], scale),
   };
 }
 
-/** 도면에서 그린 안쪽 벽(m) → 초안에 넣을 값(촬영 높이 1 기준). */
-export function innerToRelative(inner: readonly (readonly [Vec2, Vec2])[], cameraHeight: number): [Vec2, Vec2][] {
-  return inner.map(([a, b]) => [[a[0] / cameraHeight, a[1] / cameraHeight], [b[0] / cameraHeight, b[1] / cameraHeight]]);
+/**
+ * 저장된 바깥벽(m)과 모서리 사진 좌표 → 가로 축척. 실측으로 맞춘 방은 촬영 높이와 다르다.
+ * 사진 속 좌표(촬영 높이 1)의 길이 합과 저장된 길이 합의 비율로 구한다. 못 구하면 null.
+ */
+export function savedPlanScale(outer: readonly (readonly number[])[], corners: readonly (readonly number[])[]): number | null {
+  if (outer.length !== corners.length || outer.length === 0) return null;
+  let saved = 0;
+  let unit = 0;
+  for (let i = 0; i < outer.length; i++) {
+    const point = floorPointFromUv([corners[i][0], corners[i][1]], 1);
+    if (!point) return null;
+    saved += Math.hypot(outer[i][0], outer[i][1]);
+    unit += Math.hypot(point[0], point[1]);
+  }
+  return unit > 0 && saved > 0 ? saved / unit : null;
+}
+
+/** 도면에서 그린 안쪽 벽(m) → 초안에 넣을 값(가로 축척 1 기준). */
+export function innerToRelative(inner: readonly (readonly (readonly number[])[])[], scale: number): [Vec2, Vec2][] {
+  return inner.map(([a, b]) => [[a[0] / scale, a[1] / scale], [b[0] / scale, b[1] / scale]]);
 }
 
 export function isSameRoomDraft(a: RoomDraft | null, b: RoomDraft | null): boolean {
@@ -183,6 +225,7 @@ export function isSameRoomDraft(a: RoomDraft | null, b: RoomDraft | null): boole
     a.imageUrl === b.imageUrl &&
     a.ceilingHeight === b.ceilingHeight &&
     a.cameraHeight === b.cameraHeight &&
+    a.planScale === b.planScale &&
     JSON.stringify(a.corners) === JSON.stringify(b.corners) &&
     JSON.stringify(a.inner) === JSON.stringify(b.inner)
   );

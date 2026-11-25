@@ -89,6 +89,11 @@ export interface RoomStageState {
   inner: readonly (readonly [Vec2, Vec2])[];
   cameraHeight: number;
   ceilingHeight: number;
+  /**
+   * 사진 기준 가로 축척(m) — 촬영 높이를 1로 본 사진 속 거리 1이 실제 몇 m인지. 없으면 촬영 높이와 같다(가로·세로 같은 비율).
+   * 벽 실측 길이로 가로 크기를 맞추고 천장 높이로 세로를 따로 맞추면 둘이 달라진다 — 그만큼 사진을 세로로 늘여 입힌다.
+   */
+  photoScale?: number;
 }
 
 export interface RoomStageCallbacks {
@@ -123,9 +128,12 @@ void main() {
 const FRAGMENT_SHADER = `
 uniform sampler2D panorama;
 uniform vec3 eye;
+uniform float stretch;
 varying vec3 vWorld;
 void main() {
-  vec3 d = normalize(vWorld - eye);
+  vec3 p = vWorld - eye;
+  p.y *= stretch;
+  vec3 d = normalize(p);
   float lon = atan(-d.x, d.z);
   float lat = asin(clamp(d.y, -1.0, 1.0));
   vec2 uv = vec2(lon / 6.28318531 + 0.5, 0.5 + lat / 3.14159265);
@@ -227,7 +235,7 @@ export class RoomStage {
     // 스켈레톤 윤곽선(LineSegments)이 기본 문턱(1m)으로 멀리서도 잡히지 않게
     this.raycaster.params.Line = { threshold: 0.01 };
 
-    const uniforms = { panorama: { value: null as Three.Texture | null }, eye: { value: new three.Vector3() } };
+    const uniforms = { panorama: { value: null as Three.Texture | null }, eye: { value: new three.Vector3() }, stretch: { value: 1 } };
     this.roomMaterial = new three.ShaderMaterial({ uniforms, vertexShader: VERTEX_SHADER, fragmentShader: FRAGMENT_SHADER });
     // 도면 방 — 사진이 없으니 흰 벽·흰 천장, 바닥은 도면(없으면 나무색)
     this.planWallMaterial = new three.MeshStandardMaterial({ color: 0xe8e6e0, roughness: 0.92 });
@@ -319,6 +327,24 @@ export class RoomStage {
   setState(state: RoomStageState) {
     this.state = state;
     this.rebuild();
+    this.applyStretch();
+  }
+
+  /** 세로 배율 — 실제 높이 → 사진 속 높이. 가로·세로 축척이 같으면 1. */
+  private verticalStretch() {
+    const { photoScale, cameraHeight } = this.state;
+    return photoScale && cameraHeight > 0 ? photoScale / cameraHeight : 1;
+  }
+
+  /**
+   * 가로·세로 축척이 다른 방을 사진과 맞춘다. 사진 시점은 사진을 찍은 자리에서 그대로 보여야 하니 방을 세로로 늘이고,
+   * 다른 시점은 실제 크기 그대로 두고 셰이더가 사진을 세로로 늘여 입힌다.
+   */
+  private applyStretch() {
+    const k = this.verticalStretch();
+    const photo = this.view === "photo";
+    for (const group of [this.roomGroup, this.markerGroup, this.furnitureGroup]) group.scale.set(1, photo ? k : 1, 1);
+    this.roomMaterial.uniforms.stretch.value = photo ? 1 : k;
   }
 
   setView(view: RoomView) {
@@ -779,6 +805,7 @@ export class RoomStage {
 
   private applyView() {
     const view = this.view;
+    this.applyStretch();
     this.sky.visible = view === "photo" && !!this.texture;
     if (this.ceilingMesh) this.ceilingMesh.visible = view !== "miniature";
     this.markerGroup.visible = view === "photo";
@@ -1089,7 +1116,8 @@ export class RoomStage {
   /** 화면에서 손가락·마우스 가까이 있는 모서리 번호. 없으면 -1. */
   private cornerNear(event: PointerEvent): number {
     const rect = this.renderer.domElement.getBoundingClientRect();
-    const floorY = -this.state.cameraHeight;
+    // 사진 시점에선 방을 세로로 늘여 두었다(applyStretch).
+    const floorY = -this.state.cameraHeight * this.verticalStretch();
     let best = -1;
     let bestDistance = MARKER_PICK_PX;
     this.state.outer.forEach(([x, z], i) => {

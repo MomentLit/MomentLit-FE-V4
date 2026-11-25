@@ -48,7 +48,7 @@ export interface RoomDraft {
    * null이면 아직 실측으로 맞추지 않아 촬영 높이를 따라간다. 정해진 뒤엔 천장·촬영 높이를 바꿔도 바닥 크기는 그대로다.
    */
   planScale: number | null;
-  /** 호스트가 실제 천장 높이를 넣었는지 — 저장하려면 필요하다. */
+  /** 호스트가 천장을 맞췄는지(사진에서 천장 모서리를 찍었거나 천장 높이를 넣었는지) — 저장하려면 필요하다. */
   ceilingConfirmed: boolean;
   /**
    * 안쪽 벽(도면에서 그린 칸막이). 가로 축척을 1로 본 바닥 좌표 — 바깥벽(모서리 사진 좌표)처럼 축척을 바꾸면
@@ -139,7 +139,7 @@ export function summarizeRoom(draft: RoomDraft): RoomSummary | null {
 export function validateRoomDraft(draft: RoomDraft): string | null {
   if (draft.corners.length < 3) return "바닥 모서리를 3개 이상 찍어 주세요.";
   if (draft.planScale === null) return "‘도면’에서 실제로 잰 벽 하나의 길이를 넣어 방 크기를 맞춰 주세요.";
-  if (!draft.ceilingConfirmed) return "실제 천장 높이를 넣어 주세요.";
+  if (!draft.ceilingConfirmed) return "‘천장 맞추기’로 사진에서 천장 모서리 하나를 찍어 주세요.";
   if (!(draft.ceilingHeight >= MIN_CEILING_HEIGHT && draft.ceilingHeight <= MAX_CEILING_HEIGHT)) {
     return `천장 높이는 ${MIN_CEILING_HEIGHT}~${MAX_CEILING_HEIGHT}m로 입력해 주세요.`;
   }

@@ -557,8 +557,11 @@ export function PlanEditor({
   const scaleFromWall = current?.kind === "outer" ? onScaleOuterWall : undefined;
 
   function applyLength() {
-    if (!current || current.kind === "vertex" || lengthText === null) return;
-    const mm = Math.round(Number(lengthText) * (scaleFromWall ? 1000 : 1));
+    if (!current || current.kind === "vertex") return;
+    // 실측 크기 맞추기는 보이는 값이 맞으면 그대로 Enter만 눌러도 확정한다
+    const text = lengthText ?? (scaleFromWall && selectedLengthMm !== null ? String(selectedLengthMm / 1000) : null);
+    if (text === null) return;
+    const mm = Math.round(Number(text) * (scaleFromWall ? 1000 : 1));
     if (!(mm >= 100 && mm <= 100_000)) {
       setMessage(scaleFromWall ? "실측 길이는 0.1~100m로 넣어 주세요." : "벽 길이는 100~100,000mm로 넣어 주세요.");
       if (!scaleFromWall) setLengthText(null);
@@ -567,7 +570,7 @@ export function PlanEditor({
     if (scaleFromWall && selectedEnds) {
       const currentLength = wallLength(selectedEnds[0], selectedEnds[1]);
       const error = scaleFromWall(currentLength, mm / 1000);
-      setMessage(error ?? "사진의 모서리를 유지하면서 방 전체 크기를 맞췄어요.");
+      setMessage(error ?? "사진의 모서리를 유지하면서 바닥 크기를 맞췄어요.");
       if (error) return;
       const scale = mm / 1000 / currentLength;
       setView((previous) => ({ x: previous.x * scale, z: previous.z * scale, w: previous.w * scale, h: previous.h * scale }));
@@ -981,15 +984,15 @@ export function PlanEditor({
               </label>
             )}
             {scaleFromWall && (
-              <button type="button" onClick={applyLength} disabled={lengthText === null} className="button button--primary button--sm self-start">
-                실제 크기 맞추기
+              <button type="button" onClick={applyLength} className="button button--primary button--sm self-start">
+                {lengthText === null ? "이 길이가 맞아요" : "이 길이로 맞추기"}
               </button>
             )}
             <p className="text-xs leading-relaxed text-soft">
               {current.kind === "vertex"
                 ? "끌어서 옮기고, Delete로 지워요."
                 : scaleFromWall
-                  ? "벽 하나의 실측값을 넣으면 사진은 그대로 두고 방과 천장을 함께 맞춰요. 모양만 바꾸려면 모서리 점을 끌어 주세요."
+                  ? "실제 길이와 같으면 그대로 Enter, 다르면 실측값으로 고치고 Enter. 바닥 크기만 맞추고 천장 높이는 그대로 둬요."
                 : "숫자를 치면 바로 길이를 바꿔요. 점을 넣으려면 ‘선 위에 점 추가’ 도구로 원하는 자리를 누르세요."}
             </p>
             {current.kind !== "outer" && (

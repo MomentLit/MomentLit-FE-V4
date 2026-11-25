@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchPopup, fetchPopups, type PopupListItem } from "@/entities/popup";
 import { popupMorphName, useMorphLink } from "@/shared/hooks/useMorphLink";
+import { collectPages } from "@/shared/api/pagination";
 import { toneForIndex, formatAddress, formatDateRangeShort, popupBadge } from "@/widgets/app-dashboard/lib/format";
 import { Reveal } from "./Reveal";
 import { CtaTile } from "./CtaTile";
@@ -20,13 +21,32 @@ const TONE_BG: Record<string, string> = {
   violet: "bg-violet",
 };
 
-/** "지금 열려 있는 팝업" — 실제 등록된 팝업 최신 3건(`GET /popups`). 없으면 빈 상태를 보여준다. */
+const MAX_POPUPS = 3;
+
+/**
+ * 끝난 팝업은 빼고, 지금 진행 중인 팝업을 곧 끝나는 순으로 먼저, 자리가 남으면 곧 열릴 팝업을 빨리 여는 순으로
+ * 채운다. 서버 목록은 최신 등록순이라 앞 몇 개만 받으면 이미 끝난 팝업이 섞이므로 전체를 받아 거른다.
+ */
+export function pickOpenPopups<T extends { start_time: string; end_time: string }>(popups: T[], now = Date.now()): T[] {
+  const time = (iso: string) => new Date(iso).getTime();
+  const live = popups
+    .filter((popup) => time(popup.start_time) <= now && now <= time(popup.end_time))
+    .sort((a, b) => time(a.end_time) - time(b.end_time));
+  const upcoming = popups
+    .filter((popup) => now < time(popup.start_time))
+    .sort((a, b) => time(a.start_time) - time(b.start_time));
+  return [...live, ...upcoming].slice(0, MAX_POPUPS);
+}
+
+/** "지금 열려 있는 팝업" — 진행 중인 팝업(자리가 남으면 곧 열릴 팝업까지) 최대 3건. 끝난 팝업은 보여 주지 않는다. */
 export function OpenPopups() {
   const { data, isLoading, isError, error } = useQuery({
-    queryKey: ["popups", "landing", 3],
-    queryFn: () => fetchPopups({ page: 0, size: 3 }),
+    queryKey: ["popups", "landing", "open"],
+    queryFn: ({ signal }) => collectPages((page) => fetchPopups({ page, size: 100 }, signal)),
+    select: (all) => pickOpenPopups(all),
+    staleTime: 60_000,
   });
-  const popups = data?.content ?? [];
+  const popups = data ?? [];
 
   return (
     <section className="border-b border-line px-4 py-11 sm:px-6 sm:py-16 lg:py-20">
@@ -55,7 +75,7 @@ export function OpenPopups() {
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
           {popups.length === 0 ? (
             <div className="flex flex-col items-start justify-center gap-2 bg-wash p-8 sm:col-span-1 lg:col-span-3">
-              <p className="text-sm text-soft">아직 등록된 팝업이 없어요.</p>
+              <p className="text-sm text-soft">지금 열려 있거나 곧 열릴 팝업이 없어요.</p>
             </div>
           ) : (
             popups.map((popup, i) => (

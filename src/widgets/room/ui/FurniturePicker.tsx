@@ -396,7 +396,7 @@ function PendingCard({ item, onDelete }: { item: CustomFurniture; onDelete: () =
       </span>
       <span className="flex flex-1 flex-col gap-0.5 px-1.5 pb-1.5 pt-1">
         <span className="line-clamp-2 min-h-[2lh] text-[0.75rem] font-semibold leading-tight text-ink">{item.name}</span>
-        <span className="text-[0.66rem] text-soft">{processing ? "40초쯤 걸려요" : "다시 만들어 주세요"}</span>
+        <span className="text-[0.66rem] text-soft">{processing ? "2분쯤 걸려요" : "다시 만들어 주세요"}</span>
       </span>
       {!processing && <DeleteButton label={item.name} onClick={onDelete} />}
     </div>

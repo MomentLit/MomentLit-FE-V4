@@ -10,7 +10,7 @@ import { fetchPolyHavenFurniture } from "../lib/polyHaven";
 
 const NONE: FurnitureDef[] = [];
 const NO_MINE: CustomFurniture[] = [];
-/** 사진으로 만드는 중인 내 가구가 있으면 이 간격으로 다시 본다(한 건에 40초 안팎). */
+/** 사진으로 만드는 중인 내 가구가 있으면 이 간격으로 다시 본다(한 건에 2분쯤). */
 const PROCESSING_POLL_MS = 4000;
 
 export const MY_FURNITURE_QUERY_KEY = ["my-furniture"] as const;

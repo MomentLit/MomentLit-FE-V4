@@ -22,7 +22,7 @@ import {
 } from "@tabler/icons-react";
 import { cn } from "@/shared/lib";
 import type { PanoramaTourScene } from "@/widgets/panorama/model";
-import { directionToUv, floorCornersFromLayout, measureCeilingHeight, outerFromCorners, round, type Vec2 } from "../lib/geometry";
+import { directionToUv, floorCornersFromLayout, measureCeilingHeight, outerFromCorners, type Vec2 } from "../lib/geometry";
 import { outerOfCorners, type PickMode, type RoomStageState, type RoomView } from "../lib/stage";
 import {
   createRoomDraft,
@@ -88,8 +88,6 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
   useEffect(() => {
     if (shouldAutoOpenPanoramaTutorial()) queueMicrotask(() => setTutorialOpen(true));
   }, []);
-  // 추천 표시용 — 높이를 확인했는지(고쳤거나 천장을 쟀거나, 저장된 방을 다시 열었으면)
-  const [heightChecked, setHeightChecked] = useState(initialDraft !== null);
   const detection = useLayoutDetection();
   const detecting = detection.state.status === "running";
 
@@ -166,7 +164,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     }
     rememberDraft(draft);
     setDraft(result.draft);
-    setHint(draft.ceilingConfirmed ? null : "바닥 크기를 맞췄어요. 이제 오른쪽에서 실제 천장 높이를 넣어 주세요.");
+    setHint(draft.ceilingConfirmed ? null : "바닥 크기를 맞췄어요. 이제 ‘천장 맞추기’로 사진에서 천장 모서리 하나를 찍어 주세요.");
     setPanelOpen(true);
     return null;
   }
@@ -187,7 +185,6 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
     }
     rememberDraft(draft);
     setDraft(next);
-    setHeightChecked(true);
     setHint(null);
   }
 
@@ -200,23 +197,18 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
       return;
     }
     const layoutRatio = { z0: ratio - 1, z1: -1 };
-    // 천장 높이를 이미 넣었으면 그 높이는 두고 촬영 높이를 맞추고, 아니면 지금 촬영 높이로 천장을 잰다.
-    const next = draft.ceilingConfirmed
-      ? withCeilingHeight({ ...draft, layoutRatio }, draft.ceilingHeight)
-      : { ...draft, layoutRatio, ceilingHeight: round(draft.cameraHeight * ratio, 2) };
-    if (!(next.ceilingHeight >= MIN_CEILING_HEIGHT && next.ceilingHeight <= MAX_CEILING_HEIGHT
-      && next.cameraHeight >= MIN_CAMERA_HEIGHT && next.cameraHeight <= MAX_CAMERA_HEIGHT)) {
+    // 천장 높이(기본 2.4m 또는 넣은 값)는 그대로 두고, 찍은 천장선이 그 높이에 오도록 사진 높이(촬영 높이)를 맞춘다. 이걸로 천장 맞추기 끝.
+    const next = { ...withCeilingHeight({ ...draft, layoutRatio }, draft.ceilingHeight), ceilingConfirmed: true };
+    if (!(next.cameraHeight >= MIN_CAMERA_HEIGHT && next.cameraHeight <= MAX_CAMERA_HEIGHT)) {
       setNotice({
-        title: "천장 높이가 범위를 벗어나요",
-        message: `이 점으로 재면 천장 ${next.ceilingHeight.toFixed(2)}m · 촬영 ${next.cameraHeight.toFixed(2)}m가 돼요(천장 ${MIN_CEILING_HEIGHT}~${MAX_CEILING_HEIGHT}m, 촬영 ${MIN_CAMERA_HEIGHT}~${MAX_CAMERA_HEIGHT}m). 바닥 모서리 바로 위의 점을 다시 눌러 주세요.`,
+        title: "천장 모서리를 다시 눌러 주세요",
+        message: `이 점으로는 천장 ${next.ceilingHeight.toFixed(2)}m에 맞출 수 없어요(사진 높이가 ${next.cameraHeight.toFixed(2)}m로 계산돼요). 이미 찍은 바닥 모서리 바로 위의 천장 모서리를 눌러 주세요.`,
       });
       return;
     }
     rememberDraft(draft);
     setDraft(next);
-    setHint(draft.ceilingConfirmed
-      ? `천장 모서리에 맞춰 사진 높이를 맞췄어요(천장 ${next.ceilingHeight.toFixed(2)}m).`
-      : `천장을 ${next.ceilingHeight.toFixed(2)}m로 쟀어요. 실제 천장 높이를 넣으면 정확해져요.`);
+    setHint(`천장을 맞췄어요(천장 ${next.ceilingHeight.toFixed(2)}m). 높이가 다르면 오른쪽에서 고칠 수 있어요.`);
     setPickMode("corners");
   }, [draft, rememberDraft]);
 
@@ -308,7 +300,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
   const sizeDone = draft.planScale !== null;
   const ceilingDone = draft.ceilingConfirmed;
   const recommendPlan = hasRoom && !sizeDone;
-  const recommendCeiling = hasRoom && sizeDone && !ceilingDone && !draft.layoutRatio && !heightChecked;
+  const recommendCeiling = hasRoom && sizeDone && !ceilingDone;
   const canWalk = !!summary && draft.cameraHeight < draft.ceilingHeight;
   const statusText = validationError && draft.corners.length >= 3 ? validationError : null;
   const status = detection.state.status === "running"
@@ -407,7 +399,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
               <RailButton
                 label="천장 맞추기"
                 caption="천장"
-                hint="바닥 모서리 바로 위의 천장 모서리를 누르면 천장 높이가 맞춰져요."
+                hint="바닥 모서리 바로 위의 천장 모서리를 누르면 천장이 맞춰져요. 저장하려면 꼭 해야 해요."
                 icon={IconRuler2}
                 active={view === "photo" && pickMode === "ceiling"}
                 highlight={recommendCeiling}
@@ -469,7 +461,11 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
                     </p>
                   </li>
                   <li className="flex flex-col gap-2">
-                    <StepTitle done={ceilingDone} index={2}>실제 천장 높이 넣기</StepTitle>
+                    <StepTitle done={ceilingDone} index={2}>사진에서 천장 맞추기</StepTitle>
+                    <button type="button" onClick={toggleCeilingMeasure} disabled={busy} className={cn("button button--sm self-start", ceilingDone ? "button--outline" : "button--primary")}>
+                      <IconRuler2 size={16} aria-hidden /> {pickMode === "ceiling" ? "천장 맞추기 취소" : ceilingDone ? "천장 다시 찍기" : "천장 모서리 찍기"}
+                    </button>
+                    <p className="text-xs leading-relaxed text-soft">이미 찍은 바닥 모서리 바로 위의 천장 모서리 하나를 누르면 끝이에요.</p>
                     <HeightField
                       label="천장 높이"
                       value={draft.ceilingHeight}
@@ -479,15 +475,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
                       disabled={busy}
                       onCommit={handleCeilingCommit}
                     />
-                    {!ceilingDone && <p className="text-xs font-semibold text-coral">값을 확인한 뒤 Enter를 눌러야 적용돼요(기본값 {draft.ceilingHeight.toFixed(2)}m를 그대로 쓰려면 Enter).</p>}
-                    <button type="button" onClick={toggleCeilingMeasure} disabled={busy} className="button button--outline button--sm self-start">
-                      <IconRuler2 size={16} aria-hidden /> {pickMode === "ceiling" ? "천장 맞추기 취소" : "사진에서 천장 맞추기"}
-                    </button>
-                    <p className="text-xs leading-relaxed text-soft">
-                      {draft.layoutRatio
-                        ? "사진의 천장 비율을 알고 있어서, 천장 높이에 맞춰 사진도 세로로 맞춰져요. 1인칭에서 어긋나 보이면 천장 모서리를 다시 찍으세요."
-                        : "1인칭에서 천장선이 어긋나면 바닥 모서리 바로 위의 천장 꼭짓점 하나를 찍으세요."}
-                    </p>
+                    <p className="text-xs leading-relaxed text-soft">천장이 {draft.ceilingHeight.toFixed(2)}m가 아니면 실제 높이로 고쳐 주세요.</p>
                   </li>
                 </ol>
               </Section>
@@ -504,7 +492,6 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
                   onCommit={(value) => {
                     rememberDraft(draft);
                     setDraft((current) => withCameraHeight(current, value));
-                    setHeightChecked(true);
                   }}
                 />
               </div>
@@ -542,7 +529,7 @@ export function RoomBuilder({ scene, sceneLabel, initialDraft, backHref, backLab
               <ul className="flex list-disc flex-col gap-1 pl-4 text-xs leading-relaxed text-soft">
                 <li>도구는 화면 왼쪽 막대에 있어요. 마우스를 올리면 설명이 보이고, ‘추천’이 붙은 도구가 지금 쓰면 좋은 도구예요.</li>
                 <li>‘자동으로 모서리 찾기’를 누르거나, 사진 시점에서 바닥과 벽이 만나는 모서리를 차례대로 눌러요. 찍은 점은 끌어서 옮겨요.</li>
-                <li>‘도면’에서 바깥벽 하나의 실측 길이를 넣어 바닥 크기를 맞추고, 오른쪽에 실제 천장 높이를 넣어요. 둘 다 해야 저장돼요.</li>
+                <li>‘도면’에서 바깥벽 하나의 실측 길이를 넣어 바닥 크기를 맞추고, ‘천장 맞추기’로 천장 모서리 하나를 찍어요. 둘 다 해야 저장돼요.</li>
                 <li>‘1인칭’에서 천장이 어긋나면 ‘천장 맞추기’로 바닥 모서리 바로 위의 천장 꼭짓점을 누르세요.</li>
               </ul>
             </Section>

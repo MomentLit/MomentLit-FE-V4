@@ -42,13 +42,19 @@ export function SpaceDetailView({ spaceId }: { spaceId: number }) {
   }
 
   if (spaceQuery.isError) {
-    const notFound = isApiError(spaceQuery.error) && spaceQuery.error.response?.status === 404;
+    const status = isApiError(spaceQuery.error) ? spaceQuery.error.response?.status : undefined;
+    const notFound = status === 404;
+    const forbidden = status === 403;
     return (
       <div className="px-4 py-24 text-center">
         <p className="text-lg font-semibold text-ink">
-          {notFound ? "존재하지 않는 공간이에요." : "공간 정보를 불러오지 못했어요."}
+          {notFound
+            ? "존재하지 않는 공간이에요."
+            : forbidden
+              ? "아직 공개되지 않은 공간이에요."
+              : "공간 정보를 불러오지 못했어요."}
         </p>
-        {!notFound && <p className="mt-2 text-sm text-soft">{getErrorMessage(spaceQuery.error)}</p>}
+        {!notFound && !forbidden && <p className="mt-2 text-sm text-soft">{getErrorMessage(spaceQuery.error)}</p>}
       </div>
     );
   }

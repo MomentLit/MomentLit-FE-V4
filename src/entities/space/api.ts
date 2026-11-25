@@ -80,8 +80,12 @@ export async function fetchLikedSpaces(params: SpaceSearchParams = {}): Promise<
   return data.data;
 }
 
+/**
+ * `GET /spaces/{id}` — 승인 안 된 공간은 주인·관리자만 볼 수 있어서(그 외 403),
+ * 로그인돼 있으면 토큰을 붙여 보내야 한다. 비로그인이면 토큰 없이 그대로 나간다.
+ */
 export async function fetchSpace(spaceId: number): Promise<SpaceDetail> {
-  const { data } = await publicApiClient.get<ApiResponse<SpaceDetail>>(`/spaces/${spaceId}`);
+  const { data } = await apiClient.get<ApiResponse<SpaceDetail>>(`/spaces/${spaceId}`);
   return data.data;
 }
 

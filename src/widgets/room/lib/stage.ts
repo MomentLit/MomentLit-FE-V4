@@ -58,6 +58,8 @@ export interface FurniturePlacement {
   rotation?: number;
 }
 
+export type FurnitureMoveSource = "drag" | "settle";
+
 export interface FurnitureMove extends FurniturePlacement {
   index: number;
 }
@@ -101,8 +103,11 @@ export interface RoomStageCallbacks {
   onCeilingPick?: (uv: Vec2) => void;
   onHint?: (message: string) => void;
   onFurnitureSelect?: (index: number | null) => void;
-  /** 끌어서 옮긴 가구들 — 위에 올린 소품도 같이 오고, 받침이 사라진 소품은 내려앉는다. */
-  onFurnitureMove?: (moves: FurnitureMove[]) => void;
+  /**
+   * 끌어서 옮긴 가구들 — 위에 올린 소품도 같이 오고, 받침이 사라진 소품은 내려앉는다.
+   * `source`는 사용자가 끈 것(`drag`)인지, 무대가 알아서 내려앉힌 것(`settle`)인지 — 실행 취소 기록을 나눌 때 쓴다.
+   */
+  onFurnitureMove?: (moves: FurnitureMove[], source: FurnitureMoveSource) => void;
   /** 끌기를 마쳤을 때 — 실행 취소 기록 등에 쓴다. */
   onFurnitureDragEnd?: () => void;
   onPlace?: (placement: FurniturePlacement) => void;
@@ -1052,7 +1057,7 @@ export class RoomStage {
       if (!childItem) continue;
       moves.push({ index: child.index, x: x + child.dx, z: z + child.dz, y: placement.y + child.dy, rotation: childItem.rotation });
     }
-    this.callbacks.onFurnitureMove?.(moves);
+    this.callbacks.onFurnitureMove?.(moves, "drag");
   }
 
   private settleQueued = false;
@@ -1095,7 +1100,7 @@ export class RoomStage {
       }
       if (Math.abs(support - y) > 0.01) moves.push({ index, x: item.x, z: item.z, y: support, rotation: item.rotation });
     });
-    if (moves.length) this.callbacks.onFurnitureMove?.(moves);
+    if (moves.length) this.callbacks.onFurnitureMove?.(moves, "settle");
   }
 
   /**

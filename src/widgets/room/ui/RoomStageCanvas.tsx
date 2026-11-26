@@ -64,7 +64,7 @@ export function RoomStageCanvas({
           onCeilingPick: (uv) => callbacksRef.current.onCeilingPick?.(uv),
           onHint: (message) => callbacksRef.current.onHint?.(message),
           onFurnitureSelect: (index) => callbacksRef.current.onFurnitureSelect?.(index),
-          onFurnitureMove: (moves) => callbacksRef.current.onFurnitureMove?.(moves),
+          onFurnitureMove: (moves, source) => callbacksRef.current.onFurnitureMove?.(moves, source),
           onFurnitureDragEnd: () => callbacksRef.current.onFurnitureDragEnd?.(),
           onPlace: (placement) => callbacksRef.current.onPlace?.(placement),
           onFurnitureLoading: (count) => callbacksRef.current.onFurnitureLoading?.(count),

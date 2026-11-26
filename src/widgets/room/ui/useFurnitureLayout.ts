@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useAuthStore } from "@/entities/auth/store";
 import {
@@ -15,8 +15,11 @@ import {
 import { getErrorMessage } from "@/shared/api";
 import { knownFurniture } from "../lib/furniture";
 import { round } from "../lib/geometry";
+import { applyHistory, createHistory, redoHistory, undoHistory, type History } from "../lib/history";
 
 const STORAGE_PREFIX = "momentlit:room-draft:";
+
+type ItemsUpdate = FurnitureItem[] | ((current: FurnitureItem[]) => FurnitureItem[]);
 
 /** 브라우저에 남겨 두는 "지금 편집 중인 배치" — 저장 여부와 상관없이 닫았다 열어도 이어서 본다. */
 interface LocalDraft {
@@ -83,7 +86,11 @@ export function useFurnitureLayouts(spaceId: number, roomId: number) {
   });
   const layouts = isAuthenticated ? layoutsQuery.data ?? [] : [];
 
-  const [items, setItems] = useState<FurnitureItem[]>([]);
+  // 지금 배치와 실행 취소 기록 — 되돌리기(⌘Z)·다시 실행(⌘⇧Z)
+  const [history, setHistory] = useState<History<FurnitureItem[]>>(() => createHistory([]));
+  const items = history.present;
+  // 끌기 중인지 — 끌기 하나(움직임 여러 번)를 되돌리기 한 단계로 묶는다
+  const draggingRef = useRef(false);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -95,7 +102,7 @@ export function useFurnitureLayouts(spaceId: number, roomId: number) {
     initializedRef.current = true;
     const draft = readDraft(draftKey);
     queueMicrotask(() => {
-      setItems(draft?.items ?? []);
+      setHistory(createHistory(draft?.items ?? []));
       setActiveId(draft?.layoutId ?? null);
       setReady(true);
     });
@@ -104,6 +111,40 @@ export function useFurnitureLayouts(spaceId: number, roomId: number) {
   useEffect(() => {
     if (ready) writeDraft(draftKey, { items, layoutId: activeId });
   }, [ready, draftKey, items, activeId]);
+
+  const update = useCallback((value: ItemsUpdate, record: boolean) => {
+    setHistory((current) => applyHistory(current, typeof value === "function" ? value(current.present) : value, record));
+  }, []);
+
+  /** 한 번에 끝나는 편집(놓기·돌리기·지우기·붙여넣기 등) — 되돌리기 한 단계. */
+  const setItems = useCallback((value: ItemsUpdate) => {
+    draggingRef.current = false;
+    update(value, true);
+  }, [update]);
+
+  /** 끌기 중 움직임 — 끌기를 시작할 때만 기록하고, 끝날 때(`endDrag`)까지는 같은 단계에 합친다. */
+  const dragItems = useCallback((value: ItemsUpdate) => {
+    const record = !draggingRef.current;
+    draggingRef.current = true;
+    update(value, record);
+  }, [update]);
+
+  const endDrag = useCallback(() => {
+    draggingRef.current = false;
+  }, []);
+
+  /** 무대가 알아서 맞추는 변경(받침이 사라진 소품 내려앉히기) — 따로 되돌리지 않고 앞 단계에 합친다. */
+  const adjustItems = useCallback((value: ItemsUpdate) => update(value, false), [update]);
+
+  const undo = useCallback(() => {
+    draggingRef.current = false;
+    setHistory(undoHistory);
+  }, []);
+
+  const redo = useCallback(() => {
+    draggingRef.current = false;
+    setHistory(redoHistory);
+  }, []);
 
   // 고치던 배치가 목록에 없으면(다른 기기에서 지웠거나 로그아웃) 새 배치로 본다.
   const active = layouts.find((layout) => layout.layout_id === activeId) ?? null;
@@ -130,14 +171,14 @@ export function useFurnitureLayouts(spaceId: number, roomId: number) {
     }
   }
 
-  /** 저장된 배치를 화면에 불러온다. */
+  /** 저장된 배치를 화면에 불러온다(되돌리기로 불러오기 전으로 돌아갈 수 있다). */
   function load(layout: FurnitureLayout) {
     setItems(knownFurniture(layout.items));
     setActiveId(layout.layout_id);
     setError(null);
   }
 
-  /** 초기화 — 가구를 모두 빼고 새 배치로 시작한다(저장한 배치는 그대로). */
+  /** 초기화 — 가구를 모두 빼고 새 배치로 시작한다(저장한 배치는 그대로, 되돌리기로 되살릴 수 있다). */
   function startNew() {
     setItems([]);
     setActiveId(null);
@@ -185,6 +226,13 @@ export function useFurnitureLayouts(spaceId: number, roomId: number) {
   return {
     items,
     setItems,
+    dragItems,
+    endDrag,
+    adjustItems,
+    undo,
+    redo,
+    canUndo: history.past.length > 0,
+    canRedo: history.future.length > 0,
     ready,
     layouts,
     layoutsLoading: isAuthenticated && layoutsQuery.isPending,

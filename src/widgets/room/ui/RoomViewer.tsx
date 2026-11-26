@@ -1,10 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
 import Link from "next/link";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  IconArrowBackUp,
+  IconArrowForwardUp,
   IconArrowLeft,
+  IconCopy,
   IconCube,
   IconLayoutBoard,
   IconLoader2,
@@ -18,10 +21,11 @@ import { useAuthStore } from "@/entities/auth/store";
 import { deleteMyFurniture, fetchRooms, type Room } from "@/entities/room";
 import { fetchSpace } from "@/entities/space/api";
 import { cn } from "@/shared/lib";
+import { copyFurniture, pasteFurniture, type FurnitureClipboard } from "../lib/clipboard";
 import { findFurniture, furnitureMount, isStackable, normalizeRotation } from "../lib/furniture";
 import { ceilingMountY, DEFAULT_WALL_CENTER, itemsOnTop, nearestWallPlacement, wallMountY } from "../lib/placement";
 import { polygonArea, toPyeong, wallLengths } from "../lib/geometry";
-import type { FurnitureMove, FurniturePlacement, RoomStageState, RoomView } from "../lib/stage";
+import type { FurnitureMove, FurnitureMoveSource, FurniturePlacement, RoomStageState, RoomView } from "../lib/stage";
 import { savedPlanScale } from "../model";
 import { roomPlanFloorImage } from "../planModel";
 import { PanelSection as Section, PanelToggleButton } from "./EditorChrome";
@@ -68,6 +72,17 @@ function placingMessage(type: string) {
 
 function isTypingTarget(target: EventTarget | null) {
   return target instanceof HTMLElement && (target.isContentEditable || ["INPUT", "SELECT", "TEXTAREA"].includes(target.tagName));
+}
+
+const noSubscribe = () => () => undefined;
+
+/** 단축키 표시 — 맥은 ⌘, 그 밖엔 Ctrl+. 서버에서 그릴 땐 Ctrl+(화면에 붙은 뒤 맞춘다). */
+function useModKeyLabel() {
+  return useSyncExternalStore(
+    noSubscribe,
+    () => (/Mac|iPhone|iPad/.test(navigator.platform) ? "⌘" : "Ctrl+"),
+    () => "Ctrl+",
+  );
 }
 
 /** 이 화면에서 그릴 수 있는 방 — 파노라마 방은 사진과 촬영 높이, 도면 방은 도면 정보가 있어야 한다. */
@@ -161,7 +176,10 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
   const [placingType, setPlacingType] = useState<string | null>(null);
   const [hint, setHint] = useState<string | null>(null);
   const layouts = useFurnitureLayouts(spaceId, room.room_id);
-  const { items, setItems } = layouts;
+  const { items, setItems, dragItems, endDrag, adjustItems, undo, redo, canUndo, canRedo } = layouts;
+  const modKey = useModKeyLabel();
+  // 복사해 둔 가구와 몇 번 붙여 넣었는지(붙일 때마다 조금씩 더 비켜 놓는다)
+  const clipboardRef = useRef<{ items: FurnitureClipboard; count: number } | null>(null);
   // 오른쪽 정보 칸 — 접으면 3D 화면을 넓게 쓴다
   const [panelOpen, setPanelOpen] = useState(true);
   const library = useFurnitureLibrary();
@@ -237,10 +255,63 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
     setSelected(null);
   }, [selectedIndex, setItems]);
 
-  // 단축키 — R 90°, Shift+R 15°, Delete 지우기, Esc 선택·놓기 취소. (1인칭 이동 키는 무대가 받는다)
+  const copySelected = useCallback(() => {
+    if (selectedIndex === null) return false;
+    const copied = copyFurniture(items, selectedIndex, findFurniture);
+    if (!copied) return false;
+    clipboardRef.current = { items: copied, count: 0 };
+    const name = findFurniture(copied[0].type)?.name ?? "가구";
+    const extra = copied.length > 1 ? ` (위에 올린 소품 ${copied.length - 1}개 포함)` : "";
+    setHint(`${name}${extra}을(를) 복사했어요. ${modKey}V로 붙여 넣어요.`);
+    return true;
+  }, [items, selectedIndex, modKey]);
+
+  const paste = useCallback(() => {
+    const clipboard = clipboardRef.current;
+    if (!clipboard) return false;
+    clipboard.count += 1;
+    const pasted = pasteFurniture(clipboard.items, clipboard.count, room.geometry, findFurniture);
+    if (pasted.length === 0) return false;
+    // 붙여 넣은 가구(소품이 있으면 받침)를 골라 둔다 — 바로 끌거나 돌릴 수 있게
+    setSelected(items.length);
+    setItems((current) => [...current, ...pasted]);
+    setPlacingType(null);
+    setHint(`붙여 넣었어요. 끌어서 옮기고, ${modKey}Z로 되돌릴 수 있어요.`);
+    return true;
+  }, [items.length, room.geometry, setItems, modKey]);
+
+  const undoOrRedo = useCallback((direction: "undo" | "redo") => {
+    if (direction === "undo" ? !canUndo : !canRedo) return;
+    if (direction === "undo") undo();
+    else redo();
+    // 되돌리면 가구 순서가 바뀌어 고른 번호가 다른 가구를 가리킬 수 있다
+    setSelected(null);
+    setPlacingType(null);
+    setHint(direction === "undo" ? "이전 작업으로 되돌렸어요." : "되돌린 작업을 다시 실행했어요.");
+  }, [canUndo, canRedo, undo, redo]);
+
+  // 단축키 — R 90°, Shift+R 15°, Delete 지우기, Esc 선택·놓기 취소,
+  // ⌘/Ctrl+Z 되돌리기, ⌘/Ctrl+Shift+Z·Ctrl+Y 다시 실행, ⌘/Ctrl+C·V 복사·붙여넣기. (1인칭 이동 키는 무대가 받는다)
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
       if (isTypingTarget(event.target) || view === "walk") return;
+      // 한글 입력 상태에서도 되게 글자(key) 대신 자판 위치(code)로 본다
+      if ((event.metaKey || event.ctrlKey) && !event.altKey) {
+        if (event.code === "KeyZ") {
+          event.preventDefault();
+          undoOrRedo(event.shiftKey ? "redo" : "undo");
+        } else if (event.code === "KeyY" && event.ctrlKey) {
+          event.preventDefault();
+          undoOrRedo("redo");
+        } else if (event.code === "KeyC") {
+          // 글자를 골라 둔 상태면 브라우저 복사를 그대로 둔다
+          if (window.getSelection()?.toString()) return;
+          if (copySelected()) event.preventDefault();
+        } else if (event.code === "KeyV") {
+          if (paste()) event.preventDefault();
+        }
+        return;
+      }
       if (event.key === "r" || event.key === "R") {
         rotateSelected(event.shiftKey ? Math.PI / 12 : Math.PI / 2);
       } else if ((event.key === "Delete" || event.key === "Backspace") && selectedIndex !== null) {
@@ -253,7 +324,7 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [view, selectedIndex, rotateSelected, deleteSelected]);
+  }, [view, selectedIndex, rotateSelected, deleteSelected, undoOrRedo, copySelected, paste]);
 
   function changeView(next: ViewerView) {
     setView(next);
@@ -282,8 +353,10 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
   }, [items.length, placingType, setItems]);
 
   // 3D에서 끌기 — 위에 올린 소품, 받침이 사라져 내려앉는 소품까지 한 번에 온다
-  const handleStageMove = useCallback((moves: FurnitureMove[]) => {
-    setItems((current) => {
+  // 끈 것은 끌기 하나를 되돌리기 한 단계로, 무대가 내려앉힌 것은 앞 단계에 합친다
+  const handleStageMove = useCallback((moves: FurnitureMove[], source: FurnitureMoveSource) => {
+    const apply = source === "drag" ? dragItems : adjustItems;
+    apply((current) => {
       const next = [...current];
       for (const move of moves) {
         const item = next[move.index];
@@ -291,7 +364,7 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
       }
       return next;
     });
-  }, [setItems]);
+  }, [dragItems, adjustItems]);
 
   /** 도면에서 누른 점에 `type` 가구를 놓을 자리 — 벽 가구는 가장 가까운 벽에 붙이고, 천장 가구는 천장에 단다. */
   const planPlacement = useCallback((type: string, x: number, z: number, current?: { y?: number | null }): FurniturePlacement | null => {
@@ -315,7 +388,7 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
   }, [placingType, planPlacement, handlePlace]);
 
   const handlePlanMove = useCallback((index: number, x: number, z: number) => {
-    setItems((current) => {
+    dragItems((current) => {
       const item = current[index];
       const placement = item && planPlacement(item.type, x, z, item);
       if (!placement) return current;
@@ -327,7 +400,7 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
         return riders.has(i) ? { ...other, x: other.x + dx, z: other.z + dz } : other;
       });
     });
-  }, [planPlacement, setItems]);
+  }, [planPlacement, dragItems]);
 
   const stageView: RoomView = view === "plan" ? "miniature" : view;
   const renderPicker = (layout: "rail" | "compact", className?: string) => (
@@ -340,7 +413,7 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
       usesPolyHaven={library.usesPolyHaven}
       placingType={placingType}
       disabled={view === "walk"}
-      note={view === "walk" ? "1인칭에서는 둘러보기만 해요. 가구는 다른 시점에서 놓아 주세요." : "고른 가구는 R로 돌리고 Delete로 지워요."}
+      note={view === "walk" ? "1인칭에서는 둘러보기만 해요. 가구는 다른 시점에서 놓아 주세요." : `고른 가구는 R로 돌리고 Delete로 지워요. ${modKey}C·${modKey}V로 복사, ${modKey}Z로 되돌려요.`}
       onPick={startPlacing}
       mine={library.mine}
       signedIn={library.signedIn}
@@ -403,6 +476,7 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
             selectedFurniture={selectedIndex}
             onFurnitureSelect={setSelected}
             onFurnitureMove={handleStageMove}
+            onFurnitureDragEnd={endDrag}
             onPlace={handlePlace}
             onHint={setHint}
             onFurnitureLoading={setLoadingModels}
@@ -418,7 +492,7 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
               placingType={placingType}
               onSelect={setSelected}
               onMove={handlePlanMove}
-              onDragEnd={() => undefined}
+              onDragEnd={endDrag}
               onPlace={handlePlanPlace}
               onHint={setHint}
               floorImage={floorImage}
@@ -433,6 +507,31 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
               <IconLoader2 size={14} stroke={2.2} aria-hidden className="animate-spin" />
               가구 모델 불러오는 중{loadingModels > 1 ? ` · ${loadingModels}개` : ""}
             </p>
+          )}
+          {/* 되돌리기·다시 실행 — 1인칭에선 가구를 고치지 않아 숨긴다 */}
+          {view !== "walk" && (
+            <div role="toolbar" aria-label="실행 취소" className="absolute right-3 top-3 flex gap-1 border border-line bg-white p-1 shadow-[0_2px_10px_rgba(21,23,28,.15)]">
+              <button
+                type="button"
+                onClick={() => undoOrRedo("undo")}
+                disabled={!canUndo}
+                aria-label={`되돌리기 (${modKey}Z)`}
+                title={`되돌리기 (${modKey}Z)`}
+                className="button button--outline button--sm button--icon"
+              >
+                <IconArrowBackUp size={16} stroke={2} aria-hidden />
+              </button>
+              <button
+                type="button"
+                onClick={() => undoOrRedo("redo")}
+                disabled={!canRedo}
+                aria-label={`다시 실행 (${modKey}Shift+Z)`}
+                title={`다시 실행 (${modKey}Shift+Z)`}
+                className="button button--outline button--sm button--icon"
+              >
+                <IconArrowForwardUp size={16} stroke={2} aria-hidden />
+              </button>
+            </div>
           )}
           {/* 선택한 가구 — 화면 아래 가운데에 띄워서, 고르고 풀 때 옆 패널이 밀리지 않게 */}
           {view !== "plan" && selectedDef && (
@@ -456,6 +555,10 @@ function RoomViewerBody({ spaceId, room, rooms, onRoomChange }: {
               ) : (
                 <span className="px-1 text-xs text-soft">벽을 따라 끌어 옮겨요</span>
               )}
+              <button type="button" onClick={() => { if (copySelected()) paste(); }} className="button button--outline button--sm" title={`복제 (${modKey}C → ${modKey}V)`}>
+                <IconCopy size={15} stroke={2} aria-hidden />
+                복제
+              </button>
               <button type="button" onClick={deleteSelected} aria-label="지우기 (Delete)" title="지우기 (Delete)" className="button button--danger button--sm button--icon">
                 <IconTrash size={15} stroke={2} aria-hidden />
               </button>
